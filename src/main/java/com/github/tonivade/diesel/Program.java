@@ -9,23 +9,23 @@ import java.util.function.Function;
 
 public sealed interface Program<S, T> {
 
-  record Pure<S, T>(T value) implements Program<S, T> {
-    @Override
-    public T eval(S state) {
-      return value;
-    }
-  }
+  record Pure<S, T>(T value) implements Program<S, T> {}
 
   record FlatMap<S, T, R>(Program<S, T> current, Function<T, Program<S, R>> next) implements Program<S, R> {
-    @Override
-    public R eval(S state) {
+    public R safeEval(S state) {
       return next.apply(current.eval(state)).eval(state);
     }
   };
 
   non-sealed interface Dsl<S, T> extends Program<S, T> {}
 
-  T eval(S state);
+  default T eval(S state) {
+    return switch (this) {
+      case Dsl<S, T> dsl -> dsl.eval(state);
+      case Pure<S, T>(var value) -> value;
+      case FlatMap<S, ?, T> flatMap -> flatMap.safeEval(state);
+    };
+  }
 
   static <S, T> Program<S, T> pure(T value) {
     return new Pure<>(value);
