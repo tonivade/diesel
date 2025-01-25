@@ -198,12 +198,12 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, T> {
     private final Map<Integer, TodoEntity> repository = new HashMap<>();
 
     @Override
-    public Integer increment() {
+    public int increment() {
       return counter.incrementAndGet();
     }
 
     @Override
-    public Integer decrement() {
+    public int decrement() {
       return counter.decrementAndGet();
     }
 
