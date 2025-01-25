@@ -199,6 +199,11 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, T> {
     }
 
     @Override
+    public Integer decrement() {
+      return counter.decrementAndGet();
+    }
+
+    @Override
     public void create(TodoEntity todo) {
       repository.put(todo.id(), todo);
     }
