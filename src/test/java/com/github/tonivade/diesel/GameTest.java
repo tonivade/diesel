@@ -14,18 +14,26 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class GameTest {
 
   @Test
-  void test(@Mock Game.Context context) {
+  void testWin(@Mock Game.Context context) {
     when(context.nextInt(10)).thenReturn(3);
     when(context.get()).thenReturn(3);
-    when(context.readLine()).thenReturn("Toni", "y", "1", "2", "3");
+    when(context.readLine()).thenReturn("y", "1", "2", "3");
 
     program().eval(context);
 
     verify(context).set(3);
-    verify(context).writeLine("What's your name?");
-    verify(context).writeLine("Hello Toni");
     verify(context).writeLine("Do you want to play a game? (Y/y)");
     verify(context, times(3)).writeLine("Enter a number");
     verify(context).writeLine("YOU WIN!!");
+  }
+
+  @Test
+  void testQuit(@Mock Game.Context context) {
+    when(context.readLine()).thenReturn("n");
+
+    program().eval(context);
+
+    verify(context).writeLine("Do you want to play a game? (Y/y)");
+    verify(context).writeLine("Bye!");
   }
 }

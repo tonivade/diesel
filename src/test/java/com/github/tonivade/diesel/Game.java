@@ -4,7 +4,6 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.writeLine;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -16,9 +15,7 @@ interface Game {
   }
 
   static Program<Context, Void> program() {
-    return Console.<Context>whatsYourName()
-        .flatMap(Console::sayHello)
-        .andThen(prompt("Do you want to play a game? (Y/y)"))
+    return Console.<Context>prompt("Do you want to play a game? (Y/y)")
         .flatMap(Game::playOrExit);
   }
 
