@@ -10,14 +10,14 @@ repositories {
 
 java {
   toolchain {
-    languageVersion = JavaLanguageVersion.of(21)
+    languageVersion = JavaLanguageVersion.of(23)
   }
 }
 
 tasks.withType(JavaCompile) {
-  options.compilerArgs << '-Xlint:unchecked'
-  options.compilerArgs << '-Xlint:rawtypes'
-  options.release = 21
+  options.compilerArgs << '--enable-preview'
+  options.compilerArgs << '-Xlint:all'
+  options.release = 23
   if (!name.toLowerCase().contains("test")) {
     options.errorprone {
       check("NullAway", net.ltgt.gradle.errorprone.CheckSeverity.ERROR)
@@ -42,4 +42,6 @@ dependencies {
 
 test {
   useJUnitPlatform()
+  
+  jvmArgs += '--enable-preview'
 }
