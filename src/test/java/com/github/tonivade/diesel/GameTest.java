@@ -1,8 +1,8 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Game.program;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
@@ -21,10 +21,11 @@ class GameTest {
 
     program().eval(context);
 
-    verify(context).set(3);
-    verify(context).writeLine("Do you want to play a game? (Y/y)");
-    verify(context, times(3)).writeLine("Enter a number");
-    verify(context).writeLine("YOU WIN!!");
+    var inOrder = inOrder(context);
+    inOrder.verify(context).writeLine("Do you want to play a game? (Y/y)");
+    inOrder.verify(context).set(3);
+    inOrder.verify(context, times(3)).writeLine("Enter a number");
+    inOrder.verify(context).writeLine("YOU WIN!!");
   }
 
   @Test
@@ -33,7 +34,8 @@ class GameTest {
 
     program().eval(context);
 
-    verify(context).writeLine("Do you want to play a game? (Y/y)");
-    verify(context).writeLine("Bye!");
+    var inOrder = inOrder(context);
+    inOrder.verify(context).writeLine("Do you want to play a game? (Y/y)");
+    inOrder.verify(context).writeLine("Bye!");
   }
 }

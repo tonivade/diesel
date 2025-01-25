@@ -2,7 +2,7 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Todo.program;
 import static com.github.tonivade.diesel.Todo.State.NOT_COMPLETED;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
@@ -22,8 +22,8 @@ class TodoTest {
 
     program().eval(context);
 
-    verify(context).create(new TodoEntity(1, "buy milk", NOT_COMPLETED));
-    verify(context).writeLine("Bye!");
+    var inOrder = inOrder(context);
+    inOrder.verify(context).create(new TodoEntity(1, "buy milk", NOT_COMPLETED));
+    inOrder.verify(context).writeLine("Bye!");
   }
-
 }
