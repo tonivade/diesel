@@ -12,44 +12,46 @@ import java.util.concurrent.atomic.AtomicInteger;
 interface Game {
 
   static void main(String... args) {
-    var program = Console.<GameContext>whatsYourName()
+    program().eval(new Context() {});
+  }
+
+  static Program<Context, Void> program() {
+    return Console.<Context>whatsYourName()
         .flatMap(Console::sayHello)
         .andThen(prompt("Do you want to play a game? (Y/y)"))
         .flatMap(Game::playOrExit);
-
-    program.eval(new GameContext());
   }
 
-  static Program<GameContext, Void> playOrExit(String answer) {
+  static Program<Context, Void> playOrExit(String answer) {
     if (answer.equalsIgnoreCase("y")) {
       return randomNumber().andThen(loop());
     }
     return writeLine("Bye!");
   }
 
-  static Program<GameContext, Void> randomNumber() {
-    return Random.<GameContext>nextInt(10).flatMap(Reference::set);
+  static Program<Context, Void> randomNumber() {
+    return Random.<Context>nextInt(10).flatMap(Reference::set);
   }
 
-  static Program<GameContext, Void> loop() {
-    return Console.<GameContext>prompt("Enter a number")
+  static Program<Context, Void> loop() {
+    return Console.<Context>prompt("Enter a number")
       .map(Integer::parseInt)
       .flatMap(Game::checkNumber)
       .flatMap(Game::winOrContinue);
   }
 
-  static Program<GameContext, Boolean> checkNumber(int number) {
-    return Reference.<Integer, GameContext>get().map(value -> value == number);
+  static Program<Context, Boolean> checkNumber(int number) {
+    return Reference.<Integer, Context>get().map(value -> value == number);
   }
 
-  static Program<GameContext, Void> winOrContinue(boolean answer) {
+  static Program<Context, Void> winOrContinue(boolean answer) {
     if (answer) {
       return writeLine("YOU WIN!!");
     }
     return loop();
   }
 
-  final class GameContext implements Random.Service, Reference.Service<Integer>, Console.Service {
+  abstract class Context implements Random.Service, Reference.Service<Integer>, Console.Service {
 
     private final AtomicInteger value = new AtomicInteger();
 
