@@ -31,5 +31,4 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
       case GetValue _ -> state.get();
     };
   }
-
 }
