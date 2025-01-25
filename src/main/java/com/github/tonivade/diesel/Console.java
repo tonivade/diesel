@@ -6,14 +6,17 @@ package com.github.tonivade.diesel;
 
 import static java.lang.System.console;
 
+import org.jspecify.annotations.Nullable;
+
 public sealed interface Console<T> extends Program.Dsl<Console.Service, T> {
 
   interface Service {
-    @SuppressWarnings("preview")
+    @SuppressWarnings({"preview", "NullAway"})
     default void writeLine(String line) {
       console().println(line);
     }
 
+    @SuppressWarnings("NullAway")
     default String readLine() {
       return console().readLine();
     }
@@ -47,6 +50,7 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, T> {
 
   @Override
   @SuppressWarnings("unchecked")
+  @Nullable
   default T eval(Service service) {
     return (T) switch (this) {
       case WriteLine(var line) -> {

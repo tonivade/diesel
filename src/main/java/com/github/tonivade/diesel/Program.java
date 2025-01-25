@@ -7,11 +7,14 @@ package com.github.tonivade.diesel;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import org.jspecify.annotations.Nullable;
+
 public sealed interface Program<S, T> {
 
   record Pure<S, T>(T value) implements Program<S, T> {}
 
   record FlatMap<S, T, R>(Program<S, T> current, Function<T, Program<S, R>> next) implements Program<S, R> {
+    @Nullable
     public R safeEval(S state) {
       return next.apply(current.eval(state)).eval(state);
     }
@@ -19,6 +22,7 @@ public sealed interface Program<S, T> {
 
   non-sealed interface Dsl<S, T> extends Program<S, T> {}
 
+  @Nullable
   default T eval(S state) {
     return switch (this) {
       case Dsl<S, T> dsl -> dsl.eval(state);

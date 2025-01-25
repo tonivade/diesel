@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel;
 
+import org.jspecify.annotations.Nullable;
+
 public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>, T> {
 
   interface Service<V> {
@@ -24,8 +26,9 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
     return (Program<S, V>) new GetValue<>();
   }
 
-  @SuppressWarnings({ "unchecked", "rawtypes" })
   @Override
+  @SuppressWarnings({ "unchecked", "rawtypes" })
+  @Nullable
   default T eval(Service<V> state) {
     return (T) switch (this) {
       case SetValue set -> {
