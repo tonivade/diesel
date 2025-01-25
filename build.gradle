@@ -3,6 +3,8 @@ plugins {
   id "net.ltgt.errorprone" version "4.1.0"
 }
 
+group = 'com.github.tonivade'
+
 repositories {
   mavenLocal()
   mavenCentral()
