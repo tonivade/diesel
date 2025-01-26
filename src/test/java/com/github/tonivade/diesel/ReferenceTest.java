@@ -1,6 +1,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Reference.set;
+import static com.github.tonivade.diesel.Result.success;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,8 +26,8 @@ class ReferenceTest {
   void shouldGetValue(@Mock Reference.Service<Integer> service) {
     when(service.get()).thenReturn(10);
 
-    var value = Reference.<Integer, Reference.Service<Integer>>get().eval(service);
+    var value = Reference.<Integer, Reference.Service<Integer>, Error>get().eval(service);
 
-    assertThat(value).isEqualTo(10);
+    assertThat(value).isEqualTo(success(10));
   }
 }

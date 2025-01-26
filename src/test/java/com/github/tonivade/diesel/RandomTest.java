@@ -1,6 +1,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Random.nextInt;
+import static com.github.tonivade.diesel.Result.success;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
@@ -18,6 +19,6 @@ class RandomTest {
 
     var result = nextInt(10).eval(service);
 
-    assertThat(result).isEqualTo(8);
+    assertThat(result).isEqualTo(success(8));
   }
 }

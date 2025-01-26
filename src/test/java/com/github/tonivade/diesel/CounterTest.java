@@ -2,6 +2,7 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Counter.decrement;
 import static com.github.tonivade.diesel.Counter.increment;
+import static com.github.tonivade.diesel.Result.success;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -21,7 +22,7 @@ class CounterTest {
 
     var result = increment().andThen(increment()).andThen(increment()).eval(service);
 
-    assertThat(result).isEqualTo(3);
+    assertThat(result).isEqualTo(success(3));
     verify(service, times(3)).increment();
   }
 
@@ -31,7 +32,7 @@ class CounterTest {
 
     var result = decrement().andThen(decrement()).andThen(decrement()).eval(service);
 
-    assertThat(result).isEqualTo(1);
+    assertThat(result).isEqualTo(success(1));
     verify(service, times(3)).decrement();
   }
 }

@@ -4,9 +4,9 @@
  */
 package com.github.tonivade.diesel;
 
-import org.jspecify.annotations.Nullable;
+import static com.github.tonivade.diesel.Result.success;
 
-public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>, T> {
+public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>, Void, T> {
 
   interface Service<V> {
     void set(V value);
@@ -17,25 +17,25 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
   record GetValue<V>() implements Reference<V, V> {}
 
   @SuppressWarnings("unchecked")
-  static <V, S extends Service<V>> Program<S, Void> set(V value) {
-    return (Program<S, Void>) new SetValue<>(value);
+  static <V, S extends Service<V>, E> Program<S, E, Void> set(V value) {
+    return (Program<S, E, Void>) new SetValue<>(value);
   }
 
   @SuppressWarnings("unchecked")
-  static <V, S extends Service<V>> Program<S, V> get() {
-    return (Program<S, V>) new GetValue<>();
+  static <V, S extends Service<V>, E> Program<S, E, V> get() {
+    return (Program<S, E, V>) new GetValue<>();
   }
 
   @Override
   @SuppressWarnings({ "unchecked", "rawtypes" })
-  @Nullable
-  default T eval(Service<V> state) {
-    return (T) switch (this) {
+  default Result<Void, T> eval(Service<V> state) {
+    var result = (T) switch (this) {
       case SetValue set -> {
         state.set((V) set.value());
         yield null;
       }
       case GetValue _ -> state.get();
     };
+    return success(result);
   }
 }

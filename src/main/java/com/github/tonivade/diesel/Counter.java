@@ -4,7 +4,9 @@
  */
 package com.github.tonivade.diesel;
 
-public sealed interface Counter extends Program.Dsl<Counter.Service, Integer> {
+import static com.github.tonivade.diesel.Result.success;
+
+public sealed interface Counter extends Program.Dsl<Counter.Service, Void, Integer> {
 
   interface Service {
     int increment();
@@ -15,20 +17,21 @@ public sealed interface Counter extends Program.Dsl<Counter.Service, Integer> {
   record Decrement() implements Counter {}
 
   @SuppressWarnings("unchecked")
-  static <S extends Service> Program<S, Integer> increment() {
-    return (Program<S, Integer>) new Increment();
+  static <S extends Service, E> Program<S, E, Integer> increment() {
+    return (Program<S, E, Integer>) new Increment();
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Service> Program<S, Integer> decrement() {
-    return (Program<S, Integer>) new Decrement();
+  static <S extends Service, E> Program<S, E, Integer> decrement() {
+    return (Program<S, E, Integer>) new Decrement();
   }
 
   @Override
-  default Integer eval(Service state) {
-    return switch (this) {
+  default Result<Void, Integer> eval(Service state) {
+    var result = switch (this) {
       case Increment _ -> state.increment();
       case Decrement _ -> state.decrement();
     };
+    return success(result);
   }
 }
