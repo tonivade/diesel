@@ -35,8 +35,7 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
   }
 
   static <S extends Service, E> Program<S, E, String> prompt(String question) {
-    Program<S, E, Void> writeLine = writeLine(question);
-    return writeLine.andThen(readLine());
+    return Console.<S, E>writeLine(question).andThen(readLine());
   }
 
   static <S extends Service, E> Program<S, E, Void> sayHello(String name) {

@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
 
 public sealed interface Program<S, E, T> {
 
-  record Success<S, E, T>(T value) implements Program<S, E, T> {
+  record Success<S, E, T>(@Nullable T value) implements Program<S, E, T> {
     @Override public Result<E, T> eval(S state) {
       return Result.success(value);
     }
