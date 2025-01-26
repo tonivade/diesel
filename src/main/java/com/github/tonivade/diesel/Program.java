@@ -12,17 +12,13 @@ import org.jspecify.annotations.Nullable;
 public sealed interface Program<S, T> {
 
   record Pure<S, T>(T value) implements Program<S, T> {
-    @Override
-    @Nullable
-    public T eval(S state) {
+    @Override @Nullable public T eval(S state) {
       return value;
     }
   }
 
   record FlatMap<S, T, R>(Program<S, T> current, Function<T, Program<S, R>> next) implements Program<S, R> {
-    @Override
-    @Nullable
-    public R eval(S state) {
+    @Override @Nullable public R eval(S state) {
       return next.apply(current.eval(state)).eval(state);
     }
   };
