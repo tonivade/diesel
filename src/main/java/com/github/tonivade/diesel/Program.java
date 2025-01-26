@@ -48,12 +48,24 @@ public sealed interface Program<S, E, T> {
     return flatMap(mapper.andThen(Program::success));
   }
 
+  default Program<S, E, T> redeem(Function<E, T> mapper) {
+    return recover(mapper.andThen(Program::success));
+  }
+
+  default Program<S, E, T> redeemWith(T value) {
+    return recoverWith(success(value));
+  }
+
   default <F> Program<S, F, T> mapError(Function<E, F> mapper) {
     return flatMapError(mapper.andThen(Program::failure));
   }
 
   default Program<S, E, T> recover(Function<E, Program<S, E, T>> mapper) {
     return flatMapError(mapper);
+  }
+
+  default Program<S, E, T> recoverWith(Program<S, E, T> value) {
+    return flatMapError(_ -> value);
   }
 
   default <R> Program<S, E, R> andThen(Program<S, E, R> next) {
