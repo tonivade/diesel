@@ -4,9 +4,12 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.writeLine;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Random.nextInt;
+import static com.github.tonivade.diesel.Reference.get;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -16,15 +19,16 @@ interface Game {
 
   record NumberFormatError(String input) implements Error {}
 
-  @SuppressWarnings("preview")
   static void main(String... args) {
-    var result = program().eval(new Context() {});
-    System.console().println(result);
+    program().eval(new Context() {});
   }
 
   static Program<Context, Error, Void> program() {
-    return Console.<Context, Error>prompt("Do you want to play a game? (Y/y)")
-        .flatMap(Game::playOrExit);
+    return doYouWantToPlay().flatMap(Game::playOrExit);
+  }
+
+  static Program<Context, Error, String> doYouWantToPlay() {
+    return prompt("Do you want to play a game? (Y/y)");
   }
 
   static Program<Context, Error, Void> playOrExit(String answer) {
@@ -35,13 +39,21 @@ interface Game {
   }
 
   static Program<Context, Error, Void> randomNumber() {
-    return Random.<Context, Error>nextInt(10).flatMap(Reference::set);
+    return generateNumber().flatMap(Reference::set);
+  }
+
+  static Program<Context, Error, Integer> generateNumber() {
+    return nextInt(10);
   }
 
   static Program<Context, Error, Void> loop() {
-    return Console.<Context, Error>prompt("Enter a number")
-      .flatMap(Game::parseInt)
-      .foldMap(_ -> loop(), number -> checkNumber(number).flatMap(Game::winOrContinue));
+    return enterNumber()
+        .flatMap(Game::parseInt)
+        .foldMap(_ -> loop(), number -> checkNumber(number).flatMap(Game::winOrContinue));
+  }
+
+  static Program<Context, Error, String> enterNumber() {
+    return prompt("Enter a number");
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {
@@ -53,7 +65,11 @@ interface Game {
   }
 
   static Program<Context, Error, Boolean> checkNumber(int number) {
-    return Reference.<Integer, Context, Error>get().map(value -> value == number);
+    return getNumber().map(value -> value == number);
+  }
+
+  static Program<Context, Error, Integer> getNumber() {
+    return get();
   }
 
   static Program<Context, Error, Void> winOrContinue(boolean answer) {
