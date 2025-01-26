@@ -11,9 +11,15 @@ import org.jspecify.annotations.Nullable;
 
 public sealed interface Program<S, E, T> {
 
-  record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {
+  record Success<S, E, T>(T value) implements Program<S, E, T> {
     @Override public Result<E, T> eval(S state) {
-      return result;
+      return Result.success(value);
+    }
+  }
+
+  record Failure<S, E, T>(E error) implements Program<S, E, T> {
+    @Override public Result<E, T> eval(S state) {
+      return Result.failure(error);
     }
   }
 
@@ -33,11 +39,11 @@ public sealed interface Program<S, E, T> {
   Result<E, T> eval(S state);
 
   static <S, E, T> Program<S, E, T> success(@Nullable T value) {
-    return new Pure<>(Result.success(value));
+    return new Success<>(value);
   }
 
   static <S, E, T> Program<S, E, T> failure(E error) {
-    return new Pure<>(Result.failure(error));
+    return new Failure<>(error);
   }
 
   static <S, E, T, V, R> Program<S, E, R> map2(Program<S, E, T> pt, Program<S, E, V> pv, BiFunction<T, V, R> mapper) {
