@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
+import static com.github.tonivade.diesel.Trampoline.done;
 
 import java.util.function.UnaryOperator;
 
@@ -33,7 +34,7 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
 
   @Override
   @SuppressWarnings({ "unchecked", "rawtypes" })
-  default Result<Void, T> eval(Service<V> state) {
+  default Trampoline<Result<Void, T>> safeEval(Service<V> state) {
     var result = (T) switch (this) {
       case SetValue set -> {
         state.set((V) set.value());
@@ -41,6 +42,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
       }
       case GetValue _ -> state.get();
     };
-    return success(result);
+    return done(success(result));
   }
 }

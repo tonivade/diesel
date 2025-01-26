@@ -6,6 +6,8 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Console.writeLine;
 import static java.util.Comparator.comparingInt;
+import static com.github.tonivade.diesel.Trampoline.done;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -56,7 +58,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
 
   @Override
   @SuppressWarnings("unchecked")
-  default Result<Error, T> eval(Service service) {
+  default Trampoline<Result<Error, T>> safeEval(Service service) {
     var result = (T) switch (this) {
       case ReadConfig _ -> service.readConfig();
       case GetForecast(City city) -> service.getForecast(city);
@@ -66,7 +68,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
       }
       case HottestCity _ -> service.hottestCity();
     };
-    return Result.success(result);
+    return done(Result.success(result));
   }
 
   public static void main(String[] args) {
