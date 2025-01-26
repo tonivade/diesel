@@ -10,4 +10,6 @@ import java.lang.annotation.Target;
 @Target(TYPE)
 public @interface Diesel {
 
+  String value() default "";
+
 }

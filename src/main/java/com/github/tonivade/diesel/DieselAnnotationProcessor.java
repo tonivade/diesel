@@ -34,7 +34,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
       for (Element element : roundEnv.getElementsAnnotatedWith(annotation)) {
         getAdapterFromAnnotation(getAnnotation(annotation, element))
           .ifPresentOrElse(
-              adapter -> adapterAlreadyExists(element, adapter), () -> generateAdapter(element));
+              dsl -> dslAlreadyExists(element, dsl), () -> generateDsl(element));
       }
     }
     return true;
@@ -46,19 +46,19 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .findFirst().orElseThrow();
   }
 
-  private Optional<? extends AnnotationValue> getAdapterFromAnnotation(AnnotationMirror json) {
-    return json.getElementValues().entrySet().stream()
+  private Optional<? extends AnnotationValue> getAdapterFromAnnotation(AnnotationMirror diesel) {
+    return diesel.getElementValues().entrySet().stream()
       .filter(entry -> entry.getKey().getSimpleName().toString().equals(VALUE))
       .map(Map.Entry::getValue).findFirst();
   }
 
-  private void adapterAlreadyExists(Element element, AnnotationValue adapter) {
-    printNote(element.getSimpleName() + " pojo found with adapter: " + adapter.getValue());
+  private void dslAlreadyExists(Element element, AnnotationValue dsl) {
+    printNote(element.getSimpleName() + " found with dsl: " + dsl.getValue());
   }
 
-  private void generateAdapter(Element element) {
+  private void generateDsl(Element element) {
     if (element.getKind().name().equals("INTERFACE")) {
-      printNote(element.getSimpleName() + " record found");
+      printNote(element.getSimpleName() + " interface found");
 //      saveFile(modelForRecord((TypeElement) element));
     } else {
       printError(element.getSimpleName() + " is not supported: " + element.getKind());
