@@ -4,11 +4,12 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Result.success;
 import static java.lang.System.console;
 
 import org.jspecify.annotations.Nullable;
 
-public sealed interface Console<T> extends Program.Dsl<Console.Service, T> {
+public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T> {
 
   interface Service {
     @SuppressWarnings({"preview", "NullAway"})
@@ -26,38 +27,39 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, T> {
   record ReadLine() implements Console<String> {}
 
   @SuppressWarnings("unchecked")
-  static <S extends Service> Program<S, Void> writeLine(String line) {
-    return (Program<S, Void>) new WriteLine(line);
+  static <S extends Service, E> Program<S, E, Void> writeLine(String line) {
+    return (Program<S, E, Void>) new WriteLine(line);
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Service> Program<S, String> readLine() {
-    return (Program<S, String>) new ReadLine();
+  static <S extends Service, E> Program<S, E, String> readLine() {
+    return (Program<S, E, String>) new ReadLine();
   }
 
-  static <S extends Service> Program<S, String> prompt(String question) {
-    Program<S, Void> writeLine = writeLine(question);
+  static <S extends Service, E> Program<S, E, String> prompt(String question) {
+    Program<S, E, Void> writeLine = writeLine(question);
     return writeLine.andThen(readLine());
   }
 
-  static <S extends Service> Program<S, Void> sayHello(String name) {
+  static <S extends Service, E> Program<S, E, Void> sayHello(String name) {
     return writeLine("Hello " + name);
   }
 
-  static <S extends Service> Program<S, String> whatsYourName() {
+  static <S extends Service, E> Program<S, E, String> whatsYourName() {
     return prompt("What's your name?");
   }
 
   @Override
   @SuppressWarnings("unchecked")
   @Nullable
-  default T eval(Service service) {
-    return (T) switch (this) {
+  default Result<Void, T> eval(Service service) {
+    var result = (T) switch (this) {
       case WriteLine(var line) -> {
         service.writeLine(line);
         yield null;
       }
       case ReadLine _ -> service.readLine();
     };
+    return success(result);
   }
 }

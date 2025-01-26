@@ -6,13 +6,15 @@ package com.github.tonivade.diesel;
 
 import java.util.function.Function;
 
+import org.jspecify.annotations.Nullable;
+
 public sealed interface Result<F, S> {
 
   static <F, S> Result<F, S> failure(F error) {
     return new Failure<>(error);
   }
 
-  static <F, S> Result<F, S> success(S value) {
+  static <F, S> Result<F, S> success(@Nullable S value) {
     return new Success<>(value);
   }
 
@@ -43,6 +45,7 @@ public sealed interface Result<F, S> {
     };
   }
 
+  @Nullable
   default <R> R fold(Function<F, R> failureMapper, Function<S, R> successMapper) {
     return switch (this) {
       case Failure<F, S>(F error) -> failureMapper.apply(error);

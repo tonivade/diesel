@@ -4,29 +4,23 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Result.failure;
-import static com.github.tonivade.diesel.Result.success;
-
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public sealed interface Program<S, E, T> {
 
-  record Success<S, E, T>(T value) implements Program<S, E, T> {
+  record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {
     @Override public Result<E, T> eval(S state) {
-      return success(value);
+      return result;
     }
   }
 
-  record Failure<S, E, T>(E error) implements Program<S, E, T> {
-    @Override public Result<E, T> eval(S state) {
-      return failure(error);
-    }
-  }
-
-  record FlatMap<S, E, T, R>(Program<S, E, T> current, Function<T, Program<S, E, R>> next) implements Program<S, E, R> {
-    @Override public Result<E, R> eval(S state) {
-      return current.eval(state).flatMap(t -> next.apply(t).eval(state));
+  record FoldMap<S, E, F, T, R>(
+      Program<S, E, T> current,
+      Function<E, Program<S, F, R>> onFailure,
+      Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
+    @Override public Result<F, R> eval(S state) {
+      return current.eval(state).fold(e -> onFailure.apply(e), t -> onSuccess.apply(t)).eval(state);
     }
   };
 
@@ -34,8 +28,12 @@ public sealed interface Program<S, E, T> {
 
   Result<E, T> eval(S state);
 
-  static <S, E, T> Program<S, E, T> pure(T value) {
-    return new Success<>(value);
+  static <S, E, T> Program<S, E, T> success(T value) {
+    return new Pure<>(Result.success(value));
+  }
+
+  static <S, E, T> Program<S, E, T> failure(E error) {
+    return new Pure<>(Result.failure(error));
   }
 
   static <S, E, T, V, R> Program<S, E, R> map2(Program<S, E, T> pt, Program<S, E, V> pv, BiFunction<T, V, R> mapper) {
@@ -43,7 +41,15 @@ public sealed interface Program<S, E, T> {
   }
 
   default <R> Program<S, E, R> map(Function<T, R> mapper) {
-    return flatMap(mapper.andThen(Program::pure));
+    return flatMap(mapper.andThen(Program::success));
+  }
+
+  default <F> Program<S, F, T> mapError(Function<E, F> mapper) {
+    return flatMapError(mapper.andThen(Program::failure));
+  }
+
+  default Program<S, E, T> recover(Function<E, Program<S, E, T>> mapper) {
+    return flatMapError(mapper);
   }
 
   default <R> Program<S, E, R> andThen(Program<S, E, R> next) {
@@ -51,6 +57,14 @@ public sealed interface Program<S, E, T> {
   }
 
   default <R> Program<S, E, R> flatMap(Function<T, Program<S, E, R>> next) {
-    return new FlatMap<>(this, next);
+    return foldMap(Program::failure, next);
+  }
+
+  default <F> Program<S, F, T> flatMapError(Function<E, Program<S, F, T>> next) {
+    return foldMap(next, Program::success);
+  }
+
+  default <F, R> Program<S, F, R> foldMap(Function<E, Program<S, F, R>> onFailure, Function<T, Program<S, F, R>> onSuccess) {
+    return new FoldMap<>(this, onFailure, onSuccess);
   }
 }

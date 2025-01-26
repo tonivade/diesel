@@ -9,7 +9,9 @@ import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.readLine;
 import static com.github.tonivade.diesel.Console.writeLine;
 import static com.github.tonivade.diesel.Counter.increment;
+import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.map2;
+import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Todo.State.COMPLETED;
 import static com.github.tonivade.diesel.Todo.State.NOT_COMPLETED;
 
@@ -20,7 +22,11 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
-sealed interface Todo<T> extends Program.Dsl<Todo.Repository, T> {
+sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
+
+  sealed interface Error {}
+
+  record NumberFormatError(String input) implements Error {}
 
   interface Repository {
     void create(TodoEntity todo);
@@ -49,39 +55,39 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, T> {
   record DeleteAll() implements Todo<Void> {}
 
   @SuppressWarnings("unchecked")
-  static <S extends Repository> Program<S, Void> create(TodoEntity todo) {
-    return (Program<S, Void>) new Create(todo);
+  static <S extends Repository, E extends Error> Program<S, E, Void> create(TodoEntity todo) {
+    return (Program<S, E, Void>) new Create(todo);
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Repository> Program<S, Void> update(int id, UnaryOperator<TodoEntity> update) {
-    return (Program<S, Void>) new Update(id, update);
+  static <S extends Repository, E extends Error> Program<S, E, Void> update(int id, UnaryOperator<TodoEntity> update) {
+    return (Program<S, E, Void>) new Update(id, update);
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Repository> Program<S, Optional<TodoEntity>> findOne(int id) {
-    return (Program<S, Optional<TodoEntity>>) new FindOne(id);
+  static <S extends Repository, E extends Error> Program<S, E, Optional<TodoEntity>> findOne(int id) {
+    return (Program<S, E, Optional<TodoEntity>>) new FindOne(id);
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Repository> Program<S, List<TodoEntity>> findAll() {
-    return (Program<S, List<TodoEntity>>) new FindAll();
+  static <S extends Repository, E extends Error> Program<S, E, List<TodoEntity>> findAll() {
+    return (Program<S, E, List<TodoEntity>>) new FindAll();
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Repository> Program<S, Void> deleteOne(int id) {
-    return (Program<S, Void>) new DeleteOne(id);
+  static <S extends Repository, E extends Error> Program<S, E, Void> deleteOne(int id) {
+    return (Program<S, E, Void>) new DeleteOne(id);
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Repository> Program<S, Void> deleteAll() {
-    return (Program<S, Void>) new DeleteAll();
+  static <S extends Repository, E extends Error> Program<S, E, Void> deleteAll() {
+    return (Program<S, E, Void>) new DeleteAll();
   }
 
   @Override
   @SuppressWarnings("unchecked")
-  default T eval(Repository repository) {
-    return (T) switch (this) {
+  default Result<Error, T> eval(Repository repository) {
+    var result = (T) switch (this) {
       case Create(TodoEntity todo) -> {
         repository.create(todo);
         yield null;
@@ -101,14 +107,15 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, T> {
         yield null;
       }
     };
+    return Result.success(result);
   }
 
-  static Program<Context, Void> program() {
+  static Program<Context, Error, Void> program() {
     return printMenu().flatMap(Todo::executeAction);
   }
 
-  static Program<Context, Integer> printMenu() {
-    return Console.<Context>writeLine("Menu")
+  static Program<Context, Error, Integer> printMenu() {
+    return Console.<Context, Error>writeLine("Menu")
       .andThen(writeLine("1. Create"))
       .andThen(writeLine("2. List"))
       .andThen(writeLine("3. Find"))
@@ -117,10 +124,11 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, T> {
       .andThen(writeLine("6. Completed"))
       .andThen(writeLine("7. Exit"))
       .andThen(readLine())
-      .map(Integer::parseInt);
+      .flatMap(Todo::parseInt)
+      .recover(_ -> printMenu());
   }
 
-  static Program<Context, Void> executeAction(int action) {
+  static Program<Context, Error, Void> executeAction(int action) {
     return switch (action) {
       case 1 -> createTodo();
       case 2 -> findAllTodos();
@@ -133,20 +141,20 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, T> {
     };
   }
 
-  static Program<Context, Void> findAllTodos() {
-    return Todo.<Context>findAll()
+  static Program<Context, Error, Void> findAllTodos() {
+    return Todo.<Context, Error>findAll()
       .map(list -> list.stream().map(Object::toString).collect(joining("\n")))
       .flatMap(Console::writeLine)
       .andThen(program());
   }
 
-  static Program<Context, Void> deleteAllTodos() {
-    return Todo.<Context>deleteAll()
+  static Program<Context, Error, Void> deleteAllTodos() {
+    return Todo.<Context, Error>deleteAll()
       .andThen(writeLine("all todo removed"))
       .andThen(program());
   }
 
-  static Program<Context, Void> createTodo() {
+  static Program<Context, Error, Void> createTodo() {
     return map2(increment(), promptTitle(),
         (id, title) -> new TodoEntity(id, title, NOT_COMPLETED))
       .flatMap(Todo::create)
@@ -154,14 +162,14 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, T> {
       .andThen(program());
   }
 
-  static Program<Context, Void> deleteTodo() {
+  static Program<Context, Error, Void> deleteTodo() {
     return promptId()
       .flatMap(Todo::deleteOne)
       .andThen(writeLine("todo removed"))
       .andThen(program());
   }
 
-  static Program<Context, Void> findTodo() {
+  static Program<Context, Error, Void> findTodo() {
     return promptId()
       .flatMap(Todo::findOne)
       .map(optional -> optional.map(Object::toString).orElse("not found"))
@@ -169,19 +177,29 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, T> {
       .andThen(program());
   }
 
-  static Program<Context, Void> markCompleted() {
+  static Program<Context, Error, Void> markCompleted() {
     return promptId()
       .flatMap(id -> update(id, entity -> entity.withState(COMPLETED)))
       .andThen(writeLine("todo compmleted"))
       .andThen(program());
   }
 
-  static Program<Context, String> promptTitle() {
+  static Program<Context, Error, String> promptTitle() {
     return prompt("Enter title");
   }
 
-  static Program<Context, Integer> promptId() {
-    return Console.<Context>prompt("Enter id").map(Integer::parseInt);
+  static Program<Context, Error, Integer> promptId() {
+    return Console.<Context, Error>prompt("Enter id")
+        .flatMap(Todo::parseInt)
+        .recover(_ -> promptId());
+  }
+
+  static Program<Context, Error, Integer> parseInt(String value) {
+    try {
+      return success(Integer.parseInt(value));
+    } catch (NumberFormatException e) {
+      return failure(new NumberFormatError(value));
+    }
   }
 
   static void main(String... args) {
