@@ -57,10 +57,10 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   @Override
   @SuppressWarnings("unchecked")
   default Result<Error, T> eval(Service service) {
-    var result = (T) switch(this) {
+    var result = (T) switch (this) {
       case ReadConfig _ -> service.readConfig();
-      case GetCity(var city) -> service.getCity(city);
-      case SetCity(var city, var forecast) -> {
+      case GetCity(City city) -> service.getCity(city);
+      case SetCity(City city, Forecast forecast) -> {
         service.setCity(city, forecast);
         yield null;
       }
@@ -78,28 +78,24 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   }
 
   static Program<Context, Error, Void> loop() {
-    return askAndFetch()
-        .flatMap(Weather::printCityForecast)
-        .andThen(hottest())
-        .flatMap(Weather::printHottestCity)
+    return askAndFetchAndPrint()
+        .andThen(printHottestCity())
         .foldMap(error -> printError(error).andThen(loop()), _ -> loop());
   }
 
-  static Program<Context, Error, Void> printHottestCity(Optional<City> city) {
-    return writeLine("Hottest city so far: " + city);
-  }
-
-  static Program<Context, Error, Void> printCityForecast(CityForecast cityForecast) {
-    return writeLine("Forecast for city " + cityForecast.city() + " is " + cityForecast.forecast());
+  static Program<Context, Error, Void> printHottestCity() {
+    return Weather.<Context, Error>hottest().
+        flatMap(city -> writeLine("Hottest city so far: " + city));
   }
 
   static Program<Context, Error, Void> printError(Error error) {
     return writeLine("Error: " + error);
   }
 
-  static Program<Context, Error, CityForecast> askAndFetch() {
+  static Program<Context, Error, Void> askAndFetchAndPrint() {
     return askCity()
-        .flatMap(city -> fetchForecast(city).map(forecast -> new CityForecast(city, forecast)));
+        .flatMap(city -> fetchForecast(city).map(forecast -> new CityForecast(city, forecast)))
+        .flatMap(Weather::printCityForecast);
   }
 
   static Program<Context, Error, City> askCity() {
@@ -112,6 +108,10 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
       .flatMap(forecast -> forecast
           .map(Program::<Context, Error, Forecast>success)
           .orElseGet(Weather::forecast));
+  }
+
+  static Program<Context, Error, Void> printCityForecast(CityForecast cityForecast) {
+    return writeLine("Forecast for city " + cityForecast.city() + " is " + cityForecast.forecast());
   }
 
   static Program<Context, Error, Forecast> forecast() {
