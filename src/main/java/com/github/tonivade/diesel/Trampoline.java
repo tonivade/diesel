@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 
 public sealed interface Trampoline<T> {
 
+  @SuppressWarnings("NullAway")
   static Trampoline<Void> UNIT = done(null);
 
   record Done<T>(T value) implements Trampoline<T> {
