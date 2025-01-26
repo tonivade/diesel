@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Antonio Gabriel Muñoz Conejo <antoniogmc at gmail dot com>
+ * Copyright (c) 2025, Antonio Gabriel Muñoz Conejo <me at tonviade dot es>
  * Distributed under the terms of the MIT License
  */
 package com.github.tonivade.diesel;
