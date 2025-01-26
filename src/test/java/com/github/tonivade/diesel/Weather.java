@@ -30,9 +30,9 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   record Config(String host, int port) {}
 
   record ReadConfig() implements Weather<Config> {}
-  record GetCity(City city) implements Weather<Optional<Forecast>> {}
-  record SetCity(City city, Forecast forecast) implements Weather<Void> {}
-  record Hottest() implements Weather<Optional<City>> {}
+  record GetForecast(City city) implements Weather<Optional<Forecast>> {}
+  record SetForecast(City city, Forecast forecast) implements Weather<Void> {}
+  record HottestCity() implements Weather<Optional<City>> {}
 
   @SuppressWarnings("unchecked")
   static <S extends Service, E extends Error> Program<S, E, Config> readConfig() {
@@ -40,18 +40,18 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Service, E extends Error> Program<S, E, Optional<Forecast>> getCity(City city) {
-    return (Program<S, E, Optional<Forecast>>) new GetCity(city);
+  static <S extends Service, E extends Error> Program<S, E, Optional<Forecast>> getForecast(City city) {
+    return (Program<S, E, Optional<Forecast>>) new GetForecast(city);
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Service, E extends Error> Program<S, E, Void> setCity(City city, Forecast forecast) {
-    return (Program<S, E, Void>) new SetCity(city, forecast);
+  static <S extends Service, E extends Error> Program<S, E, Void> setForecast(City city, Forecast forecast) {
+    return (Program<S, E, Void>) new SetForecast(city, forecast);
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Service, E extends Error> Program<S, E, Optional<City>> hottest() {
-    return (Program<S, E, Optional<City>>) new Hottest();
+  static <S extends Service, E extends Error> Program<S, E, Optional<City>> hottestCity() {
+    return (Program<S, E, Optional<City>>) new HottestCity();
   }
 
   @Override
@@ -59,12 +59,12 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   default Result<Error, T> eval(Service service) {
     var result = (T) switch (this) {
       case ReadConfig _ -> service.readConfig();
-      case GetCity(City city) -> service.getCity(city);
-      case SetCity(City city, Forecast forecast) -> {
+      case GetForecast(City city) -> service.getCity(city);
+      case SetForecast(City city, Forecast forecast) -> {
         service.setCity(city, forecast);
         yield null;
       }
-      case Hottest _ -> service.hottest();
+      case HottestCity _ -> service.hottest();
     };
     return Result.success(result);
   }
@@ -84,7 +84,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   }
 
   static Program<Context, Error, Void> printHottestCity() {
-    return Weather.<Context, Error>hottest().
+    return Weather.<Context, Error>hottestCity().
         flatMap(city -> writeLine("Hottest city so far: " + city));
   }
 
@@ -104,7 +104,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   }
 
   static Program<Context, Error, Forecast> fetchForecast(City city) {
-    return Weather.<Context, Error>getCity(city)
+    return Weather.<Context, Error>getForecast(city)
       .flatMap(forecast -> forecast
           .map(Program::<Context, Error, Forecast>success)
           .orElseGet(Weather::forecast));
