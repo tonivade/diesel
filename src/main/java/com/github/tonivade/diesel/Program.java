@@ -7,6 +7,8 @@ package com.github.tonivade.diesel;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import org.jspecify.annotations.Nullable;
+
 public sealed interface Program<S, E, T> {
 
   record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {
@@ -20,7 +22,9 @@ public sealed interface Program<S, E, T> {
       Function<E, Program<S, F, R>> onFailure,
       Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
     @Override public Result<F, R> eval(S state) {
-      return current.eval(state).fold(e -> onFailure.apply(e), t -> onSuccess.apply(t)).eval(state);
+      return current.eval(state)
+          .fold(onFailure, onSuccess)
+          .eval(state);
     }
   };
 
@@ -28,7 +32,7 @@ public sealed interface Program<S, E, T> {
 
   Result<E, T> eval(S state);
 
-  static <S, E, T> Program<S, E, T> success(T value) {
+  static <S, E, T> Program<S, E, T> success(@Nullable T value) {
     return new Pure<>(Result.success(value));
   }
 

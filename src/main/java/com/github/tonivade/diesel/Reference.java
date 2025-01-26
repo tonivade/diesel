@@ -6,8 +6,6 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
 
-import org.jspecify.annotations.Nullable;
-
 public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>, Void, T> {
 
   interface Service<V> {
@@ -30,7 +28,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
 
   @Override
   @SuppressWarnings({ "unchecked", "rawtypes" })
-  @Nullable
   default Result<Void, T> eval(Service<V> state) {
     var result = (T) switch (this) {
       case SetValue set -> {

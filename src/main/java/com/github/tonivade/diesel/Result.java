@@ -19,7 +19,7 @@ public sealed interface Result<F, S> {
   }
 
   record Failure<F, S>(F error) implements Result<F, S> {}
-  record Success<F, S>(S value) implements Result<F, S> {}
+  record Success<F, S>(@Nullable S value) implements Result<F, S> {}
 
   @SuppressWarnings("unchecked")
   default <R> Result<F, R> map(Function<S, R> mapper) {
@@ -45,7 +45,6 @@ public sealed interface Result<F, S> {
     };
   }
 
-  @Nullable
   default <R> R fold(Function<F, R> failureMapper, Function<S, R> successMapper) {
     return switch (this) {
       case Failure<F, S>(F error) -> failureMapper.apply(error);

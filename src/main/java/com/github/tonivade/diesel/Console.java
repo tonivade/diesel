@@ -7,8 +7,6 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Result.success;
 import static java.lang.System.console;
 
-import org.jspecify.annotations.Nullable;
-
 public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T> {
 
   interface Service {
@@ -51,7 +49,6 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
 
   @Override
   @SuppressWarnings("unchecked")
-  @Nullable
   default Result<Void, T> eval(Service service) {
     var result = (T) switch (this) {
       case WriteLine(var line) -> {
