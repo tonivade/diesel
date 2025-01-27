@@ -37,7 +37,12 @@ public sealed interface Program<S, E, T> {
     }
   };
 
-  non-sealed interface Dsl<S, E, T> extends Program<S, E, T> {}
+  non-sealed interface Dsl<S, E, T> extends Program<S, E, T> {
+    @Override
+    default Trampoline<Result<E, T>> safeEval(S state) {
+      return done(eval(state));
+    }
+  }
 
   default Result<E, T> eval(S state) {
     return safeEval(state).run();

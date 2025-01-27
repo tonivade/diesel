@@ -5,7 +5,6 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
-import static com.github.tonivade.diesel.Trampoline.done;
 
 public sealed interface Clock<T> extends Program.Dsl<Clock.Service, Void, T> {
 
@@ -22,10 +21,10 @@ public sealed interface Clock<T> extends Program.Dsl<Clock.Service, Void, T> {
 
   @Override
   @SuppressWarnings("unchecked")
-  default Trampoline<Result<Void, T>> safeEval(Service state) {
+  default Result<Void, T> eval(Service state) {
     var result = (T) switch (this) {
       case CurrentTime _ -> state.currentTime();
     };
-    return done(success(result));
+    return success(result);
   }
 }

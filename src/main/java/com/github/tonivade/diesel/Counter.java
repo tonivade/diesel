@@ -5,7 +5,6 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
-import static com.github.tonivade.diesel.Trampoline.done;
 
 public sealed interface Counter extends Program.Dsl<Counter.Service, Void, Integer> {
 
@@ -28,11 +27,11 @@ public sealed interface Counter extends Program.Dsl<Counter.Service, Void, Integ
   }
 
   @Override
-  default Trampoline<Result<Void, Integer>> safeEval(Service state) {
+  default Result<Void, Integer> eval(Service state) {
     var result = switch (this) {
       case Increment _ -> state.increment();
       case Decrement _ -> state.decrement();
     };
-    return done(success(result));
+    return success(result);
   }
 }

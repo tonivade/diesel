@@ -14,8 +14,6 @@ import static com.github.tonivade.diesel.Program.map2;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Todo.State.COMPLETED;
 import static com.github.tonivade.diesel.Todo.State.NOT_COMPLETED;
-import static com.github.tonivade.diesel.Trampoline.done;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +85,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
 
   @Override
   @SuppressWarnings("unchecked")
-  default Trampoline<Result<Error, T>> safeEval(Repository repository) {
+  default Result<Error, T> eval(Repository repository) {
     var result = (T) switch (this) {
       case Create(TodoEntity todo) -> {
         repository.create(todo);
@@ -108,7 +106,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
         yield null;
       }
     };
-    return done(Result.success(result));
+    return Result.success(result);
   }
 
   static Program<Context, Error, Void> program() {
