@@ -5,7 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Console.writeLine;
-
+import static java.util.Comparator.comparingInt;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -14,9 +14,9 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
 
   interface Service {
     Config readConfig();
-    Optional<Forecast> getCity(City city);
-    void setCity(City city, Forecast forecast);
-    Optional<City> hottest();
+    Optional<Forecast> getForecast(City city);
+    void setForecast(City city, Forecast forecast);
+    Optional<City> hottestCity();
   }
 
   sealed interface Error {}
@@ -59,12 +59,12 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   default Result<Error, T> eval(Service service) {
     var result = (T) switch (this) {
       case ReadConfig _ -> service.readConfig();
-      case GetForecast(City city) -> service.getCity(city);
+      case GetForecast(City city) -> service.getForecast(city);
       case SetForecast(City city, Forecast forecast) -> {
-        service.setCity(city, forecast);
+        service.setForecast(city, forecast);
         yield null;
       }
-      case HottestCity _ -> service.hottest();
+      case HottestCity _ -> service.hottestCity();
     };
     return Result.success(result);
   }
@@ -80,22 +80,22 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   static Program<Context, Error, Void> loop() {
     return askAndFetchAndPrint()
         .andThen(printHottestCity())
-        .foldMap(error -> printError(error).andThen(loop()), _ -> loop());
-  }
-
-  static Program<Context, Error, Void> printHottestCity() {
-    return Weather.<Context, Error>hottestCity().
-        flatMap(city -> writeLine("Hottest city so far: " + city));
-  }
-
-  static Program<Context, Error, Void> printError(Error error) {
-    return writeLine("Error: " + error);
+        .foldMap(error -> printError(error), _ -> loop());
   }
 
   static Program<Context, Error, Void> askAndFetchAndPrint() {
     return askCity()
-        .flatMap(city -> fetchForecast(city).map(forecast -> new CityForecast(city, forecast)))
-        .flatMap(Weather::printCityForecast);
+        .flatMap(Weather::fetchForecast)
+        .flatMap(Weather::printForecastAndPersist);
+  }
+
+  static Program<Context, Error, Void> printHottestCity() {
+    return Weather.<Context, Error>hottestCity().
+        flatMap(city -> writeLine("Hottest city so far: " + city.map(City::name).orElse("None")));
+  }
+
+  static Program<Context, Error, Void> printError(Error error) {
+    return Console.<Context, Error>writeLine("Error: " + error).andThen(loop());
   }
 
   static Program<Context, Error, City> askCity() {
@@ -103,15 +103,17 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
         .flatMap(Weather::cityByName);
   }
 
-  static Program<Context, Error, Forecast> fetchForecast(City city) {
+  static Program<Context, Error, CityForecast> fetchForecast(City city) {
     return Weather.<Context, Error>getForecast(city)
       .flatMap(forecast -> forecast
           .map(Program::<Context, Error, Forecast>success)
-          .orElseGet(Weather::forecast));
+          .orElseGet(Weather::forecast))
+      .map(forecast -> new CityForecast(city, forecast));
   }
 
-  static Program<Context, Error, Void> printCityForecast(CityForecast cityForecast) {
-    return writeLine("Forecast for city " + cityForecast.city() + " is " + cityForecast.forecast());
+  static Program<Context, Error, Void> printForecastAndPersist(CityForecast cityForecast) {
+    return Console.<Context, Error>writeLine("Forecast for city " + cityForecast.city() + " is " + cityForecast.forecast())
+      .andThen(setForecast(cityForecast.city(), cityForecast.forecast()));
   }
 
   static Program<Context, Error, Forecast> forecast() {
@@ -140,19 +142,20 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
     }
 
     @Override
-    public Optional<Forecast> getCity(City city) {
+    public Optional<Forecast> getForecast(City city) {
       return Optional.ofNullable(map.get(city));
     }
 
     @Override
-    public void setCity(City city, Forecast forecast) {
+    public void setForecast(City city, Forecast forecast) {
       map.put(city, forecast);
     }
 
     @Override
-    public Optional<City> hottest() {
-      // TODO Auto-generated method stub
-      return Optional.empty();
+    public Optional<City> hottestCity() {
+      return map.entrySet().stream()
+        .max(comparingInt(entry -> entry.getValue().temperature()))
+        .map(Map.Entry::getKey);
     }
   }
 }
