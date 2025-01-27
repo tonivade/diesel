@@ -93,7 +93,27 @@ public sealed interface Program<S, E, T> {
     return foldMap(next, Program::success);
   }
 
-  default <F, R> Program<S, F, R> foldMap(Function<E, Program<S, F, R>> onFailure, Function<T, Program<S, F, R>> onSuccess) {
+  default <F, R> Program<S, F, R> foldMap(
+      Function<E, Program<S, F, R>> onFailure,
+      Function<T, Program<S, F, R>> onSuccess) {
     return new FoldMap<>(this, onFailure, onSuccess);
+  }
+
+  default Program<S, E, T> retry(int retries) {
+    return recover(error -> {
+      if (retries > 0) {
+        return retry(retries - 1);
+      }
+      return failure(error);
+    });
+  }
+
+  default Program<S, E, T> repeat(int times) {
+    return flatMap(value -> {
+      if (times > 0) {
+        return repeat(times - 1);
+      }
+      return success(value);
+    });
   }
 }
