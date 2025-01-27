@@ -34,4 +34,13 @@ class ReferenceTest {
 
     assertThat(value).isEqualTo(success(10));
   }
+
+  @Test
+  void shouldUpdateValue(@Mock Reference.Service<Integer> service) {
+    when(service.get()).thenReturn(10);
+
+    Reference.<Integer, Reference.Service<Integer>, Error>update(x -> x + 1).eval(service);
+
+    verify(service).set(11);
+  }
 }

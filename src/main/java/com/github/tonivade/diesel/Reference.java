@@ -32,6 +32,10 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
     return (Program<S, E, V>) new GetValue<>();
   }
 
+  static <V, S extends Service<V>, E> Program<S, E, Void> update(UnaryOperator<V> update) {
+    return Reference.<V, S, E>get().map(update).flatMap(Reference::set);
+  }
+
   @Override
   @SuppressWarnings({ "unchecked", "rawtypes" })
   default Trampoline<Result<Void, T>> safeEval(Service<V> state) {
