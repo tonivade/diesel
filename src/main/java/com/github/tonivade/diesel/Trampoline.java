@@ -7,7 +7,7 @@ package com.github.tonivade.diesel;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public sealed interface Trampoline<T> {
+sealed interface Trampoline<T> {
 
   @SuppressWarnings("NullAway")
   static Trampoline<Void> UNIT = done(null);
@@ -44,8 +44,8 @@ public sealed interface Trampoline<T> {
     return flatMap(_ -> next);
   }
 
-  default <R> Trampoline<R> flatMap(Function<T, Trampoline<R>> mapper) {
-    return new FlatMap<>(this, mapper);
+  default <R> Trampoline<R> flatMap(Function<T, Trampoline<R>> next) {
+    return new FlatMap<>(this, next);
   }
 
   <R> Trampoline<R> apply(Function<T, Trampoline<R>> parent);
