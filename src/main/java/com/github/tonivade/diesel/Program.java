@@ -58,7 +58,10 @@ public sealed interface Program<S, E, T> {
     return new Failure<>(error);
   }
 
-  static <S, E, T, V, R> Program<S, E, R> map2(Program<S, E, T> pt, Program<S, E, V> pv, BiFunction<T, V, R> mapper) {
+  static <S, E, T, V, R> Program<S, E, R> map2(
+      Program<S, E, T> pt,
+      Program<S, E, V> pv,
+      BiFunction<T, V, R> mapper) {
     return pt.flatMap(t -> pv.map(v -> mapper.apply(t, v)));
   }
 
