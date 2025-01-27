@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
+import static com.github.tonivade.diesel.Trampoline.done;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -25,10 +26,10 @@ public sealed interface Random<T> extends Program.Dsl<Random.Service, Void, T> {
 
   @Override
   @SuppressWarnings("unchecked")
-  default Result<Void, T> eval(Service state) {
+  default Trampoline<Result<Void, T>> safeEval(Service state) {
     var result = (T) switch (this) {
       case NextInt(int bound) -> state.nextInt(bound);
     };
-    return success(result);
+    return done(success(result));
   }
 }

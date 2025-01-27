@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
+import static com.github.tonivade.diesel.Trampoline.done;
 import static java.lang.System.console;
 
 public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T> {
@@ -48,7 +49,7 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
 
   @Override
   @SuppressWarnings("unchecked")
-  default Result<Void, T> eval(Service service) {
+  default Trampoline<Result<Void, T>> safeEval(Service service) {
     var result = (T) switch (this) {
       case WriteLine(var line) -> {
         service.writeLine(line);
@@ -56,6 +57,6 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
       }
       case ReadLine _ -> service.readLine();
     };
-    return success(result);
+    return done(success(result));
   }
 }

@@ -4,6 +4,9 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Trampoline.done;
+import static com.github.tonivade.diesel.Trampoline.more;
+
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -12,14 +15,14 @@ import org.jspecify.annotations.Nullable;
 public sealed interface Program<S, E, T> {
 
   record Success<S, E, T>(@Nullable T value) implements Program<S, E, T> {
-    @Override public Result<E, T> eval(S state) {
-      return Result.success(value);
+    @Override public Trampoline<Result<E, T>> safeEval(S state) {
+      return done(Result.success(value));
     }
   }
 
   record Failure<S, E, T>(E error) implements Program<S, E, T> {
-    @Override public Result<E, T> eval(S state) {
-      return Result.failure(error);
+    @Override public Trampoline<Result<E, T>> safeEval(S state) {
+      return done(Result.failure(error));
     }
   }
 
@@ -27,16 +30,20 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T> current,
       Function<E, Program<S, F, R>> onFailure,
       Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
-    @Override public Result<F, R> eval(S state) {
-      return current.eval(state)
-          .fold(onFailure, onSuccess)
-          .eval(state);
+    @Override
+    public Trampoline<Result<F, R>> safeEval(S state) {
+      return more(() -> current.safeEval(state))
+          .flatMap(result -> more(() -> result.fold(onFailure, onSuccess).safeEval(state)));
     }
   };
 
   non-sealed interface Dsl<S, E, T> extends Program<S, E, T> {}
 
-  Result<E, T> eval(S state);
+  default Result<E, T> eval(S state) {
+    return safeEval(state).run();
+  }
+
+  Trampoline<Result<E, T>> safeEval(S state);
 
   static <S, E, T> Program<S, E, T> success(@Nullable T value) {
     return new Success<>(value);
