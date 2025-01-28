@@ -49,13 +49,12 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
   @Override
   @SuppressWarnings("unchecked")
   default Result<Void, T> eval(Service service) {
-    var result = (T) switch (this) {
+    return success((T) switch (this) {
       case WriteLine(var line) -> {
         service.writeLine(line);
         yield null;
       }
       case ReadLine _ -> service.readLine();
-    };
-    return success(result);
+    });
   }
 }
