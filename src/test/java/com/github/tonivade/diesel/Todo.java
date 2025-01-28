@@ -86,7 +86,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
   @Override
   @SuppressWarnings("unchecked")
   default Result<Error, T> eval(Repository repository) {
-    var result = (T) switch (this) {
+    return Result.success((T) switch (this) {
       case Create(TodoEntity todo) -> {
         repository.create(todo);
         yield null;
@@ -105,8 +105,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
         repository.deleteAll();
         yield null;
       }
-    };
-    return Result.success(result);
+    });
   }
 
   static Program<Context, Error, Void> program() {

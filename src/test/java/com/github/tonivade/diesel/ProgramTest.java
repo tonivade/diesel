@@ -6,7 +6,6 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.failure;
 import static com.github.tonivade.diesel.Result.success;
-import static com.github.tonivade.diesel.Trampoline.done;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.times;
@@ -18,7 +17,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.github.tonivade.diesel.ProgramTest.TestDsl.Error;
 import com.github.tonivade.diesel.ProgramTest.TestDsl.Operation;
+import com.github.tonivade.diesel.ProgramTest.TestDsl.Service;
 import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 @ExtendWith(MockitoExtension.class)
@@ -87,8 +88,8 @@ class ProgramTest {
     record Operation() implements TestDsl {}
 
     @Override
-    default Trampoline<Result<Error, Integer>> safeEval(Service state) {
-      return done(state.operation());
+    default Result<Error, Integer> eval(Service state) {
+      return state.operation();
     }
   }
 
@@ -103,7 +104,10 @@ class ProgramTest {
     if (n == 0) {
       return Program.success(sum);
     }
-    return Program.<TestDsl.Service, TestDsl.Error, Integer>success(n + sum)
-        .flatMap(next -> safeSum(n - 1, next));
+    return sum(n, sum).flatMap(next -> safeSum(n - 1, next));
+  }
+
+  private static Program<Service, Error, Integer> sum(Integer a, Integer b) {
+    return Program.success(a + b);
   }
 }
