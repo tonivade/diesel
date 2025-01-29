@@ -4,8 +4,9 @@
  */
 package com.github.tonivade.diesel;
 
+import java.util.NoSuchElementException;
+import java.util.function.BiFunction;
 import java.util.function.Function;
-
 import org.jspecify.annotations.Nullable;
 
 public sealed interface Result<F, S> {
@@ -16,6 +17,10 @@ public sealed interface Result<F, S> {
 
   static <F, S> Result<F, S> success(@Nullable S value) {
     return new Success<>(value);
+  }
+
+  static <F, S, T, R> Result<F, R> map2(Result<F, S> r1, Result<F, T> r2, BiFunction<S, T, R> mapper) {
+    return r1.flatMap(a -> r2.map(b -> mapper.apply(a, b)));
   }
 
   record Failure<F, S>(F error) implements Result<F, S> {}
@@ -45,10 +50,21 @@ public sealed interface Result<F, S> {
     };
   }
 
-  default <R> R fold(Function<F, R> failureMapper, Function<S, R> successMapper) {
+  default <R> R fold(Function<F, R> onFailure, Function<S, R> onSuccess) {
     return switch (this) {
-      case Failure<F, S>(F error) -> failureMapper.apply(error);
-      case Success<F, S>(S value) -> successMapper.apply(value);
+      case Failure<F, S>(F error) -> onFailure.apply(error);
+      case Success<F, S>(S value) -> onSuccess.apply(value);
+    };
+  }
+
+  default S getOrElseThrow() {
+    return getOrElseThrow(_ -> new NoSuchElementException());
+  }
+
+  default <X extends Throwable> S getOrElseThrow(Function<F, X> mapper) throws X {
+    return switch (this) {
+      case Success<F, S>(S value) -> value;
+      case Failure<F, S>(F error) -> throw mapper.apply(error);
     };
   }
 }
