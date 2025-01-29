@@ -21,6 +21,34 @@ public sealed interface Program<S, E, T> {
 
   Program<Void, Void, Void> UNIT = success(null);
 
+  @SuppressWarnings("unchecked")
+  static <S, E> Program<S, E, Void> unit() {
+    return (Program<S, E, Void>) UNIT;
+  }
+
+  static <S, E, T> Program<S, E, T> success(@Nullable T value) {
+    return new Success<>(value);
+  }
+
+  static <S, E, T> Program<S, E, T> failure(E error) {
+    return new Failure<>(error);
+  }
+
+  static <S, E, T> Program<S, E, T> suspend(Supplier<T> supplier) {
+    return Program.<S, E>unit().map(_ -> supplier.get());
+  }
+
+  static <S, E, T> Program<S, E, T> task(Runnable runnable) {
+    return Program.<S, E>unit().map(_ -> {
+      runnable.run();
+      return null;
+    });
+  }
+
+  static <S, E, T> Program<S, E, T> async(BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) {
+    return new Async<>(callback);
+  }
+
   record Success<S, E, T>(@Nullable T value) implements Program<S, E, T> {
     @Override public Trampoline<Result<E, T>> safeEval(S state) {
       return done(Result.success(value));
@@ -68,90 +96,6 @@ public sealed interface Program<S, E, T> {
   }
 
   Trampoline<Result<E, T>> safeEval(S state);
-
-  @SuppressWarnings("unchecked")
-  static <S, E> Program<S, E, Void> unit() {
-    return (Program<S, E, Void>) UNIT;
-  }
-
-  static <S, E, T> Program<S, E, T> success(@Nullable T value) {
-    return new Success<>(value);
-  }
-
-  static <S, E, T> Program<S, E, T> failure(E error) {
-    return new Failure<>(error);
-  }
-
-  static <S, E, T> Program<S, E, T> suspend(Supplier<T> supplier) {
-    return Program.<S, E>unit().map(_ -> supplier.get());
-  }
-
-  static <S, E, T> Program<S, E, T> task(Runnable runnable) {
-    return Program.<S, E>unit().map(_ -> {
-      runnable.run();
-      return null;
-    });
-  }
-
-  static <S, E, T> Program<S, E, T> async(BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) {
-    return new Async<>(callback);
-  }
-
-  static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
-    return Program.<S, E>sleep(duration, executor).flatMap(_ -> success(supplier.get()));
-  }
-
-  static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
-    return async((_, callback) -> {
-      var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
-      var promise = CompletableFuture.runAsync(() -> {}, delayed);
-      promise.whenComplete((_, _) -> callback.accept(Result.success(null), null));
-    });
-  }
-
-  static <S, E, T, U, R> Program<S, E, R> map2(
-      Program<S, E, T> pt,
-      Program<S, E, U> pu,
-      BiFunction<T, U, R> mapper) {
-    return async((state, callback) -> {
-      try {
-        callback.accept(Result.map2(pt.eval(state), pu.eval(state), mapper), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
-
-  static <S, E, T, V, R> Program<S, E, R> parallel(
-      Program<S, E, T> pt,
-      Program<S, E, V> pv,
-      BiFunction<T, V, R> mapper,
-      Executor executor) {
-    return async((state, callback) -> {
-      try {
-        var result = map2(pt.fork(executor), pv.fork(executor), (f1, f2) -> Fiber.combine(f1, f2, mapper))
-          .flatMap(Fiber::join);
-        callback.accept(result.eval(state), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
-
-  static <S, E, T, U> Program<S, E, Either<T, U>> either(
-      Program<S, E, T> pt,
-      Program<S, E, U> pu,
-      Executor executor) {
-    return async((state, callback) -> {
-      try {
-        var result = map2(pt.fork(executor), pu.fork(executor), Fiber::either)
-          .flatMap(Fiber::join);
-        callback.accept(result.eval(state), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
 
   default <R> Program<S, E, R> map(Function<T, R> mapper) {
     return flatMap(mapper.andThen(Program::success));
@@ -233,6 +177,62 @@ public sealed interface Program<S, E, T> {
     });
   }
 
+  static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
+    return Program.<S, E>sleep(duration, executor).flatMap(_ -> success(supplier.get()));
+  }
+
+  static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
+    return async((_, callback) -> {
+      var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
+      var promise = CompletableFuture.runAsync(() -> {}, delayed);
+      promise.whenComplete((_, _) -> callback.accept(Result.success(null), null));
+    });
+  }
+
+  static <S, E, T, U, R> Program<S, E, R> map2(
+      Program<S, E, T> pt,
+      Program<S, E, U> pu,
+      BiFunction<T, U, R> mapper) {
+    return async((state, callback) -> {
+      try {
+        callback.accept(Result.map2(pt.eval(state), pu.eval(state), mapper), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
+  }
+
+  static <S, E, T, V, R> Program<S, E, R> parallel(
+      Program<S, E, T> pt,
+      Program<S, E, V> pv,
+      BiFunction<T, V, R> mapper,
+      Executor executor) {
+    return async((state, callback) -> {
+      try {
+        var result = map2(pt.fork(executor), pv.fork(executor), (f1, f2) -> Fiber.combine(f1, f2, mapper))
+          .flatMap(Fiber::join);
+        callback.accept(result.eval(state), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
+  }
+
+  static <S, E, T, U> Program<S, E, Either<T, U>> either(
+      Program<S, E, T> pt,
+      Program<S, E, U> pu,
+      Executor executor) {
+    return async((state, callback) -> {
+      try {
+        var result = map2(pt.fork(executor), pu.fork(executor), Fiber::either)
+          .flatMap(Fiber::join);
+        callback.accept(result.eval(state), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
+  }
+
   record ElapsedTime<T>(Duration duration, T value) {}
 
   record Fiber<E, T>(CompletableFuture<Result<E, T>> promise) {
@@ -268,11 +268,11 @@ public sealed interface Program<S, E, T> {
 
     private static <E, T, U> void cancelBoth(Fiber<E, T> f1, Fiber<E, U> f2) {
       try {
-        if (f1.isCompleted()) {
+        if (!f1.isCompleted()) {
           f1.promise.cancel(true);
         }
       } finally {
-        if (f2.isCompleted()) {
+        if (!f2.isCompleted()) {
           f2.promise.cancel(true);
         }
       }
