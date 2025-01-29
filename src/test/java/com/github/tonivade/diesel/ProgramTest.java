@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Program.delay;
+import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Result.failure;
 import static com.github.tonivade.diesel.Result.success;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -12,11 +14,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
 import com.github.tonivade.diesel.ProgramTest.TestDsl.Error;
 import com.github.tonivade.diesel.ProgramTest.TestDsl.Operation;
 import com.github.tonivade.diesel.ProgramTest.TestDsl.Service;
@@ -24,6 +28,8 @@ import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 @ExtendWith(MockitoExtension.class)
 class ProgramTest {
+
+  Executor executor = Executors.newVirtualThreadPerTaskExecutor();
 
   @Test
   void shouldRepeat(@Mock TestDsl.Service service) {
@@ -55,7 +61,7 @@ class ProgramTest {
   }
 
   @Test
-  void stackSafety(@Mock TestDsl.Service service) {
+  void shouldBeStackSafety(@Mock TestDsl.Service service) {
     var sum = safeSum(100000, 0);
 
     var result = sum.eval(service);
@@ -67,6 +73,69 @@ class ProgramTest {
   void testUnsafe() {
     assertThatThrownBy(() -> unsafeSum(100000, 0)).isInstanceOf(StackOverflowError.class);
   }
+
+  @Test
+  void shouldSleep() {
+    var duration = Duration.ofSeconds(2);
+
+    var result = sleep(duration, executor).timed().eval(null);
+
+    assertThat(result.getOrElseThrow().duration())
+      .isCloseTo(duration, Duration.ofMillis(100));
+  }
+
+  @Test
+  void shouldDelay() {
+    var duration = Duration.ofSeconds(2);
+
+    var result = delay(duration, () -> 10, executor).timed().eval(null);
+
+    assertThat(result.getOrElseThrow().duration())
+      .isCloseTo(duration, Duration.ofMillis(100));
+    assertThat(result.getOrElseThrow().value())
+      .isEqualTo(10);
+  }
+
+  @Test
+  void shouldSerialize() {
+    var p1 = delay(Duration.ofSeconds(2), () -> 10, executor);
+    var p2 = delay(Duration.ofSeconds(2), () -> "hello", executor);
+
+    var result = Program.map2(p1, p2, Tuple::new).timed().eval(null);
+
+    assertThat(result.getOrElseThrow().duration())
+      .isCloseTo(Duration.ofSeconds(4), Duration.ofMillis(100));
+    assertThat(result.getOrElseThrow().value())
+      .isEqualTo(new Tuple<>(10, "hello"));
+  }
+
+  @Test
+  void shouldParallelize() {
+    var p1 = delay(Duration.ofSeconds(2), () -> 10, executor);
+    var p2 = delay(Duration.ofSeconds(2), () -> "hello", executor);
+
+    var result = Program.parallel(p1, p2, Tuple::new, executor).timed().eval(null);
+
+    assertThat(result.getOrElseThrow().duration())
+      .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
+    assertThat(result.getOrElseThrow().value())
+      .isEqualTo(new Tuple<>(10, "hello"));
+  }
+
+  @Test
+  void shouldRace() {
+    var p1 = delay(Duration.ofSeconds(20), () -> 10, executor);
+    var p2 = delay(Duration.ofSeconds(2), () -> "hello", executor);
+
+    var result = Program.either(p1, p2, executor).timed().eval(null);
+
+    assertThat(result.getOrElseThrow().duration())
+      .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
+    assertThat(result.getOrElseThrow().value())
+      .isEqualTo(Either.right("hello"));
+  }
+
+  record Tuple<A, B>(A a, B b) {}
 
   static Operation newOperation() {
     return new TestDsl.Operation();
