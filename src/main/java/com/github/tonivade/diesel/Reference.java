@@ -12,9 +12,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
   interface Service<V> {
     void set(V value);
     V get();
-    default void update(UnaryOperator<V> update) {
-      set(update.apply(get()));
-    }
   }
 
   record SetValue<V>(V value) implements Reference<V, Void> {}
