@@ -6,31 +6,31 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
 
-public sealed interface Counter extends Program.Dsl<Counter.Service, Void, Integer> {
+public sealed interface Counter<T extends Number> extends Program.Dsl<Counter.Service<T>, Void, T> {
 
-  interface Service {
-    int increment();
-    int decrement();
+  interface Service<T extends Number> {
+    T increment();
+    T decrement();
   }
 
-  record Increment() implements Counter {}
-  record Decrement() implements Counter {}
+  record Increment<T extends Number>() implements Counter<T> {}
+  record Decrement<T extends Number>() implements Counter<T> {}
 
   @SuppressWarnings("unchecked")
-  static <S extends Service, E> Program<S, E, Integer> increment() {
-    return (Program<S, E, Integer>) new Increment();
+  static <T extends Number, S extends Service<T>, E> Program<S, E, T> increment() {
+    return (Program<S, E, T>) new Increment<>();
   }
 
   @SuppressWarnings("unchecked")
-  static <S extends Service, E> Program<S, E, Integer> decrement() {
-    return (Program<S, E, Integer>) new Decrement();
+  static <T extends Number, S extends Service<T>, E> Program<S, E, T> decrement() {
+    return (Program<S, E, T>) new Decrement<>();
   }
 
   @Override
-  default Result<Void, Integer> eval(Service state) {
+  default Result<Void, T> eval(Service<T> state) {
     return success(switch (this) {
-      case Increment _ -> state.increment();
-      case Decrement _ -> state.decrement();
+      case Increment<T> _ -> state.increment();
+      case Decrement<T> _ -> state.decrement();
     });
   }
 }

@@ -8,7 +8,6 @@ import static java.util.stream.Collectors.joining;
 import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.readLine;
 import static com.github.tonivade.diesel.Console.writeLine;
-import static com.github.tonivade.diesel.Counter.increment;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.map2;
 import static com.github.tonivade.diesel.Program.success;
@@ -153,7 +152,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
   }
 
   static Program<Context, Error, Void> createTodo() {
-    return map2(increment(), promptTitle(),
+    return map2(Counter.<Integer, Context, Error>increment(), promptTitle(),
         (id, title) -> new TodoEntity(id, title, NOT_COMPLETED))
       .flatMap(Todo::create)
       .andThen(writeLine("todo created"))
@@ -204,18 +203,18 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
     program().eval(new Context(){});
   }
 
-  abstract class Context implements Todo.Repository, Console.Service, Counter.Service {
+  abstract class Context implements Todo.Repository, Console.Service, Counter.Service<Integer> {
 
     private final AtomicInteger counter = new AtomicInteger();
     private final Map<Integer, TodoEntity> repository = new HashMap<>();
 
     @Override
-    public int increment() {
+    public Integer increment() {
       return counter.incrementAndGet();
     }
 
     @Override
-    public int decrement() {
+    public Integer decrement() {
       return counter.decrementAndGet();
     }
 
