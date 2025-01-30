@@ -38,7 +38,7 @@ public sealed interface Program<S, E, T> {
     return Program.<S, E>unit().map(_ -> supplier.get());
   }
 
-  static <S, E, T> Program<S, E, T> task(Runnable runnable) {
+  static <S, E> Program<S, E, Void> task(Runnable runnable) {
     return Program.<S, E>unit().map(_ -> {
       runnable.run();
       return null;
