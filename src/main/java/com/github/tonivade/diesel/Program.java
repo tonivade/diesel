@@ -45,7 +45,8 @@ public sealed interface Program<S, E, T> {
     });
   }
 
-  static <S, E, T> Program<S, E, T> async(BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) {
+  static <S, E, T> Program<S, E, T> async(
+      BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) {
     return new Async<>(callback);
   }
 
@@ -71,7 +72,8 @@ public sealed interface Program<S, E, T> {
     }
   }
 
-  record Async<S, E, T>(BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) implements Program<S, E, T> {
+  record Async<S, E, T>(
+      BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) implements Program<S, E, T> {
     @Override public Trampoline<Result<E, T>> safeEval(S state) {
       var promise = new CompletableFuture<Result<E, T>>();
       callback.accept(state, (result, error) -> {
