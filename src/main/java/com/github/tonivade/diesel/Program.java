@@ -19,7 +19,7 @@ import org.jspecify.annotations.Nullable;
 
 public sealed interface Program<S, E, T> {
 
-  Program<Void, Void, Void> UNIT = success(null);
+  Program<?, ?, Void> UNIT = success(null);
 
   @SuppressWarnings("unchecked")
   static <S, E> Program<S, E, Void> unit() {
@@ -185,17 +185,17 @@ public sealed interface Program<S, E, T> {
     return async((_, callback) -> {
       var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
       var promise = CompletableFuture.runAsync(() -> {}, delayed);
-      promise.whenComplete((_, _) -> callback.accept(Result.success(null), null));
+      promise.whenCompleteAsync((_, _) -> callback.accept(Result.success(null), null));
     });
   }
 
   static <S, E, T, U, R> Program<S, E, R> map2(
-      Program<S, E, T> pt,
-      Program<S, E, U> pu,
+      Program<S, E, T> p1,
+      Program<S, E, U> p2,
       BiFunction<T, U, R> mapper) {
     return async((state, callback) -> {
       try {
-        callback.accept(Result.map2(pt.eval(state), pu.eval(state), mapper), null);
+        callback.accept(Result.map2(p1.eval(state), p2.eval(state), mapper), null);
       } catch (RuntimeException e) {
         callback.accept(null, e);
       }
@@ -203,13 +203,13 @@ public sealed interface Program<S, E, T> {
   }
 
   static <S, E, T, V, R> Program<S, E, R> parallel(
-      Program<S, E, T> pt,
-      Program<S, E, V> pv,
+      Program<S, E, T> p1,
+      Program<S, E, V> p2,
       BiFunction<T, V, R> mapper,
       Executor executor) {
     return async((state, callback) -> {
       try {
-        var result = map2(pt.fork(executor), pv.fork(executor), (f1, f2) -> Fiber.combine(f1, f2, mapper))
+        var result = map2(p1.fork(executor), p2.fork(executor), (f1, f2) -> Fiber.combine(f1, f2, mapper))
           .flatMap(Fiber::join);
         callback.accept(result.eval(state), null);
       } catch (RuntimeException e) {
@@ -219,12 +219,12 @@ public sealed interface Program<S, E, T> {
   }
 
   static <S, E, T, U> Program<S, E, Either<T, U>> either(
-      Program<S, E, T> pt,
-      Program<S, E, U> pu,
+      Program<S, E, T> p1,
+      Program<S, E, U> p2,
       Executor executor) {
     return async((state, callback) -> {
       try {
-        var result = map2(pt.fork(executor), pu.fork(executor), Fiber::either)
+        var result = map2(p1.fork(executor), p2.fork(executor), Fiber::either)
           .flatMap(Fiber::join);
         callback.accept(result.eval(state), null);
       } catch (RuntimeException e) {
@@ -280,7 +280,7 @@ public sealed interface Program<S, E, T> {
   }
 
   private static <S, E, T> Program<S, E, T> from(CompletableFuture<Result<E, T>> promise) {
-    return new Async<S, E, T>((_, callback) -> promise.whenComplete(callback));
+    return new Async<>((_, callback) -> promise.whenCompleteAsync(callback));
   }
 
   private static <S, E> Program<S, E, Long> start() {
