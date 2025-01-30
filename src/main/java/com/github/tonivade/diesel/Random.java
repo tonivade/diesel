@@ -24,7 +24,7 @@ public sealed interface Random<T> extends Program.Dsl<Random.Service, Void, T> {
 
   @Override
   @SuppressWarnings("unchecked")
-  default Result<Void, T> eval(Service state) {
+  default Result<Void, T> dslEval(Service state) {
     return success((T) switch (this) {
       case NextInt(int bound) -> state.nextInt(bound);
     });

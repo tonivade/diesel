@@ -48,7 +48,7 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
 
   @Override
   @SuppressWarnings("unchecked")
-  default Result<Void, T> eval(Service service) {
+  default Result<Void, T> dslEval(Service service) {
     return success((T) switch (this) {
       case WriteLine(var line) -> {
         service.writeLine(line);

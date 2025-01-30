@@ -21,7 +21,7 @@ public sealed interface Clock<T> extends Program.Dsl<Clock.Service, Void, T> {
 
   @Override
   @SuppressWarnings("unchecked")
-  default Result<Void, T> eval(Service state) {
+  default Result<Void, T> dslEval(Service state) {
     return success((T) switch (this) {
       case CurrentTime _ -> state.currentTime();
     });

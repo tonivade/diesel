@@ -33,7 +33,7 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
 
   @Override
   @SuppressWarnings({ "unchecked", "rawtypes" })
-  default Result<Void, T> eval(Service<V> state) {
+  default Result<Void, T> dslEval(Service<V> state) {
     return success((T) switch (this) {
       case SetValue set -> {
         state.set((V) set.value());

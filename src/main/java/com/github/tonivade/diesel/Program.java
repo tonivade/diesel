@@ -89,8 +89,10 @@ public sealed interface Program<S, E, T> {
 
   non-sealed interface Dsl<S, E, T> extends Program<S, E, T> {
     @Override default Trampoline<Result<E, T>> safeEval(S state) {
-      return done(eval(state));
+      return done(dslEval(state));
     }
+
+    Result<E, T> dslEval(S state);
   }
 
   default Result<E, T> eval(S state) {
@@ -125,6 +127,14 @@ public sealed interface Program<S, E, T> {
 
   default <R> Program<S, E, R> andThen(Program<S, E, R> next) {
     return flatMap(_ -> next);
+  }
+
+  default Program<S, E, T> peek(Function<T, Program<S, E, Void>> insert) {
+    return flatMap(value -> insert.apply(value).andThen(success(value)));
+  }
+
+  default Program<S, E, T> peekError(Function<E, Program<S, E, Void>> insert) {
+    return flatMapError(error -> insert.apply(error).andThen(failure(error)));
   }
 
   default <R> Program<S, E, R> flatMap(Function<T, Program<S, E, R>> next) {

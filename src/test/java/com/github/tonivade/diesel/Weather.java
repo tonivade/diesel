@@ -5,7 +5,14 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Console.writeLine;
+import static com.github.tonivade.diesel.Logger.info;
+import static com.github.tonivade.diesel.Logger.warn;
+import static java.lang.System.getLogger;
+import static java.lang.System.Logger.Level.ERROR;
+import static java.lang.System.Logger.Level.INFO;
+import static java.lang.System.Logger.Level.WARNING;
 import static java.util.Comparator.comparingInt;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -56,7 +63,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
 
   @Override
   @SuppressWarnings("unchecked")
-  default Result<Error, T> eval(Service service) {
+  default Result<Error, T> dslEval(Service service) {
     return Result.success((T) switch (this) {
       case ReadConfig _ -> service.readConfig();
       case GetForecast(City city) -> service.getForecast(city);
@@ -84,7 +91,10 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
 
   static Program<Context, Error, Void> askAndFetchAndPrint() {
     return askCity()
+        .peekError(error -> warn(": " + error))
+        .peek(city -> info("getting city forecast: " + city))
         .flatMap(Weather::fetchForecast)
+        .peek(cityForecast -> info("forecast received: " + cityForecast))
         .flatMap(Weather::printForecastAndPersist);
   }
 
@@ -131,7 +141,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
         .flatMap(config -> writeLine("conecting to " + config));
   }
 
-  final class Context implements Service, Console.Service, Random.Service {
+  final class Context implements Service, Console.Service, Random.Service, Logger.Service {
 
     private final Map<City, Forecast> map = new HashMap<>();
 
@@ -155,6 +165,21 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
       return map.entrySet().stream()
         .max(comparingInt(entry -> entry.getValue().temperature()))
         .map(Map.Entry::getKey);
+    }
+
+    @Override
+    public void info(String message) {
+      getLogger("weather").log(INFO, message);
+    }
+
+    @Override
+    public void warn(String message) {
+      getLogger("weather").log(WARNING, message);
+    }
+
+    @Override
+    public void error(String message, Throwable error) {
+      getLogger("weather").log(ERROR, message);
     }
   }
 }
