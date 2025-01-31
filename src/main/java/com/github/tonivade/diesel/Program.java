@@ -50,23 +50,15 @@ public sealed interface Program<S, E, T> {
     return new Async<>(callback);
   }
 
-  record Success<S, E, T>(@Nullable T value) implements Program<S, E, T> {
-    @Override public Trampoline<Result<E, T>> safeEval(S state) {
-      return done(Result.success(value));
-    }
-  }
+  record Success<S, E, T>(@Nullable T value) implements Program<S, E, T> {}
 
-  record Failure<S, E, T>(E error) implements Program<S, E, T> {
-    @Override public Trampoline<Result<E, T>> safeEval(S state) {
-      return done(Result.failure(error));
-    }
-  }
+  record Failure<S, E, T>(E error) implements Program<S, E, T> {}
 
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
       Function<E, Program<S, F, R>> onFailure,
       Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
-    @Override public Trampoline<Result<F, R>> safeEval(S state) {
+    private Trampoline<Result<F, R>> foldEval(S state) {
       return more(() -> current.safeEval(state))
           .flatMap(result -> more(() -> result.fold(onFailure, onSuccess).safeEval(state)));
     }
@@ -74,24 +66,9 @@ public sealed interface Program<S, E, T> {
 
   record Async<S, E, T>(
       BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) implements Program<S, E, T> {
-    @Override public Trampoline<Result<E, T>> safeEval(S state) {
-      var promise = new CompletableFuture<Result<E, T>>();
-      callback.accept(state, (result, error) -> {
-        if (error != null) {
-          promise.completeExceptionally(error);
-        } else {
-          promise.complete(result);
-        }
-      });
-      return done(promise.join());
-    }
   }
 
   non-sealed interface Dsl<S, E, T> extends Program<S, E, T> {
-    @Override default Trampoline<Result<E, T>> safeEval(S state) {
-      return done(dslEval(state));
-    }
-
     Result<E, T> dslEval(S state);
   }
 
@@ -99,7 +76,25 @@ public sealed interface Program<S, E, T> {
     return safeEval(state).run();
   }
 
-  Trampoline<Result<E, T>> safeEval(S state);
+  private Trampoline<Result<E, T>> safeEval(S state) {
+    return switch (this) {
+      case Success<S, E, T>(var value) -> done(Result.success(value));
+      case Failure<S, E, T>(var error) -> done(Result.failure(error));
+      case Dsl<S, E, T> dsl -> done(dsl.dslEval(state));
+      case Async<S, E, T>(var callback) -> {
+        var future = new CompletableFuture<Result<E, T>>();
+        callback.accept(state, (result, error) -> {
+          if (error != null) {
+            future.completeExceptionally(error);
+          } else {
+            future.complete(result);
+          }
+        });
+        yield done(future.join());
+      }
+      case FoldMap<S, ?, E, ?, T> foldMap -> foldMap.foldEval(state);
+    };
+  }
 
   default <R> Program<S, E, R> map(Function<T, R> mapper) {
     return flatMap(mapper.andThen(Program::success));
