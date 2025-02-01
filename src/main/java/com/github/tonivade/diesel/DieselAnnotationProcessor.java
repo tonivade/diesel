@@ -163,6 +163,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   private MethodSpec createDslEvalMethod(TypeElement element, ClassName service) {
     var result = ClassName.get(DIESEL_PACKAGE_NAME, RESULT);
     return MethodSpec.methodBuilder("dslEval")
+        .addAnnotation(Override.class)
         .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
         .returns(ParameterizedTypeName.get(result, TypeName.VOID.box(), TypeVariableName.get("T")))
         .addParameter(service, "state")

@@ -31,6 +31,7 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Program;
       import com.github.tonivade.diesel.Result;
+      import java.lang.Override;
       import java.lang.String;
       import java.lang.Void;
 
@@ -43,6 +44,7 @@ class DieselAnnotationProcessorTest {
           return (Program<S, E, Void>) new WriteLine(line);
         }
 
+        @Override
         default Result<Void, T> dslEval(Console state) {
           var result = (T) switch (this) {
             case ReadLine() -> state.readLine();
