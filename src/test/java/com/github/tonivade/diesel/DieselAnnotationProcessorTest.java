@@ -14,52 +14,52 @@ class DieselAnnotationProcessorTest {
   @Test
   void shouldGenerateDslCode() {
     var file = forSourceLines("test.Console",
-            """
-            package test;
+      """
+      package test;
 
-            import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Diesel;
 
-            @Diesel
-            public interface Console {
-              String readLine();
-              void writeLine(String line);
-            }""");
+      @Diesel
+      public interface Console {
+        String readLine();
+        void writeLine(String line);
+      }""");
 
     var expected = forSourceLines("test.ConsoleDsl",
-            """
-            package test;
+      """
+      package test;
 
-            import com.github.tonivade.diesel.Program;
-            import com.github.tonivade.diesel.Result;
-            import java.lang.String;
-            import java.lang.Void;
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Result;
+      import java.lang.String;
+      import java.lang.Void;
 
-            public sealed interface ConsoleDsl<T> extends Program.Dsl<Console, Void, T> {
-              static <S extends Console, E> Program<S, E, String> readLine() {
-                return (Program<S, E, String>) new ReadLine();
-              }
+      public sealed interface ConsoleDsl<T> extends Program.Dsl<Console, Void, T> {
+        static <S extends Console, E> Program<S, E, String> readLine() {
+          return (Program<S, E, String>) new ReadLine();
+        }
 
-              static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-                return (Program<S, E, Void>) new WriteLine(line);
-              }
+        static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
+          return (Program<S, E, Void>) new WriteLine(line);
+        }
 
-              default Result<Void, T> dslEval(Console state) {
-                var result = (T) switch (this) {
-                  case ReadLine() -> state.readLine();
-                  case WriteLine(var line) ->  {
-                    state.writeLine(line);
-                    yield null;
-                  }
-                };
-                return Result.success(result);
-              }
+        default Result<Void, T> dslEval(Console state) {
+          var result = (T) switch (this) {
+            case ReadLine() -> state.readLine();
+            case WriteLine(var line) ->  {
+              state.writeLine(line);
+              yield null;
+            }
+          };
+          return Result.success(result);
+        }
 
-              record ReadLine() implements ConsoleDsl<String> {
-              }
+        record ReadLine() implements ConsoleDsl<String> {
+        }
 
-              record WriteLine(String line) implements ConsoleDsl<Void> {
-              }
-            }""");
+        record WriteLine(String line) implements ConsoleDsl<Void> {
+        }
+      }""");
 
     assert_().about(javaSource())
       .that(file)
