@@ -176,15 +176,14 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private CodeBlock createSwitch(TypeElement element) {
-    var builder = CodeBlock.builder();
-    builder.beginControlFlow("var result = switch (this)");
+    var builder = CodeBlock.builder().beginControlFlow("var result = (T) switch (this)");
     for (Element enclosedElement : element.getEnclosedElements()) {
       if (enclosedElement.getKind() == ElementKind.METHOD) {
         builder.add(createCase((ExecutableElement) enclosedElement));
       }
     }
-    builder.add("};");
-    return builder.build();
+    // a switch expression must end in a semicolon, don't know how to do it with javapoet
+    return builder.unindent().addStatement("}").build();
   }
 
   private CodeBlock createCase(ExecutableElement method) {
