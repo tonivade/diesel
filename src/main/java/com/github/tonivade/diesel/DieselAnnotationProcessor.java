@@ -80,7 +80,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private void generate(Element element) {
-    if (element.getKind().name().equals("INTERFACE")) {
+    if (element.getKind() == ElementKind.INTERFACE) {
       printNote(element.getSimpleName() + " interface found");
       saveFile(generateDsl((TypeElement) element));
     } else {
@@ -122,14 +122,14 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   private TypeSpec.Builder createDslType(String dslName, ClassName service) {
     var program = ClassName.get(DIESEL_PACKAGE_NAME, PROGRAM);
     return TypeSpec.interfaceBuilder(dslName)
-        .addModifiers(Modifier.PUBLIC)
+        .addModifiers(Modifier.PUBLIC, Modifier.SEALED)
         .addTypeVariables(List.of(TypeVariableName.get("T")))
         .addSuperinterface(ParameterizedTypeName.get(program.nestedClass("Dsl"), service, TypeName.VOID.box(), TypeVariableName.get("T")));
   }
 
   private TypeSpec createRecordClass(ExecutableElement method, ClassName dsl) {
     var methodName = method.getSimpleName().toString();
-    return TypeSpec.recordBuilder(methodName.substring(0, 1).toUpperCase() + methodName.substring(1))
+    return TypeSpec.recordBuilder(toClassName(methodName))
         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
         .addSuperinterface(ParameterizedTypeName.get(dsl, getReturnTypeFor(method)))
         .recordConstructor(MethodSpec.constructorBuilder()
@@ -143,16 +143,18 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   private MethodSpec createFactoryMethod(ExecutableElement method, ClassName service) {
     var methodName = method.getSimpleName().toString();
     var program = ClassName.get(DIESEL_PACKAGE_NAME, PROGRAM);
+    var returnType = ParameterizedTypeName.get(program, TypeVariableName.get("S"), TypeVariableName.get("E"), getReturnTypeFor(method));
     return MethodSpec.methodBuilder(methodName)
         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
         .addTypeVariables(List.of(TypeVariableName.get("S", service), TypeVariableName.get("E")))
-        .returns(ParameterizedTypeName.get(program, TypeVariableName.get("S"), TypeVariableName.get("E"), getReturnTypeFor(method)))
+        .returns(returnType)
         .addParameters(method.getParameters().stream()
             .map(param -> ParameterSpec.builder(TypeName.get(param.asType()), param.getSimpleName().toString()).build())
             .toList())
         .addCode(CodeBlock.builder()
-            .addStatement("return new $N($L)",
-                methodName.substring(0, 1).toUpperCase() + methodName.substring(1),
+            .addStatement("return ($T) new $N($L)",
+                returnType,
+                toClassName(methodName),
                 method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
             .build())
         .build();
@@ -223,6 +225,10 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private boolean isPrimitiveOrVoid(TypeMirror returnType) {
     return returnType.getKind().isPrimitive() || returnType.getKind() == TypeKind.VOID;
+  }
+
+  private String toClassName(String methodName) {
+    return methodName.substring(0, 1).toUpperCase() + methodName.substring(1);
   }
 
   private void printNote(String msg) {
