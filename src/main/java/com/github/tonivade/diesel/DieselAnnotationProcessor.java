@@ -169,19 +169,22 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private CodeBlock dslEvalMethod(TypeElement element) {
-    var builder = CodeBlock.builder();
+    return CodeBlock.builder()
+        .add(createSwitch(element))
+        .addStatement("return Result.success(result)")
+        .build();
+  }
 
+  private CodeBlock createSwitch(TypeElement element) {
+    var builder = CodeBlock.builder();
     builder.beginControlFlow("var result = switch (this)");
     for (Element enclosedElement : element.getEnclosedElements()) {
       if (enclosedElement.getKind() == ElementKind.METHOD) {
         builder.add(createCase((ExecutableElement) enclosedElement));
       }
     }
-    builder.endControlFlow();
-
-    return builder
-        .addStatement("return Result.success(result)")
-        .build();
+    builder.add("};");
+    return builder.build();
   }
 
   private CodeBlock createCase(ExecutableElement method) {
