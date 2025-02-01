@@ -65,13 +65,13 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   @SuppressWarnings("unchecked")
   default Result<Error, T> dslEval(Service service) {
     return Result.success((T) switch (this) {
-      case ReadConfig _ -> service.readConfig();
+      case ReadConfig() -> service.readConfig();
       case GetForecast(City city) -> service.getForecast(city);
       case SetForecast(City city, Forecast forecast) -> {
         service.setForecast(city, forecast);
         yield null;
       }
-      case HottestCity _ -> service.hottestCity();
+      case HottestCity() -> service.hottestCity();
     });
   }
 
@@ -86,7 +86,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   static Program<Context, Error, Void> loop() {
     return askAndFetchAndPrint()
         .andThen(printHottestCity())
-        .foldMap(error -> printError(error), _ -> loop());
+        .foldMap(error -> printError(error), i -> loop());
   }
 
   static Program<Context, Error, Void> askAndFetchAndPrint() {

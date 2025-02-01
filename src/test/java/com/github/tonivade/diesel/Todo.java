@@ -95,12 +95,12 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
         yield null;
       }
       case FindOne(int id) -> repository.find(id);
-      case FindAll _ -> repository.findAll();
+      case FindAll() -> repository.findAll();
       case DeleteOne(int id) -> {
         repository.delete(id);
         yield null;
       }
-      case DeleteAll _ -> {
+      case DeleteAll() -> {
         repository.deleteAll();
         yield null;
       }
@@ -122,7 +122,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
       .andThen(writeLine("7. Exit"))
       .andThen(readLine())
       .flatMap(Todo::parseInt)
-      .recover(_ -> printMenu());
+      .recover(i -> printMenu());
   }
 
   static Program<Context, Error, Void> executeAction(int action) {
@@ -188,7 +188,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
   static Program<Context, Error, Integer> promptId() {
     return Console.<Context, Error>prompt("Enter id")
         .flatMap(Todo::parseInt)
-        .recover(_ -> promptId());
+        .recover(i -> promptId());
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {

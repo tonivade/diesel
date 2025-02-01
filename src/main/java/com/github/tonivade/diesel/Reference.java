@@ -39,7 +39,7 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
         state.set((V) set.value());
         yield null;
       }
-      case GetValue _ -> state.get();
+      case GetValue ignore -> state.get();
     });
   }
 }

@@ -12,14 +12,13 @@ repositories {
 
 java {
   toolchain {
-    languageVersion = JavaLanguageVersion.of(23)
+    languageVersion = JavaLanguageVersion.of(21)
   }
 }
 
 tasks.withType(JavaCompile) {
-  options.compilerArgs << '--enable-preview'
   options.compilerArgs << '-Xlint:all'
-  options.release = 23
+  options.release = 21
   if (!name.toLowerCase().contains("test")) {
     options.errorprone {
       check("NullAway", net.ltgt.gradle.errorprone.CheckSeverity.ERROR)
@@ -40,12 +39,11 @@ dependencies {
   testImplementation 'org.assertj:assertj-core:3.27.3'
   testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
   testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-  testImplementation "org.mockito:mockito-core:5.14.2"
-  testImplementation "org.mockito:mockito-junit-jupiter:5.14.2"
+  testImplementation 'org.mockito:mockito-core:5.14.2'
+  testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+  testImplementation 'com.google.testing.compile:compile-testing:0.21.0'
 }
 
 test {
   useJUnitPlatform()
-  
-  jvmArgs += '--enable-preview'
 }

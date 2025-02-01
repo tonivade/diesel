@@ -33,7 +33,7 @@ sealed interface Trampoline<T> {
   }
 
   static <T> Trampoline<T> more(Supplier<Trampoline<T>> next) {
-    return UNIT.flatMap(_ -> next.get());
+    return UNIT.flatMap(ignore -> next.get());
   }
 
   default <R> Trampoline<R> map(Function<T, R> mapper) {
@@ -41,7 +41,7 @@ sealed interface Trampoline<T> {
   }
 
   default <R> Trampoline<R> andThen(Trampoline<R> next) {
-    return flatMap(_ -> next);
+    return flatMap(ignore -> next);
   }
 
   default <R> Trampoline<R> flatMap(Function<T, Trampoline<R>> next) {

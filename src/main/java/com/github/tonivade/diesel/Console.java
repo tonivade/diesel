@@ -10,9 +10,9 @@ import static java.lang.System.console;
 public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T> {
 
   interface Service {
-    @SuppressWarnings({"preview", "NullAway"})
+    @SuppressWarnings("NullAway")
     default void writeLine(String line) {
-      console().println(line);
+      System.out.println(line);
     }
 
     @SuppressWarnings("NullAway")
@@ -54,7 +54,7 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
         service.writeLine(line);
         yield null;
       }
-      case ReadLine _ -> service.readLine();
+      case ReadLine() -> service.readLine();
     });
   }
 }

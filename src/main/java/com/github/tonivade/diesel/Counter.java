@@ -29,8 +29,8 @@ public sealed interface Counter<T extends Number> extends Program.Dsl<Counter.Se
   @Override
   default Result<Void, T> dslEval(Service<T> state) {
     return success(switch (this) {
-      case Increment<T> _ -> state.increment();
-      case Decrement<T> _ -> state.decrement();
+      case Increment<T>() -> state.increment();
+      case Decrement<T>() -> state.decrement();
     });
   }
 }

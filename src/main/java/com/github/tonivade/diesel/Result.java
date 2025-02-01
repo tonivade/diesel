@@ -29,7 +29,7 @@ public sealed interface Result<F, S> {
   @SuppressWarnings("unchecked")
   default <R> Result<F, R> map(Function<S, R> mapper) {
     return switch (this) {
-      case Failure<F, S> _ -> (Result<F, R>) this;
+      case Failure<F, S> ignore -> (Result<F, R>) this;
       case Success<F, S>(S value) -> success(mapper.apply(value));
     };
   }
@@ -38,14 +38,14 @@ public sealed interface Result<F, S> {
   default <R> Result<R, S> mapError(Function<F, R> mapper) {
     return switch (this) {
       case Failure<F, S>(F error) -> failure(mapper.apply(error));
-      case Success<F, S> _ -> (Result<R, S>) this;
+      case Success<F, S> ignore -> (Result<R, S>) this;
     };
   }
 
   @SuppressWarnings("unchecked")
   default <R> Result<F, R> flatMap(Function<S, Result<F, R>> mapper) {
     return switch (this) {
-      case Failure<F, S> _ -> (Result<F, R>) this;
+      case Failure<F, S> ignore -> (Result<F, R>) this;
       case Success<F, S>(S value) -> mapper.apply(value);
     };
   }
@@ -58,7 +58,7 @@ public sealed interface Result<F, S> {
   }
 
   default S getOrElseThrow() {
-    return getOrElseThrow(_ -> new NoSuchElementException());
+    return getOrElseThrow(i -> new NoSuchElementException());
   }
 
   default <X extends Throwable> S getOrElseThrow(Function<F, X> mapper) throws X {

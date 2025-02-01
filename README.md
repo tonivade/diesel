@@ -8,7 +8,7 @@ The name of the project is the literal spelling of DSL acronym.
 
 ## Requirement
 
-This library is based on Java 23.
+This library is based on Java 21.
 
 ## Usage
 

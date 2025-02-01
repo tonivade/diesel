@@ -35,11 +35,11 @@ public sealed interface Program<S, E, T> {
   }
 
   static <S, E, T> Program<S, E, T> suspend(Supplier<T> supplier) {
-    return Program.<S, E>unit().map(_ -> supplier.get());
+    return Program.<S, E>unit().map(i -> supplier.get());
   }
 
   static <S, E> Program<S, E, Void> task(Runnable runnable) {
-    return Program.<S, E>unit().map(_ -> {
+    return Program.<S, E>unit().map(i -> {
       runnable.run();
       return null;
     });
@@ -117,11 +117,11 @@ public sealed interface Program<S, E, T> {
   }
 
   default Program<S, E, T> recoverWith(Program<S, E, T> value) {
-    return flatMapError(_ -> value);
+    return flatMapError(i -> value);
   }
 
   default <R> Program<S, E, R> andThen(Program<S, E, R> next) {
-    return flatMap(_ -> next);
+    return flatMap(i -> next);
   }
 
   default Program<S, E, T> peek(Function<T, Program<S, E, Void>> insert) {
@@ -185,14 +185,14 @@ public sealed interface Program<S, E, T> {
   }
 
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
-    return Program.<S, E>sleep(duration, executor).flatMap(_ -> success(supplier.get()));
+    return Program.<S, E>sleep(duration, executor).flatMap(i -> success(supplier.get()));
   }
 
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
-    return async((_, callback) -> {
+    return async((x, callback) -> {
       var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
       var promise = CompletableFuture.runAsync(() -> {}, delayed);
-      promise.whenCompleteAsync((_, _) -> callback.accept(Result.success(null), null));
+      promise.whenCompleteAsync((i, j) -> callback.accept(Result.success(null), null));
     });
   }
 
@@ -287,7 +287,7 @@ public sealed interface Program<S, E, T> {
   }
 
   private static <S, E, T> Program<S, E, T> from(CompletableFuture<Result<E, T>> promise) {
-    return new Async<>((_, callback) -> promise.whenCompleteAsync(callback));
+    return new Async<>((i, callback) -> promise.whenCompleteAsync(callback));
   }
 
   private static <S, E> Program<S, E, Long> start() {
