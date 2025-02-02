@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -32,6 +33,10 @@ public sealed interface Program<S, E, T> {
 
   static <S, E, T> Program<S, E, T> failure(E error) {
     return new Failure<>(error);
+  }
+
+  static <S, E, T, X extends Throwable> Program<S, E, T> fatal(X throwable) {
+    return suspend(() -> sneakyThrow(throwable));
   }
 
   static <S, E, T> Program<S, E, T> suspend(Supplier<T> supplier) {
@@ -185,6 +190,11 @@ public sealed interface Program<S, E, T> {
     });
   }
 
+  default Program<S, E, T> timeout(Duration duration, Executor executor) {
+    return either(sleep(duration, executor), this, executor)
+      .flatMap(either -> either.fold(__ -> fatal(new TimeoutException()), Program::success));
+  }
+
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
     return Program.<S, E>sleep(duration, executor).flatMap(__ -> success(supplier.get()));
   }
@@ -297,5 +307,11 @@ public sealed interface Program<S, E, T> {
 
   private static <T> ElapsedTime<T> end(Long start, T value) {
     return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
+  }
+
+  // XXX: https://www.baeldung.com/java-sneaky-throws
+  @SuppressWarnings("unchecked")
+  private static <X extends Throwable, R> R sneakyThrow(Throwable t) throws X {
+    throw (X) t;
   }
 }

@@ -17,6 +17,8 @@ import static org.mockito.Mockito.when;
 import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeoutException;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -133,6 +135,25 @@ class ProgramTest {
       .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
     assertThat(result.getOrElseThrow().value())
       .isEqualTo(Either.right("hello"));
+  }
+
+  @Test
+  void shouldTimeout() {
+    var p1 = delay(Duration.ofSeconds(20), () -> 10, executor);
+    var p2 = p1.timeout(Duration.ofSeconds(1), executor);
+
+    assertThatThrownBy(() -> p2.eval(null))
+      .isInstanceOf(TimeoutException.class);
+  }
+
+  @Test
+  void shouldNotTimeout() {
+    var p1 = delay(Duration.ofSeconds(2), () -> 10, executor);
+    var p2 = p1.timeout(Duration.ofSeconds(10), executor);
+
+    var result = p2.eval(null);
+
+    assertThat(result).isEqualTo(Result.success(10));
   }
 
   record Tuple<A, B>(A a, B b) {}
