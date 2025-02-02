@@ -103,7 +103,7 @@ class ProgramTest {
     var p1 = delay(Duration.ofSeconds(2), () -> 10, executor);
     var p2 = delay(Duration.ofSeconds(2), () -> "hello", executor);
 
-    var result = Program.map2(p1, p2, Tuple::new).timed().eval(null);
+    var result = Program.zip(p1, p2, Tuple::new).timed().eval(null);
 
     assertThat(result.getOrElseThrow().duration())
       .isCloseTo(Duration.ofSeconds(4), Duration.ofMillis(100));

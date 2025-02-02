@@ -19,7 +19,7 @@ public sealed interface Result<F, S> {
     return new Success<>(value);
   }
 
-  static <F, S, T, R> Result<F, R> map2(Result<F, S> r1, Result<F, T> r2, BiFunction<S, T, R> mapper) {
+  static <F, S, T, R> Result<F, R> zip(Result<F, S> r1, Result<F, T> r2, BiFunction<S, T, R> mapper) {
     return r1.flatMap(a -> r2.map(b -> mapper.apply(a, b)));
   }
 

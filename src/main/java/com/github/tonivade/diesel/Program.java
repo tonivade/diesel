@@ -207,13 +207,13 @@ public sealed interface Program<S, E, T> {
     });
   }
 
-  static <S, E, T, U, R> Program<S, E, R> map2(
+  static <S, E, T, U, R> Program<S, E, R> zip(
       Program<S, E, T> p1,
       Program<S, E, U> p2,
       BiFunction<T, U, R> mapper) {
     return async((state, callback) -> {
       try {
-        callback.accept(Result.map2(p1.eval(state), p2.eval(state), mapper), null);
+        callback.accept(Result.zip(p1.eval(state), p2.eval(state), mapper), null);
       } catch (RuntimeException e) {
         callback.accept(null, e);
       }
@@ -227,7 +227,7 @@ public sealed interface Program<S, E, T> {
       Executor executor) {
     return async((state, callback) -> {
       try {
-        var result = map2(p1.fork(executor), p2.fork(executor), (f1, f2) -> Fiber.combine(f1, f2, mapper))
+        var result = zip(p1.fork(executor), p2.fork(executor), (f1, f2) -> Fiber.combine(f1, f2, mapper))
           .flatMap(Fiber::join);
         callback.accept(result.eval(state), null);
       } catch (RuntimeException e) {
@@ -242,7 +242,7 @@ public sealed interface Program<S, E, T> {
       Executor executor) {
     return async((state, callback) -> {
       try {
-        var result = map2(p1.fork(executor), p2.fork(executor), Fiber::either)
+        var result = zip(p1.fork(executor), p2.fork(executor), Fiber::either)
           .flatMap(Fiber::join);
         callback.accept(result.eval(state), null);
       } catch (RuntimeException e) {
@@ -273,7 +273,7 @@ public sealed interface Program<S, E, T> {
     }
 
     public static <E, T, U, R> Fiber<E, R> combine(Fiber<E, T> f1, Fiber<E, U> f2, BiFunction<T, U, R> mapper) {
-      return new Fiber<>(f1.promise.thenCombineAsync(f2.promise, (a, b) -> Result.map2(a, b, mapper)));
+      return new Fiber<>(f1.promise.thenCombineAsync(f2.promise, (a, b) -> Result.zip(a, b, mapper)));
     }
 
     public static <E, T, U> Fiber<E, Either<T, U>> either(Fiber<E, T> f1, Fiber<E, U> f2) {
