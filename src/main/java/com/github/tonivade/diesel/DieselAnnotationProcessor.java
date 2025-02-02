@@ -115,8 +115,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
     dslTypeBuilder.addMethod(createDslEvalMethod(element, service));
 
-    return JavaFile.builder(packageName, dslTypeBuilder.build())
-        .build();
+    return JavaFile.builder(packageName, dslTypeBuilder.build()).build();
   }
 
   private TypeSpec.Builder createDslType(String dslName, ClassName service) {
