@@ -58,7 +58,7 @@ public sealed interface Result<F, S> {
   }
 
   default S getOrElseThrow() {
-    return getOrElseThrow(i -> new NoSuchElementException());
+    return getOrElseThrow(__ -> new NoSuchElementException());
   }
 
   default <X extends Throwable> S getOrElseThrow(Function<F, X> mapper) throws X {

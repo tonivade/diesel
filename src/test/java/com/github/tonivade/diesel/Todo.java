@@ -122,7 +122,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
       .andThen(writeLine("7. Exit"))
       .andThen(readLine())
       .flatMap(Todo::parseInt)
-      .recover(i -> printMenu());
+      .recover(__ -> printMenu());
   }
 
   static Program<Context, Error, Void> executeAction(int action) {
@@ -188,7 +188,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
   static Program<Context, Error, Integer> promptId() {
     return Console.<Context, Error>prompt("Enter id")
         .flatMap(Todo::parseInt)
-        .recover(i -> promptId());
+        .recover(__ -> promptId());
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {

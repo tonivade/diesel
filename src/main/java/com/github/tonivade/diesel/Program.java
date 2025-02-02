@@ -35,11 +35,11 @@ public sealed interface Program<S, E, T> {
   }
 
   static <S, E, T> Program<S, E, T> suspend(Supplier<T> supplier) {
-    return Program.<S, E>unit().map(i -> supplier.get());
+    return Program.<S, E>unit().map(__ -> supplier.get());
   }
 
   static <S, E> Program<S, E, Void> task(Runnable runnable) {
-    return Program.<S, E>unit().map(i -> {
+    return Program.<S, E>unit().map(__ -> {
       runnable.run();
       return null;
     });
@@ -118,11 +118,11 @@ public sealed interface Program<S, E, T> {
   }
 
   default Program<S, E, T> recoverWith(Program<S, E, T> value) {
-    return flatMapError(i -> value);
+    return flatMapError(__ -> value);
   }
 
   default <R> Program<S, E, R> andThen(Program<S, E, R> next) {
-    return flatMap(i -> next);
+    return flatMap(__ -> next);
   }
 
   default Program<S, E, T> peek(Function<T, Program<S, E, Void>> insert) {
@@ -186,7 +186,7 @@ public sealed interface Program<S, E, T> {
   }
 
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
-    return Program.<S, E>sleep(duration, executor).flatMap(i -> success(supplier.get()));
+    return Program.<S, E>sleep(duration, executor).flatMap(__ -> success(supplier.get()));
   }
 
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {

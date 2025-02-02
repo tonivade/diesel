@@ -49,7 +49,7 @@ interface Game {
   static Program<Context, Error, Void> loop() {
     return enterNumber()
         .flatMap(Game::parseInt)
-        .foldMap(i -> loop(), number -> checkNumber(number).flatMap(Game::winOrContinue));
+        .foldMap(__ -> loop(), number -> checkNumber(number).flatMap(Game::winOrContinue));
   }
 
   static Program<Context, Error, String> enterNumber() {
