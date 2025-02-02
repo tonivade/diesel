@@ -36,11 +36,15 @@ public sealed interface Program<S, E, T> {
   }
 
   static <S, E, T, X extends Throwable> Program<S, E, T> fatal(X throwable) {
-    return suspend(() -> sneakyThrow(throwable));
+    return supply(() -> sneakyThrow(throwable));
   }
 
-  static <S, E, T> Program<S, E, T> suspend(Supplier<T> supplier) {
+  static <S, E, T> Program<S, E, T> supply(Supplier<T> supplier) {
     return Program.<S, E>unit().map(__ -> supplier.get());
+  }
+
+  static <S, E, T> Program<S, E, T> suspend(Supplier<Program<S, E, T>> supplier) {
+    return Program.<S, E>unit().flatMap(__ -> supplier.get());
   }
 
   static <S, E> Program<S, E, Void> task(Runnable runnable) {
@@ -302,7 +306,7 @@ public sealed interface Program<S, E, T> {
   }
 
   private static <S, E> Program<S, E, Long> start() {
-    return suspend(System::nanoTime);
+    return supply(System::nanoTime);
   }
 
   private static <T> ElapsedTime<T> end(Long start, T value) {

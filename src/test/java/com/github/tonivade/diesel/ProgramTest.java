@@ -23,9 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.github.tonivade.diesel.ProgramTest.TestDsl.Error;
 import com.github.tonivade.diesel.ProgramTest.TestDsl.Operation;
-import com.github.tonivade.diesel.ProgramTest.TestDsl.Service;
 import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 @ExtendWith(MockitoExtension.class)
@@ -194,10 +192,6 @@ class ProgramTest {
     if (n == 0) {
       return Program.success(sum);
     }
-    return sum(n, sum).flatMap(next -> safeSum(n - 1, next));
-  }
-
-  private static Program<Service, Error, Integer> sum(Integer a, Integer b) {
-    return Program.success(a + b);
+    return Program.suspend(() -> safeSum(n - 1, n + sum));
   }
 }
