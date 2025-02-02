@@ -58,6 +58,7 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T> current,
       Function<E, Program<S, F, R>> onFailure,
       Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
+
     private Trampoline<Result<F, R>> foldEval(S state) {
       return more(() -> current.safeEval(state))
           .flatMap(result -> more(() -> result.fold(onFailure, onSuccess).safeEval(state)));
@@ -189,7 +190,7 @@ public sealed interface Program<S, E, T> {
   }
 
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
-    return async((x, callback) -> {
+    return async((__, callback) -> {
       var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
       var promise = CompletableFuture.runAsync(() -> {}, delayed);
       promise.whenCompleteAsync((i, j) -> callback.accept(Result.success(null), null));
@@ -287,7 +288,7 @@ public sealed interface Program<S, E, T> {
   }
 
   private static <S, E, T> Program<S, E, T> from(CompletableFuture<Result<E, T>> promise) {
-    return new Async<>((i, callback) -> promise.whenCompleteAsync(callback));
+    return new Async<>((__, callback) -> promise.whenCompleteAsync(callback));
   }
 
   private static <S, E> Program<S, E, Long> start() {

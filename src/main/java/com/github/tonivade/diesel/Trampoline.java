@@ -13,13 +13,17 @@ sealed interface Trampoline<T> {
   static Trampoline<Void> UNIT = done(null);
 
   record Done<T>(T value) implements Trampoline<T> {
-    @Override public <R> Trampoline<R> apply(Function<T, Trampoline<R>> parent) {
+
+    @Override
+    public <R> Trampoline<R> apply(Function<T, Trampoline<R>> parent) {
       return parent.apply(value);
     }
   }
 
   record FlatMap<T, R>(Trampoline<T> current, Function<T, Trampoline<R>> next) implements Trampoline<R> {
-    @Override public <S> Trampoline<S> apply(Function<R, Trampoline<S>> parent) {
+
+    @Override
+    public <S> Trampoline<S> apply(Function<R, Trampoline<S>> parent) {
       return current.flatMap(value -> next.apply(value).flatMap(parent));
     }
 
@@ -33,7 +37,7 @@ sealed interface Trampoline<T> {
   }
 
   static <T> Trampoline<T> more(Supplier<Trampoline<T>> next) {
-    return UNIT.flatMap(ignore -> next.get());
+    return UNIT.flatMap(__ -> next.get());
   }
 
   default <R> Trampoline<R> map(Function<T, R> mapper) {
@@ -41,7 +45,7 @@ sealed interface Trampoline<T> {
   }
 
   default <R> Trampoline<R> andThen(Trampoline<R> next) {
-    return flatMap(ignore -> next);
+    return flatMap(__ -> next);
   }
 
   default <R> Trampoline<R> flatMap(Function<T, Trampoline<R>> next) {
