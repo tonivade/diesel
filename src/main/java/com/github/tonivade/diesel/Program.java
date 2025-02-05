@@ -35,7 +35,7 @@ public sealed interface Program<S, E, T> {
     return new Failure<>(error);
   }
 
-  static <S, E, T, X extends Throwable> Program<S, E, T> fatal(X throwable) {
+  static <S, E, T, X extends Throwable> Program<S, E, T> raise(X throwable) {
     return supply(() -> sneakyThrow(throwable));
   }
 
@@ -67,7 +67,6 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T> current,
       Function<E, Program<S, F, R>> onFailure,
       Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
-
     private Trampoline<Result<F, R>> foldEval(S state) {
       return more(() -> current.safeEval(state))
           .flatMap(result -> more(() -> result.fold(onFailure, onSuccess).safeEval(state)));
@@ -196,7 +195,7 @@ public sealed interface Program<S, E, T> {
 
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
     return either(sleep(duration, executor), this, executor)
-      .flatMap(either -> either.fold(__ -> fatal(new TimeoutException()), Program::success));
+      .flatMap(either -> either.fold(__ -> raise(new TimeoutException()), Program::success));
   }
 
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
