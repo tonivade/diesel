@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.delay;
+import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Result.failure;
 import static com.github.tonivade.diesel.Result.success;
@@ -150,6 +151,23 @@ class ProgramTest {
     var p2 = p1.timeout(Duration.ofSeconds(10), executor);
 
     var result = p2.eval(null);
+
+    assertThat(result).isEqualTo(Result.success(10));
+  }
+
+  @Test
+  void shouldRaiseException() {
+    var program = raise(UnsupportedOperationException::new);
+
+    assertThatThrownBy(() -> program.eval(null))
+      .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void shouldCatchException() {
+    var program = raise(UnsupportedOperationException::new).catchAll(__ -> Program.success(10));
+
+    var result = program.eval(null);
 
     assertThat(result).isEqualTo(Result.success(10));
   }

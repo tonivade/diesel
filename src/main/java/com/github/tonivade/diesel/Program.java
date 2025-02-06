@@ -35,8 +35,8 @@ public sealed interface Program<S, E, T> {
     return new Failure<>(error);
   }
 
-  static <S, E, T, X extends Throwable> Program<S, E, T> raise(X throwable) {
-    return supply(() -> sneakyThrow(throwable));
+  static <S, E, T, X extends Throwable> Program<S, E, T> raise(Supplier<X> throwable) {
+    return supply(() -> sneakyThrow(throwable.get()));
   }
 
   static <S, E, T> Program<S, E, T> supply(Supplier<T> supplier) {
@@ -62,6 +62,8 @@ public sealed interface Program<S, E, T> {
   record Success<S, E, T>(@Nullable T value) implements Program<S, E, T> {}
 
   record Failure<S, E, T>(E error) implements Program<S, E, T> {}
+
+  record Catch<S, E, T>(Program<S, E, T> current, Function<Throwable, Program<S, E, T>> recover) implements Program<S, E, T> {}
 
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
@@ -89,6 +91,13 @@ public sealed interface Program<S, E, T> {
     return switch (this) {
       case Success<S, E, T>(var value) -> done(Result.success(value));
       case Failure<S, E, T>(var error) -> done(Result.failure(error));
+      case Catch<S, E, T>(var current, var recover) -> {
+        try {
+          yield done(current.eval(state));
+        } catch (Throwable t) {
+          yield recover.apply(t).safeEval(state);
+        }
+      }
       case Dsl<S, E, T> dsl -> done(dsl.dslEval(state));
       case Async<S, E, T>(var callback) -> {
         var future = new CompletableFuture<Result<E, T>>();
@@ -149,6 +158,10 @@ public sealed interface Program<S, E, T> {
     return foldMap(next, Program::success);
   }
 
+  default Program<S, E, T> catchAll(Function<Throwable, Program<S, E, T>> recover) {
+    return new Catch<>(this, recover);
+  }
+
   default <F, R> Program<S, F, R> foldMap(
       Function<E, Program<S, F, R>> onFailure,
       Function<T, Program<S, F, R>> onSuccess) {
@@ -195,7 +208,7 @@ public sealed interface Program<S, E, T> {
 
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
     return either(sleep(duration, executor), this, executor)
-      .flatMap(either -> either.fold(__ -> raise(new TimeoutException()), Program::success));
+      .flatMap(either -> either.fold(__ -> raise(TimeoutException::new), Program::success));
   }
 
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
