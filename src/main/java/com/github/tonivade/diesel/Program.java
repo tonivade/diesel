@@ -63,7 +63,9 @@ public sealed interface Program<S, E, T> {
 
   record Failure<S, E, T>(E error) implements Program<S, E, T> {}
 
-  record Catch<S, E, T>(Program<S, E, T> current, Function<Throwable, Program<S, E, T>> recover) implements Program<S, E, T> {}
+  record Catch<S, E, T>(
+      Program<S, E, T> current,
+      Function<Throwable, Program<S, E, T>> recover) implements Program<S, E, T> {}
 
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
@@ -201,8 +203,8 @@ public sealed interface Program<S, E, T> {
 
   default Program<S, E, Fiber<E, T>> fork(Executor executor) {
     return async((state, callback) -> {
-      var promise = supplyAsync(() -> eval(state), executor);
-      callback.accept(Result.success(new Fiber<>(promise)), null);
+      var future = supplyAsync(() -> eval(state), executor);
+      callback.accept(Result.success(new Fiber<>(future)), null);
     });
   }
 
@@ -218,8 +220,8 @@ public sealed interface Program<S, E, T> {
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
     return async((__, callback) -> {
       var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
-      var promise = CompletableFuture.runAsync(() -> {}, delayed);
-      promise.whenCompleteAsync((i, j) -> callback.accept(Result.success(null), null));
+      var future = CompletableFuture.runAsync(() -> {}, delayed);
+      future.whenCompleteAsync((i, j) -> callback.accept(Result.success(null), null));
     });
   }
 
@@ -269,32 +271,32 @@ public sealed interface Program<S, E, T> {
 
   record ElapsedTime<T>(Duration duration, T value) {}
 
-  record Fiber<E, T>(CompletableFuture<Result<E, T>> promise) {
+  record Fiber<E, T>(CompletableFuture<Result<E, T>> future) {
 
     @SuppressWarnings("unchecked")
     public <S, F extends E> Program<S, F, T> join() {
-      return (Program<S, F, T>) Program.from(promise);
+      return (Program<S, F, T>) Program.from(future);
     }
 
     public <S, F extends E> Program<S, F, Void> cancel() {
-      return task(() -> promise.cancel(true));
+      return task(() -> future.cancel(true));
     }
 
     public boolean isCompleted() {
-      return promise.isDone();
+      return future.isDone();
     }
 
     public boolean isCancelled() {
-      return promise.isCancelled();
+      return future.isCancelled();
     }
 
     public static <E, T, U, R> Fiber<E, R> combine(Fiber<E, T> f1, Fiber<E, U> f2, BiFunction<T, U, R> mapper) {
-      return new Fiber<>(f1.promise.thenCombineAsync(f2.promise, (a, b) -> Result.zip(a, b, mapper)));
+      return new Fiber<>(f1.future.thenCombineAsync(f2.future, (a, b) -> Result.zip(a, b, mapper)));
     }
 
     public static <E, T, U> Fiber<E, Either<T, U>> either(Fiber<E, T> f1, Fiber<E, U> f2) {
-      return new Fiber<>(f1.promise.thenApplyAsync(t -> t.map(Either::<T, U>left))
-        .applyToEitherAsync(f2.promise.thenApplyAsync(u -> u.map(Either::<T, U>right)), result -> {
+      return new Fiber<>(f1.future.thenApplyAsync(t -> t.map(Either::<T, U>left))
+        .applyToEitherAsync(f2.future.thenApplyAsync(u -> u.map(Either::<T, U>right)), result -> {
           cancelBoth(f1, f2);
           return result;
         }));
@@ -303,18 +305,18 @@ public sealed interface Program<S, E, T> {
     private static <E, T, U> void cancelBoth(Fiber<E, T> f1, Fiber<E, U> f2) {
       try {
         if (!f1.isCompleted()) {
-          f1.promise.cancel(true);
+          f1.future.cancel(true);
         }
       } finally {
         if (!f2.isCompleted()) {
-          f2.promise.cancel(true);
+          f2.future.cancel(true);
         }
       }
     }
   }
 
-  private static <S, E, T> Program<S, E, T> from(CompletableFuture<Result<E, T>> promise) {
-    return new Async<>((__, callback) -> promise.whenCompleteAsync(callback));
+  private static <S, E, T> Program<S, E, T> from(CompletableFuture<Result<E, T>> future) {
+    return new Async<>((__, callback) -> future.whenCompleteAsync(callback));
   }
 
   private static <S, E> Program<S, E, Long> start() {
