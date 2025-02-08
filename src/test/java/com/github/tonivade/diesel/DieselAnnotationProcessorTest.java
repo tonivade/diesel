@@ -71,4 +71,37 @@ class DieselAnnotationProcessorTest {
       .generatesSources(expected);
   }
 
+  @Test
+  void annotationNotSupportedInClasses() {
+    var file = forSourceLines("test.User",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+
+      @Diesel
+      public class User {}""");
+
+    assert_().about(javaSource()).that(file)
+        .processedWith(new DieselAnnotationProcessor())
+        .failsToCompile()
+        .withErrorContaining("not supported");
+  }
+
+  @Test
+  void annotationNotSupportedInRecords() {
+    var file = forSourceLines("test.User",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+
+      @Diesel
+      public record User() {}""");
+
+    assert_().about(javaSource()).that(file)
+        .processedWith(new DieselAnnotationProcessor())
+        .failsToCompile()
+        .withErrorContaining("not supported");
+  }
 }
