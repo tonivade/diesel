@@ -6,24 +6,62 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
 
-public sealed interface Clock<T> extends Program.Dsl<Clock.Service, Void, T> {
+/**
+ * A sealed interface representing a clock that provides the current time.
+ * This interface is part of the Diesel DSL (Domain Specific Language) and
+ * provides a way to retrieve the current time in a pure and referentially
+ * transparent way.
+ * 
+ * @see Program.Dsl
+ * @see Service
+ */
+public sealed interface Clock extends Program.Dsl<Clock.Service, Void, Long> {
 
+  /**
+   * The service interface of the clock, providing a method to retrieve the
+   * current time.
+   * 
+   * @since 2025
+   */
   interface Service {
+    /**
+     * Retrieves the current time.
+     * 
+     * @return the current time in nanoseconds
+     */
     Long currentTime();
   }
 
-  record CurrentTime() implements Clock<Long> {}
+  /**
+   * A record class representing a clock that retrieves the current time.
+   * 
+   * @since 2025
+   */
+  record CurrentTime() implements Clock {}
 
+  /**
+   * Creates a new program that retrieves the current time.
+   * 
+   * @param <S> the service type
+   * @param <E> the error type
+   * @return a program that retrieves the current time
+   */
   @SuppressWarnings("unchecked")
   static <S extends Service, E> Program<S, E, Long> currentTime() {
     return (Program<S, E, Long>) new CurrentTime();
   }
 
+  /**
+   * Evaluates the clock in the context of the given service and returns the
+   * result as a success or failure.
+   * 
+   * @param service the service to use for evaluation
+   * @return the result of the evaluation
+   */
   @Override
-  @SuppressWarnings("unchecked")
-  default Result<Void, T> dslEval(Service state) {
-    return success((T) switch (this) {
-      case CurrentTime() -> state.currentTime();
+  default Result<Void, Long> dslEval(Service service) {
+    return success(switch (this) {
+      case CurrentTime() -> service.currentTime();
     });
   }
 }
