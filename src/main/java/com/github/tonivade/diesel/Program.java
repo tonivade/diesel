@@ -82,7 +82,7 @@ public sealed interface Program<S, E, T> {
   }
 
   non-sealed interface Dsl<S, E, T> extends Program<S, E, T> {
-    Result<E, T> dslEval(S state);
+    Result<E, T> handle(S state);
   }
 
   default Result<E, T> eval(S state) {
@@ -100,7 +100,7 @@ public sealed interface Program<S, E, T> {
           yield recover.apply(t).safeEval(state);
         }
       }
-      case Dsl<S, E, T> dsl -> done(dsl.dslEval(state));
+      case Dsl<S, E, T> dsl -> done(dsl.handle(state));
       case Async<S, E, T>(var callback) -> {
         var future = new CompletableFuture<Result<E, T>>();
         callback.accept(state, (result, error) -> {

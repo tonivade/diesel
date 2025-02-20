@@ -194,7 +194,7 @@ class ProgramTest {
     record Operation() implements TestDsl {}
 
     @Override
-    default Result<Error, Integer> dslEval(Service state) {
+    default Result<Error, Integer> handle(Service state) {
       return state.operation();
     }
   }

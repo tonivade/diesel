@@ -110,7 +110,7 @@ public sealed interface Logger extends Program.Dsl<Logger.Service, Void, Void> {
    * @return a Result indicating the outcome of the logging operation
    */
   @Override
-  default Result<Void, Void> dslEval(Service service) {
+  default Result<Void, Void> handle(Service service) {
     return success(switch (this) {
       case Info(var message) -> {
         service.info(message);

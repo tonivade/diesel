@@ -11,7 +11,7 @@ import static com.github.tonivade.diesel.Result.success;
  * This interface is part of the Diesel DSL (Domain Specific Language) and
  * provides a way to retrieve the current time in a pure and referentially
  * transparent way.
- * 
+ *
  * @see Program.Dsl
  * @see Service
  */
@@ -20,13 +20,13 @@ public sealed interface Clock extends Program.Dsl<Clock.Service, Void, Long> {
   /**
    * The service interface of the clock, providing a method to retrieve the
    * current time.
-   * 
+   *
    * @since 2025
    */
   interface Service {
     /**
      * Retrieves the current time.
-     * 
+     *
      * @return the current time in nanoseconds
      */
     Long currentTime();
@@ -34,14 +34,14 @@ public sealed interface Clock extends Program.Dsl<Clock.Service, Void, Long> {
 
   /**
    * A record class representing a clock that retrieves the current time.
-   * 
+   *
    * @since 2025
    */
   record CurrentTime() implements Clock {}
 
   /**
    * Creates a new program that retrieves the current time.
-   * 
+   *
    * @param <S> the service type
    * @param <E> the error type
    * @return a program that retrieves the current time
@@ -54,12 +54,12 @@ public sealed interface Clock extends Program.Dsl<Clock.Service, Void, Long> {
   /**
    * Evaluates the clock in the context of the given service and returns the
    * result as a success or failure.
-   * 
+   *
    * @param service the service to use for evaluation
    * @return the result of the evaluation
    */
   @Override
-  default Result<Void, Long> dslEval(Service service) {
+  default Result<Void, Long> handle(Service service) {
     return success(switch (this) {
       case CurrentTime() -> service.currentTime();
     });

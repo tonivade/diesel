@@ -63,7 +63,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
 
   @Override
   @SuppressWarnings("unchecked")
-  default Result<Error, T> dslEval(Service service) {
+  default Result<Error, T> handle(Service service) {
     return Result.success((T) switch (this) {
       case ReadConfig() -> service.readConfig();
       case GetForecast(City city) -> service.getForecast(city);

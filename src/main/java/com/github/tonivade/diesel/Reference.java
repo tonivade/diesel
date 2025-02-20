@@ -9,7 +9,7 @@ import java.util.function.UnaryOperator;
 
 /**
  * A {@code Reference} represents a program that operates on a {@link Service} to get or set a value.
- * It provides a sealed interface that can be extended by a limited set of subclasses, namely 
+ * It provides a sealed interface that can be extended by a limited set of subclasses, namely
  * {@link SetValue} and {@link GetValue}.
  *
  * @param <V> the type of the value being stored in the reference
@@ -110,7 +110,7 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    */
   @Override
   @SuppressWarnings({ "unchecked", "rawtypes" })
-  default Result<Void, T> dslEval(Service<V> state) {
+  default Result<Void, T> handle(Service<V> state) {
     return success((T) switch (this) {
       case SetValue set -> {
         state.set((V) set.value());

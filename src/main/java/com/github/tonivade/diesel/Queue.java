@@ -89,7 +89,7 @@ public sealed interface Queue<V, T> extends Program.Dsl<Queue.Service<V>, Void, 
    */
   @Override
   @SuppressWarnings({ "rawtypes", "unchecked" })
-  default Result<Void, T> dslEval(Service<V> service) {
+  default Result<Void, T> handle(Service<V> service) {
     return success((T) switch (this) {
       case Offer offer -> {
         service.offer((V) offer.item());
