@@ -113,7 +113,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
       }
     }
 
-    dslTypeBuilder.addMethod(createDslEvalMethod(element, service));
+    dslTypeBuilder.addMethod(createHandleMethod(element, service));
 
     return JavaFile.builder(packageName, dslTypeBuilder.build()).build();
   }
@@ -159,18 +159,18 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .build();
   }
 
-  private MethodSpec createDslEvalMethod(TypeElement element, ClassName service) {
+  private MethodSpec createHandleMethod(TypeElement element, ClassName service) {
     var result = ClassName.get(DIESEL_PACKAGE_NAME, RESULT);
-    return MethodSpec.methodBuilder("dslEval")
+    return MethodSpec.methodBuilder("handle")
         .addAnnotation(Override.class)
         .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
         .returns(ParameterizedTypeName.get(result, TypeName.VOID.box(), TypeVariableName.get("T")))
         .addParameter(service, "state")
-        .addCode(dslEvalMethod(element))
+        .addCode(handleMethod(element))
         .build();
   }
 
-  private CodeBlock dslEvalMethod(TypeElement element) {
+  private CodeBlock handleMethod(TypeElement element) {
     return CodeBlock.builder()
         .add(createSwitch(element))
         .addStatement("return Result.success(result)")

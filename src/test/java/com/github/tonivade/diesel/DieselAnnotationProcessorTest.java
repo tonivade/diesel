@@ -45,7 +45,7 @@ class DieselAnnotationProcessorTest {
         }
 
         @Override
-        default Result<Void, T> dslEval(Console state) {
+        default Result<Void, T> handle(Console state) {
           var result = (T) switch (this) {
             case ReadLine() -> state.readLine();
             case WriteLine(var line) ->  {
