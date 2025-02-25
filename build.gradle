@@ -1,9 +1,15 @@
 plugins {
   id 'java-library'
-  id "net.ltgt.errorprone" version "4.1.0"
+  id 'jacoco'
+  id 'maven-publish'
+  id 'signing'
+  id 'net.ltgt.errorprone' version '4.1.0'
+  id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
 }
 
 group = 'com.github.tonivade'
+
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
 repositories {
   mavenLocal()
@@ -14,6 +20,10 @@ java {
   toolchain {
     languageVersion = JavaLanguageVersion.of(21)
   }
+}
+
+jacoco {
+  toolVersion = '0.8.11'
 }
 
 tasks.withType(JavaCompile) {
@@ -52,4 +62,81 @@ test {
     '--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED',
     '--add-opens=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED',
     '--add-opens=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED'])
+}
+
+jacocoTestReport {
+  reports {
+    xml.required = true
+    html.required = true
+    xml.outputLocation = file("${buildDir}/reports/jacoco/report.xml")
+  }
+}
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+
+      from components.java
+
+      pom {
+        name = 'Diesel'
+        description = 'Domain Specific Language Library'
+        url = 'https://github.com/tonivade/diesel'
+        inceptionYear = '2025'
+
+        scm {
+          url = 'https://github.com/tonivade/diesel'
+          connection = 'scm:https://github.com/tonivade/diesel.git'
+          developerConnection = 'scm:git://github.com/tonivade/diesel.git'
+        }
+
+        licenses {
+          license {
+            name = 'The MIT License (MIT)'
+            url = 'https://github.com/tonivade/diesel/blob/master/LICENSE'
+            distribution = 'repo'
+          }
+        }
+
+        developers {
+          developer {
+            id = 'tonivade'
+            name = 'Antonio Muñoz'
+            email = 'antoniogmc@gmail.com'
+          }
+        }
+      }
+    }
+  }
+}
+
+signing {
+  def signingKey = findProperty("signingKey")
+  def signingPassword = findProperty("signingPassword")
+  useInMemoryPgpKeys(signingKey, signingPassword)
+  sign publishing.publications.mavenJava
+}
+
+tasks.withType(Sign) {
+  onlyIf { isReleaseVersion }
+}
+
+nexusPublishing {
+  repositories {
+    sonatype {
+
+      stagingProfileId = '19a96b937cdb5'
+
+      username = project.findProperty('nexusUsername')
+      password = project.findProperty('nexusPassword')
+    }
+  }
+
+  clientTimeout = Duration.ofSeconds(300)
+  connectTimeout = Duration.ofSeconds(60)
+
+  transitionCheckOptions {
+    maxRetries.set(40)
+    delayBetween.set(Duration.ofMillis(3000))
+  }
 }
