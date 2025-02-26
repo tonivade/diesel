@@ -27,6 +27,10 @@ public sealed interface Program<S, E, T> {
     return (Program<S, E, Void>) UNIT;
   }
 
+  static <S, E, T> Program<S, E, T> from(Result<E, T> result) {
+    return result.fold(Program::failure, Program::success);
+  }
+
   static <S, E, T> Program<S, E, T> success(@Nullable T value) {
     return new Success<>(value);
   }
