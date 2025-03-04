@@ -5,9 +5,18 @@
 package com.github.tonivade.diesel;
 
 import java.util.NoSuchElementException;
-import java.util.function.BiFunction;
 import java.util.function.Function;
+
 import org.jspecify.annotations.Nullable;
+
+import com.github.tonivade.diesel.function.Finisher2;
+import com.github.tonivade.diesel.function.Finisher3;
+import com.github.tonivade.diesel.function.Finisher4;
+import com.github.tonivade.diesel.function.Finisher5;
+import com.github.tonivade.diesel.function.Finisher6;
+import com.github.tonivade.diesel.function.Finisher7;
+import com.github.tonivade.diesel.function.Finisher8;
+import com.github.tonivade.diesel.function.Finisher9;
 
 /**
  * The Result type is used to represent a value that may or may not be present.
@@ -54,8 +63,127 @@ public sealed interface Result<F, S> {
    * @param <R> The type of the success value of the combined result.
    * @return A new result that combines the two input results.
    */
-  static <F, S, T, R> Result<F, R> zip(Result<F, S> r1, Result<F, T> r2, BiFunction<S, T, R> mapper) {
+  static <F, S, T, R> Result<F, R> map2(Result<F, S> r1, Result<F, T> r2, Finisher2<S, T, R> mapper) {
     return r1.flatMap(a -> r2.map(b -> mapper.apply(a, b)));
+  }
+
+  static <F, T0, T1, T2, R> Result<F, R> map3(
+      Result<F, T0> r0,
+      Result<F, T1> r1,
+      Result<F, T2> r2,
+      Finisher3<T0, T1, T2, R> finisher) {
+    return r0.flatMap(_0 ->
+        r1.flatMap(_1 ->
+        r2.map(_2 -> finisher.apply(_0, _1, _2))
+        ));
+  }
+
+  static <F, T0, T1, T2, T3, R> Result<F, R> map4(
+      Result<F, T0> r0,
+      Result<F, T1> r1,
+      Result<F, T2> r2,
+      Result<F, T3> r3,
+      Finisher4<T0, T1, T2, T3, R> finisher) {
+    return r0.flatMap(_0 ->
+        r1.flatMap(_1 ->
+        r2.flatMap(_2 ->
+        r3.map(_3 -> finisher.apply(_0, _1, _2, _3))
+        )));
+  }
+
+  static <F, T0, T1, T2, T3, T4, R> Result<F, R> map5(
+      Result<F, T0> r0,
+      Result<F, T1> r1,
+      Result<F, T2> r2,
+      Result<F, T3> r3,
+      Result<F, T4> r4,
+      Finisher5<T0, T1, T2, T3, T4, R> finisher) {
+    return r0.flatMap(_0 ->
+        r1.flatMap(_1 ->
+        r2.flatMap(_2 ->
+        r3.flatMap(_3 ->
+        r4.map(_4 -> finisher.apply(_0, _1, _2, _3, _4))
+        ))));
+  }
+
+  static <F, T0, T1, T2, T3, T4, T5, R> Result<F, R> map6(
+      Result<F, T0> r0,
+      Result<F, T1> r1,
+      Result<F, T2> r2,
+      Result<F, T3> r3,
+      Result<F, T4> r4,
+      Result<F, T5> r5,
+      Finisher6<T0, T1, T2, T3, T4, T5, R> finisher) {
+    return r0.flatMap(_0 ->
+        r1.flatMap(_1 ->
+        r2.flatMap(_2 ->
+        r3.flatMap(_3 ->
+        r4.flatMap(_4 ->
+        r5.map(_5 -> finisher.apply(_0, _1, _2, _3, _4, _5))
+        )))));
+  }
+
+  static <F, T0, T1, T2, T3, T4, T5, T6, R> Result<F, R> map7(
+      Result<F, T0> r0,
+      Result<F, T1> r1,
+      Result<F, T2> r2,
+      Result<F, T3> r3,
+      Result<F, T4> r4,
+      Result<F, T5> r5,
+      Result<F, T6> r6,
+      Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher) {
+    return r0.flatMap(_0 ->
+        r1.flatMap(_1 ->
+        r2.flatMap(_2 ->
+        r3.flatMap(_3 ->
+        r4.flatMap(_4 ->
+        r5.flatMap(_5 ->
+        r6.map(_6 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6))
+        ))))));
+  }
+
+  static <F, T0, T1, T2, T3, T4, T5, T6, T7, R> Result<F, R> map8(
+      Result<F, T0> r0,
+      Result<F, T1> r1,
+      Result<F, T2> r2,
+      Result<F, T3> r3,
+      Result<F, T4> r4,
+      Result<F, T5> r5,
+      Result<F, T6> r6,
+      Result<F, T7> r7,
+      Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher) {
+    return r0.flatMap(_0 ->
+        r1.flatMap(_1 ->
+        r2.flatMap(_2 ->
+        r3.flatMap(_3 ->
+        r4.flatMap(_4 ->
+        r5.flatMap(_5 ->
+        r6.flatMap(_6 ->
+        r7.map(_7 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7))
+        )))))));
+  }
+
+  static <F, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Result<F, R> map9(
+      Result<F, T0> r0,
+      Result<F, T1> r1,
+      Result<F, T2> r2,
+      Result<F, T3> r3,
+      Result<F, T4> r4,
+      Result<F, T5> r5,
+      Result<F, T6> r6,
+      Result<F, T7> r7,
+      Result<F, T8> r8,
+      Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher) {
+    return r0.flatMap(_0 ->
+        r1.flatMap(_1 ->
+        r2.flatMap(_2 ->
+        r3.flatMap(_3 ->
+        r4.flatMap(_4 ->
+        r5.flatMap(_5 ->
+        r6.flatMap(_6 ->
+        r7.flatMap(_7 ->
+        r8.map(_8 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7, _8))
+        ))))))));
   }
 
   /**

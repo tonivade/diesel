@@ -9,7 +9,7 @@ import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.readLine;
 import static com.github.tonivade.diesel.Console.writeLine;
 import static com.github.tonivade.diesel.Program.failure;
-import static com.github.tonivade.diesel.Program.zip;
+import static com.github.tonivade.diesel.Program.map2;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Todo.State.COMPLETED;
 import static com.github.tonivade.diesel.Todo.State.NOT_COMPLETED;
@@ -152,7 +152,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
   }
 
   static Program<Context, Error, Void> createTodo() {
-    return zip(Counter.<Integer, Context, Error>increment(), promptTitle(),
+    return map2(Counter.<Integer, Context, Error>increment(), promptTitle(),
         (id, title) -> new TodoEntity(id, title, NOT_COMPLETED))
       .flatMap(Todo::create)
       .andThen(writeLine("todo created"))

@@ -7,16 +7,26 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Trampoline.done;
 import static com.github.tonivade.diesel.Trampoline.more;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
+
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
 import org.jspecify.annotations.Nullable;
+
+import com.github.tonivade.diesel.function.Finisher2;
+import com.github.tonivade.diesel.function.Finisher3;
+import com.github.tonivade.diesel.function.Finisher4;
+import com.github.tonivade.diesel.function.Finisher5;
+import com.github.tonivade.diesel.function.Finisher6;
+import com.github.tonivade.diesel.function.Finisher7;
+import com.github.tonivade.diesel.function.Finisher8;
+import com.github.tonivade.diesel.function.Finisher9;
 
 public sealed interface Program<S, E, T> {
 
@@ -229,33 +239,144 @@ public sealed interface Program<S, E, T> {
     });
   }
 
-  static <S, E, T, U, R> Program<S, E, R> zip(
+  static <S, E, T, U, R> Program<S, E, R> map2(
       Program<S, E, T> p1,
       Program<S, E, U> p2,
-      BiFunction<T, U, R> mapper) {
+      Finisher2<T, U, R> mapper) {
     return async((state, callback) -> {
       try {
-        callback.accept(Result.zip(p1.eval(state), p2.eval(state), mapper), null);
+        callback.accept(Result.map2(p1.eval(state), p2.eval(state), mapper), null);
       } catch (RuntimeException e) {
         callback.accept(null, e);
       }
     });
   }
 
+  static <S, E, T0, T1, T2, R> Program<S, E, R> map3(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Finisher3<T0, T1, T2, R> finisher) {
+       return async((state, callback) -> {
+         try {
+           callback.accept(Result.map3(p0.eval(state), p1.eval(state), p2.eval(state), finisher), null);
+         } catch (RuntimeException e) {
+           callback.accept(null, e);
+         }
+       });
+   }
+
+   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> map4(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Finisher4<T0, T1, T2, T3, R> finisher) {
+       return async((state, callback) -> {
+         try {
+           callback.accept(Result.map4(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), finisher), null);
+         } catch (RuntimeException e) {
+           callback.accept(null, e);
+         }
+       });
+   }
+
+   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> map5(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Finisher5<T0, T1, T2, T3, T4, R> finisher) {
+       return async((state, callback) -> {
+         try {
+           callback.accept(Result.map5(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), finisher), null);
+         } catch (RuntimeException e) {
+           callback.accept(null, e);
+         }
+       });
+   }
+
+   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> map6(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Finisher6<T0, T1, T2, T3, T4, T5, R> finisher) {
+       return async((state, callback) -> {
+         try {
+           callback.accept(Result.map6(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), finisher), null);
+         } catch (RuntimeException e) {
+           callback.accept(null, e);
+         }
+       });
+   }
+
+   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> map7(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher) {
+       return async((state, callback) -> {
+         try {
+           callback.accept(Result.map7(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), finisher), null);
+         } catch (RuntimeException e) {
+           callback.accept(null, e);
+         }
+       });
+   }
+
+   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> map8(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher) {
+       return async((state, callback) -> {
+         try {
+           callback.accept(Result.map8(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), p7.eval(state), finisher), null);
+         } catch (RuntimeException e) {
+           callback.accept(null, e);
+         }
+       });
+   }
+
+   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> map9(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Program<S, E, T8> p8,
+      Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher) {
+       return async((state, callback) -> {
+         try {
+           callback.accept(Result.map9(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), p7.eval(state), p8.eval(state), finisher), null);
+         } catch (RuntimeException e) {
+           callback.accept(null, e);
+         }
+       });
+   }
+
   static <S, E, T, V, R> Program<S, E, R> parallel(
       Program<S, E, T> p1,
       Program<S, E, V> p2,
-      BiFunction<T, V, R> mapper,
+      Finisher2<T, V, R> mapper,
       Executor executor) {
-    return async((state, callback) -> {
-      try {
-        var result = zip(p1.fork(executor), p2.fork(executor), (f1, f2) -> Fiber.combine(f1, f2, mapper))
-          .flatMap(Fiber::join);
-        callback.accept(result.eval(state), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
+    return map2(p1.fork(executor), p2.fork(executor), (f1, f2) -> Fiber.combine(f1, f2, mapper)).flatMap(Fiber::join);
   }
 
   static <S, E, T, U> Program<S, E, Either<T, U>> either(
@@ -264,7 +385,7 @@ public sealed interface Program<S, E, T> {
       Executor executor) {
     return async((state, callback) -> {
       try {
-        var result = zip(p1.fork(executor), p2.fork(executor), Fiber::either)
+        var result = map2(p1.fork(executor), p2.fork(executor), Fiber::either)
           .flatMap(Fiber::join);
         callback.accept(result.eval(state), null);
       } catch (RuntimeException e) {
@@ -294,8 +415,8 @@ public sealed interface Program<S, E, T> {
       return future.isCancelled();
     }
 
-    public static <E, T, U, R> Fiber<E, R> combine(Fiber<E, T> f1, Fiber<E, U> f2, BiFunction<T, U, R> mapper) {
-      return new Fiber<>(f1.future.thenCombineAsync(f2.future, (a, b) -> Result.zip(a, b, mapper)));
+    public static <E, T, U, R> Fiber<E, R> combine(Fiber<E, T> f1, Fiber<E, U> f2, Finisher2<T, U, R> mapper) {
+      return new Fiber<>(f1.future.thenCombineAsync(f2.future, (a, b) -> Result.map2(a, b, mapper)));
     }
 
     public static <E, T, U> Fiber<E, Either<T, U>> either(Fiber<E, T> f1, Fiber<E, U> f2) {
