@@ -36,7 +36,8 @@ static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, 
   Executor executor) {
     return map{{ value }}(
       {% for i in range(value) %} p{{ i }}.fork(executor), 
-      {% endfor %} (f1, f2) -> Fiber.combine(f1, f2, mapper)).flatMap(Fiber::join);
+      {% endfor %} ({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}) -> Fiber.map{{ value }}({% for i in range(value) %}f{{ i }}, {% endfor %}finisher))
+      .flatMap(Fiber::join);
 }
 """)
 
@@ -75,10 +76,10 @@ print(">>>> program map")
 for i in range(2, 10):
   print(program_map_template.render(value=i))
 
-print(">>>> program parmap")
-for i in range(2, 10):
-  print(program_parmap_template.render(value=i))
-
 print(">>>> fiber")
 for i in range(2, 10):
   print(fiber_template.render(value=i))
+
+print(">>>> program parmap")
+for i in range(2, 10):
+  print(program_parmap_template.render(value=i))

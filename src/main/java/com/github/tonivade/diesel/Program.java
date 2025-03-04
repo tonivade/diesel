@@ -376,8 +376,152 @@ public sealed interface Program<S, E, T> {
       Program<S, E, V> p2,
       Finisher2<T, V, R> mapper,
       Executor executor) {
-    return map2(p1.fork(executor), p2.fork(executor), (f1, f2) -> Fiber.map2(f1, f2, mapper)).flatMap(Fiber::join);
+    return map2(
+        p1.fork(executor),
+        p2.fork(executor),
+        (f1, f2) -> Fiber.map2(f1, f2, mapper))
+        .flatMap(Fiber::join);
   }
+
+  static <S, E, T0, T1, T2, R> Program<S, E, R> parMap3(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Finisher3<T0, T1, T2, R> finisher,
+      Executor executor) {
+    return map3(
+          p0.fork(executor),
+          p1.fork(executor),
+          p2.fork(executor),
+          (f0, f1, f2) -> Fiber.map3(f0, f1, f2, finisher))
+         .flatMap(Fiber::join);
+   }
+
+  static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parMap4(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Finisher4<T0, T1, T2, T3, R> finisher,
+      Executor executor) {
+    return map4(
+          p0.fork(executor),
+          p1.fork(executor),
+          p2.fork(executor),
+          p3.fork(executor),
+          (f0, f1, f2, f3) -> Fiber.map4(f0, f1, f2, f3, finisher))
+         .flatMap(Fiber::join);
+   }
+
+  static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parMap5(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Finisher5<T0, T1, T2, T3, T4, R> finisher,
+      Executor executor) {
+    return map5(
+          p0.fork(executor),
+          p1.fork(executor),
+          p2.fork(executor),
+          p3.fork(executor),
+          p4.fork(executor),
+          (f0, f1, f2, f3, f4) -> Fiber.map5(f0, f1, f2, f3, f4, finisher))
+         .flatMap(Fiber::join);
+   }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parMap6(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Finisher6<T0, T1, T2, T3, T4, T5, R> finisher,
+      Executor executor) {
+    return map6(
+          p0.fork(executor),
+          p1.fork(executor),
+          p2.fork(executor),
+          p3.fork(executor),
+          p4.fork(executor),
+          p5.fork(executor),
+          (f0, f1, f2, f3, f4, f5) -> Fiber.map6(f0, f1, f2, f3, f4, f5, finisher))
+         .flatMap(Fiber::join);
+   }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parMap7(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher,
+      Executor executor) {
+    return map7(
+          p0.fork(executor),
+          p1.fork(executor),
+          p2.fork(executor),
+          p3.fork(executor),
+          p4.fork(executor),
+          p5.fork(executor),
+          p6.fork(executor),
+          (f0, f1, f2, f3, f4, f5, f6) -> Fiber.map7(f0, f1, f2, f3, f4, f5, f6, finisher))
+         .flatMap(Fiber::join);
+   }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parMap8(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher,
+      Executor executor) {
+    return map8(
+          p0.fork(executor),
+          p1.fork(executor),
+          p2.fork(executor),
+          p3.fork(executor),
+          p4.fork(executor),
+          p5.fork(executor),
+          p6.fork(executor),
+          p7.fork(executor),
+          (f0, f1, f2, f3, f4, f5, f6, f7) -> Fiber.map8(f0, f1, f2, f3, f4, f5, f6, f7, finisher))
+         .flatMap(Fiber::join);
+   }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parMap9(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Program<S, E, T8> p8,
+      Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher,
+      Executor executor) {
+    return map9(
+          p0.fork(executor),
+          p1.fork(executor),
+          p2.fork(executor),
+          p3.fork(executor),
+          p4.fork(executor),
+          p5.fork(executor),
+          p6.fork(executor),
+          p7.fork(executor),
+          p8.fork(executor),
+          (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> Fiber.map9(f0, f1, f2, f3, f4, f5, f6, f7, f8, finisher))
+         .flatMap(Fiber::join);
+   }
 
   static <S, E, T, U> Program<S, E, Either<T, U>> either(
       Program<S, E, T> p1,
