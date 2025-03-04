@@ -115,7 +115,7 @@ class ProgramTest {
     var p1 = delay(Duration.ofSeconds(2), () -> 10, executor);
     var p2 = delay(Duration.ofSeconds(2), () -> "hello", executor);
 
-    var result = Program.parallel(p1, p2, Tuple::new, executor).timed().eval(null);
+    var result = Program.parMap2(p1, p2, Tuple::new, executor).timed().eval(null);
 
     assertThat(result.getOrElseThrow().duration())
       .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
