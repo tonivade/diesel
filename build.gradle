@@ -42,7 +42,7 @@ tasks.withType(JavaCompile) {
 
 dependencies {
   errorprone 'com.google.errorprone:error_prone_core:2.36.0'
-  errorprone 'com.uber.nullaway:nullaway:0.12.3'
+  errorprone 'com.uber.nullaway:nullaway:0.12.4'
 
   compileOnly 'org.jspecify:jspecify:1.0.0'
   implementation 'com.palantir.javapoet:javapoet:0.6.0'
@@ -50,8 +50,8 @@ dependencies {
   testImplementation 'org.assertj:assertj-core:3.27.3'
   testImplementation 'org.junit.jupiter:junit-jupiter:5.12.0'
   testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-  testImplementation 'org.mockito:mockito-core:5.14.2'
-  testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+  testImplementation 'org.mockito:mockito-core:5.16.0'
+  testImplementation 'org.mockito:mockito-junit-jupiter:5.16.0'
   testImplementation 'com.google.testing.compile:compile-testing:0.21.0'
 }
 
