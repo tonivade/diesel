@@ -12,12 +12,11 @@ import java.util.concurrent.CompletableFuture;
 
 public record Fiber<E, T>(CompletableFuture<Result<E, T>> future) {
 
-  @SuppressWarnings("unchecked")
-  public <S, F extends E> Program<S, F, T> join() {
-    return (Program<S, F, T>) Program.from(future);
+  public <S> Program<S, E, T> join() {
+    return Program.from(future);
   }
 
-  public <S, F extends E> Program<S, F, Void> cancel() {
+  public <S> Program<S, E, Void> cancel() {
     return Program.task(() -> future.cancel(true));
   }
 
