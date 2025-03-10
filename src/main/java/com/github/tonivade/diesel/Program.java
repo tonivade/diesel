@@ -6,8 +6,6 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Trampoline.done;
 import static com.github.tonivade.diesel.Trampoline.more;
-import static java.util.concurrent.CompletableFuture.supplyAsync;
-
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -217,7 +215,7 @@ public sealed interface Program<S, E, T> {
 
   default Program<S, E, Fiber<E, T>> fork(Executor executor) {
     return async((state, callback) -> {
-      var future = supplyAsync(() -> eval(state), executor);
+      var future = CompletableFuture.supplyAsync(() -> eval(state), executor);
       callback.accept(Result.success(new Fiber<>(future)), null);
     });
   }
