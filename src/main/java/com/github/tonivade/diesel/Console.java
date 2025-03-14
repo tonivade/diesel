@@ -87,29 +87,6 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
   }
 
   /**
-   * Creates a new console operation that writes a greeting message to the console.
-   *
-   * @param name The name to include in the greeting message.
-   * @param <S>  The type of service.
-   * @param <E>  The type of error.
-   * @return A new console operation that writes a greeting message to the console.
-   */
-  static <S extends Service, E> Program<S, E, Void> sayHello(String name) {
-    return writeLine("Hello " + name);
-  }
-
-  /**
-   * Creates a new console operation that prompts the user for their name and returns their response.
-   *
-   * @param <S>  The type of service.
-   * @param <E>  The type of error.
-   * @return A new console operation that prompts the user for their name and returns their response.
-   */
-  static <S extends Service, E> Program<S, E, String> whatsYourName() {
-    return prompt("What's your name?");
-  }
-
-  /**
    * Evaluates this console operation using the provided service.
    *
    * @param service The service to use for evaluation.
