@@ -4,9 +4,13 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.writeLine;
 import static com.github.tonivade.diesel.Logger.info;
 import static com.github.tonivade.diesel.Logger.warn;
+import static com.github.tonivade.diesel.Program.pipe;
+import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Random.nextInt;
 import static java.lang.System.getLogger;
 import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
@@ -86,7 +90,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   static Program<Context, Error, Void> loop() {
     return askAndFetchAndPrint()
         .andThen(printHottestCity())
-        .foldMap(error -> printError(error), i -> loop());
+        .foldMap(Weather::printError, __ -> loop());
   }
 
   static Program<Context, Error, Void> askAndFetchAndPrint() {
@@ -99,34 +103,36 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   }
 
   static Program<Context, Error, Void> printHottestCity() {
-    return Weather.<Context, Error>hottestCity().
-        flatMap(city -> writeLine("Hottest city so far: " + city.map(City::name).orElse("None")));
+    return pipe(
+        hottestCity(),
+        city -> writeLine("Hottest city so far: " + city.map(City::name).orElse("None")));
   }
 
   static Program<Context, Error, Void> printError(Error error) {
-    return Console.<Context, Error>writeLine("Error: " + error).andThen(loop());
+    return pipe(
+        writeLine("Error: " + error),
+        __ -> loop());
   }
 
   static Program<Context, Error, City> askCity() {
-    return Console.<Context, Error>prompt("What city?")
-        .flatMap(Weather::cityByName);
+    return pipe(prompt("What city?"), Weather::cityByName);
   }
 
   static Program<Context, Error, CityForecast> fetchForecast(City city) {
-    return Weather.<Context, Error>getForecast(city)
-      .flatMap(forecast -> forecast
-          .map(Program::<Context, Error, Forecast>success)
-          .orElseGet(Weather::forecast))
-      .map(forecast -> new CityForecast(city, forecast));
+    return pipe(
+        getForecast(city),
+        forecast -> forecast.map(Program::<Context, Error, Forecast>success).orElseGet(Weather::forecast),
+        forecast -> success(new CityForecast(city, forecast)));
   }
 
   static Program<Context, Error, Void> printForecastAndPersist(CityForecast cityForecast) {
-    return Console.<Context, Error>writeLine("Forecast for city " + cityForecast.city() + " is " + cityForecast.forecast())
-      .andThen(setForecast(cityForecast.city(), cityForecast.forecast()));
+    return pipe(
+        writeLine("Forecast for city " + cityForecast.city() + " is " + cityForecast.forecast()),
+        __ -> setForecast(cityForecast.city(), cityForecast.forecast()));
   }
 
   static Program<Context, Error, Forecast> forecast() {
-    return Random.<Context, Error>nextInt(30).map(Forecast::new);
+    return pipe(nextInt(30), temperature -> success(new Forecast(temperature)));
   }
 
   static Program<Context, Error, City> cityByName(String name) {
@@ -137,8 +143,9 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   }
 
   static Program<Context, Error, Void> hostAndPort() {
-    return Weather.<Context, Error>readConfig()
-        .flatMap(config -> writeLine("conecting to " + config));
+    return pipe(
+        readConfig(),
+        config -> writeLine("conecting to " + config));
   }
 
   final class Context implements Service, Console.Service, Random.Service, Logger.Service {

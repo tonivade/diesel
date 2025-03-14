@@ -4,15 +4,18 @@
  */
 package com.github.tonivade.diesel;
 
-import static java.util.stream.Collectors.joining;
 import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.readLine;
 import static com.github.tonivade.diesel.Console.writeLine;
+import static com.github.tonivade.diesel.Counter.increment;
 import static com.github.tonivade.diesel.Program.failure;
-import static com.github.tonivade.diesel.Program.map2;
+import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Program.zip;
 import static com.github.tonivade.diesel.Todo.State.COMPLETED;
 import static com.github.tonivade.diesel.Todo.State.NOT_COMPLETED;
+import static java.util.stream.Collectors.joining;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +28,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
   sealed interface Error {}
 
   record NumberFormatError(String input) implements Error {}
+  record InvalidOption(int action) implements Error {}
 
   interface Repository {
     void create(TodoEntity todo);
@@ -134,61 +138,63 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
       case 5 -> deleteAllTodos();
       case 6 -> markCompleted();
       case 7 -> writeLine("Bye!");
-      default -> throw new IllegalArgumentException();
+      default -> failure(new InvalidOption(action));
     };
   }
 
   static Program<Context, Error, Void> findAllTodos() {
-    return Todo.<Context, Error>findAll()
-      .map(list -> list.stream().map(Object::toString).collect(joining("\n")))
-      .flatMap(Console::writeLine)
-      .andThen(program());
+    return pipe(
+        findAll(),
+        list -> success(list.stream().map(Object::toString).collect(joining("\n"))),
+        Console::writeLine,
+        __ -> program());
   }
 
   static Program<Context, Error, Void> deleteAllTodos() {
-    return Todo.<Context, Error>deleteAll()
-      .andThen(writeLine("all todo removed"))
-      .andThen(program());
+    return pipe(
+        deleteAll(),
+        __ -> writeLine("all todo removed"),
+        __ -> program());
   }
 
   static Program<Context, Error, Void> createTodo() {
-    return map2(Counter.<Integer, Context, Error>increment(), promptTitle(),
-        (id, title) -> new TodoEntity(id, title, NOT_COMPLETED))
-      .flatMap(Todo::create)
-      .andThen(writeLine("todo created"))
-      .andThen(program());
+    return pipe(
+        zip(increment(), prompt("Enter title"), (id, title) -> new TodoEntity(id, title, NOT_COMPLETED)),
+        Todo::create,
+        __ -> writeLine("todo created"),
+        __ -> program());
   }
 
   static Program<Context, Error, Void> deleteTodo() {
-    return promptId()
-      .flatMap(Todo::deleteOne)
-      .andThen(writeLine("todo removed"))
-      .andThen(program());
+    return pipe(
+        promptId(),
+        Todo::deleteOne,
+        __ -> writeLine("todo removed"),
+        __ -> program());
   }
 
   static Program<Context, Error, Void> findTodo() {
-    return promptId()
-      .flatMap(Todo::findOne)
-      .map(optional -> optional.map(Object::toString).orElse("not found"))
-      .flatMap(Console::writeLine)
-      .andThen(program());
+    return pipe(
+        promptId(),
+        Todo::findOne,
+        optional -> success(optional.map(Object::toString).orElse("not found")),
+        Console::writeLine,
+        __ -> program());
   }
 
   static Program<Context, Error, Void> markCompleted() {
-    return promptId()
-      .flatMap(id -> update(id, entity -> entity.withState(COMPLETED)))
-      .andThen(writeLine("todo compmleted"))
-      .andThen(program());
-  }
-
-  static Program<Context, Error, String> promptTitle() {
-    return prompt("Enter title");
+    return pipe(
+        promptId(),
+        id -> update(id, entity -> entity.withState(COMPLETED)),
+        __ -> writeLine("todo completed"),
+        __ -> program());
   }
 
   static Program<Context, Error, Integer> promptId() {
-    return Console.<Context, Error>prompt("Enter id")
-        .flatMap(Todo::parseInt)
-        .recover(__ -> promptId());
+    return pipe(
+        prompt("Enter id"),
+        Todo::parseInt,
+        __ -> promptId()).recover(__ -> promptId());
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {
