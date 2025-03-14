@@ -241,34 +241,80 @@ public sealed interface Program<S, E, T> {
     });
   }
 
-  public static <S, E, T, R> Program<S, E, R> pipe(
-      Program<S, E, T> first,
-      Function<T, Program<S, E, R>> next1) {
-    return first.flatMap(next1);
+  static <S, E, T0, T1> Program<S, E, T1> pipe(
+      Program<S, E, T0> p0,
+      Function<T0, Program<S, E, T1>> p1) {
+    return p0.flatMap(p1);
   }
 
-  public static <S, E, T0, T1, R> Program<S, E, R> pipe(
-      Program<S, E, T0> first,
-      Function<T0, Program<S, E, T1>> next1,
-      Function<T1, Program<S, E, R>> next2) {
-    return first.flatMap(next1).flatMap(next2);
+  static <S, E, T0, T1, T2> Program<S, E, T2> pipe(
+      Program<S, E, T0> p0,
+      Function<T0, Program<S, E, T1>> p1,
+      Function<T1, Program<S, E, T2>> p2) {
+    return p0.flatMap(p1).flatMap(p2);
   }
 
-  public static <S, E, T0, T1, T2, R> Program<S, E, R> pipe(
-      Program<S, E, T0> first,
-      Function<T0, Program<S, E, T1>> next1,
-      Function<T1, Program<S, E, T2>> next2,
-      Function<T2, Program<S, E, R>> next3) {
-    return first.flatMap(next1).flatMap(next2).flatMap(next3);
+  static <S, E, T0, T1, T2, T3> Program<S, E, T3> pipe(
+      Program<S, E, T0> p0,
+      Function<T0, Program<S, E, T1>> p1,
+      Function<T1, Program<S, E, T2>> p2,
+      Function<T2, Program<S, E, T3>> p3) {
+    return p0.flatMap(p1).flatMap(p2).flatMap(p3);
   }
 
-  public static <S, E, T0, T1, T2, T3, R> Program<S, E, R> pipe(
-      Program<S, E, T0> first,
-      Function<T0, Program<S, E, T1>> next1,
-      Function<T1, Program<S, E, T2>> next2,
-      Function<T2, Program<S, E, T3>> next3,
-      Function<T3, Program<S, E, R>> next4) {
-    return first.flatMap(next1).flatMap(next2).flatMap(next3).flatMap(next4);
+  static <S, E, T0, T1, T2, T3, T4> Program<S, E, T4> pipe(
+      Program<S, E, T0> p0,
+      Function<T0, Program<S, E, T1>> p1,
+      Function<T1, Program<S, E, T2>> p2,
+      Function<T2, Program<S, E, T3>> p3,
+      Function<T3, Program<S, E, T4>> p4) {
+    return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4);
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5> Program<S, E, T5> pipe(
+      Program<S, E, T0> p0,
+      Function<T0, Program<S, E, T1>> p1,
+      Function<T1, Program<S, E, T2>> p2,
+      Function<T2, Program<S, E, T3>> p3,
+      Function<T3, Program<S, E, T4>> p4,
+      Function<T4, Program<S, E, T5>> p5) {
+    return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5);
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6> Program<S, E, T6> pipe(
+      Program<S, E, T0> p0,
+      Function<T0, Program<S, E, T1>> p1,
+      Function<T1, Program<S, E, T2>> p2,
+      Function<T2, Program<S, E, T3>> p3,
+      Function<T3, Program<S, E, T4>> p4,
+      Function<T4, Program<S, E, T5>> p5,
+      Function<T5, Program<S, E, T6>> p6) {
+    return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6);
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7> Program<S, E, T7> pipe(
+      Program<S, E, T0> p0,
+      Function<T0, Program<S, E, T1>> p1,
+      Function<T1, Program<S, E, T2>> p2,
+      Function<T2, Program<S, E, T3>> p3,
+      Function<T3, Program<S, E, T4>> p4,
+      Function<T4, Program<S, E, T5>> p5,
+      Function<T5, Program<S, E, T6>> p6,
+      Function<T6, Program<S, E, T7>> p7) {
+    return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7);
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8> Program<S, E, T8> pipe(
+      Program<S, E, T0> p0,
+      Function<T0, Program<S, E, T1>> p1,
+      Function<T1, Program<S, E, T2>> p2,
+      Function<T2, Program<S, E, T3>> p3,
+      Function<T3, Program<S, E, T4>> p4,
+      Function<T4, Program<S, E, T5>> p5,
+      Function<T5, Program<S, E, T6>> p6,
+      Function<T6, Program<S, E, T7>> p7,
+      Function<T7, Program<S, E, T8>> p8) {
+    return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7).flatMap(p8);
   }
 
   static <S, E, T0, T1, R> Program<S, E, R> zip(
