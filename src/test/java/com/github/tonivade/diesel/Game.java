@@ -7,6 +7,7 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.writeLine;
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Random.nextInt;
 import static com.github.tonivade.diesel.Reference.get;
@@ -24,11 +25,9 @@ interface Game {
   }
 
   static Program<Context, Error, Void> program() {
-    return doYouWantToPlay().flatMap(Game::playOrExit);
-  }
-
-  static Program<Context, Error, String> doYouWantToPlay() {
-    return prompt("Do you want to play a game? (Y/y)");
+    return pipe(
+        prompt("Do you want to play a game? (Y/y)"),
+        Game::playOrExit);
   }
 
   static Program<Context, Error, Void> playOrExit(String answer) {
@@ -39,21 +38,16 @@ interface Game {
   }
 
   static Program<Context, Error, Void> randomNumber() {
-    return generateNumber().flatMap(Reference::set);
-  }
-
-  static Program<Context, Error, Integer> generateNumber() {
-    return nextInt(10);
+    return pipe(
+        nextInt(10),
+        Reference::set);
   }
 
   static Program<Context, Error, Void> loop() {
-    return enterNumber()
-        .flatMap(Game::parseInt)
+    return pipe(
+        prompt("Enter a number"),
+        Game::parseInt)
         .foldMap(__ -> loop(), number -> checkNumber(number).flatMap(Game::winOrContinue));
-  }
-
-  static Program<Context, Error, String> enterNumber() {
-    return prompt("Enter a number");
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {
@@ -65,7 +59,9 @@ interface Game {
   }
 
   static Program<Context, Error, Boolean> checkNumber(int number) {
-    return getNumber().map(value -> value == number);
+    return pipe(
+        getNumber(),
+        value -> success(value == number));
   }
 
   static Program<Context, Error, Integer> getNumber() {
