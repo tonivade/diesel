@@ -34,7 +34,9 @@ class DieselAnnotationProcessorTest {
       import java.lang.Override;
       import java.lang.String;
       import java.lang.Void;
+      import javax.annotation.processing.Generated;
 
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public sealed interface ConsoleDsl<T> extends Program.Dsl<Console, Void, T> {
         static <S extends Console, E> Program<S, E, String> readLine() {
           return (Program<S, E, String>) new ReadLine();

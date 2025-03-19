@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.Generated;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.lang.model.SourceVersion;
@@ -28,6 +29,7 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic.Kind;
 
+import com.palantir.javapoet.AnnotationSpec;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.CodeBlock;
 import com.palantir.javapoet.JavaFile;
@@ -121,6 +123,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   private TypeSpec.Builder createDslType(String dslName, ClassName service) {
     var program = ClassName.get(DIESEL_PACKAGE_NAME, PROGRAM);
     return TypeSpec.interfaceBuilder(dslName)
+        .addAnnotation(AnnotationSpec.builder(Generated.class).addMember("value", "\"" + getClass().getName() + "\"").build())
         .addModifiers(Modifier.PUBLIC, Modifier.SEALED)
         .addTypeVariables(List.of(TypeVariableName.get("T")))
         .addSuperinterface(ParameterizedTypeName.get(program.nestedClass("Dsl"), service, TypeName.VOID.box(), TypeVariableName.get("T")));
