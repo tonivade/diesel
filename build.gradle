@@ -41,7 +41,7 @@ tasks.withType(JavaCompile) {
 }
 
 dependencies {
-  errorprone 'com.google.errorprone:error_prone_core:2.36.0'
+  errorprone 'com.google.errorprone:error_prone_core:2.37.0'
   errorprone 'com.uber.nullaway:nullaway:0.12.4'
 
   compileOnly 'org.jspecify:jspecify:1.0.0'
