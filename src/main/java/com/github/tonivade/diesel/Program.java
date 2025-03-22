@@ -187,8 +187,9 @@ public sealed interface Program<S, E, T> {
   }
 
   default Program<S, E, ElapsedTime<T>> timed() {
-    return Program.<S, E>start()
-      .flatMap(start -> map(value -> end(start, value)));
+    return pipe(
+        start(),
+        start -> map(value -> end(start, value)));
   }
 
   default Program<S, E, T> retry(int retries) {
