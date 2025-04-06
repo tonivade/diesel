@@ -6,6 +6,10 @@ Generate DSLs in Java using an annotation processor and combine them all togethe
 
 The name of the project is the literal spelling of DSL acronym.
 
+## Disclaimer
+
+This library is still in development. Use it at you own risk.
+
 ## Requirement
 
 This library is based on Java 21.
