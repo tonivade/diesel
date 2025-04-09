@@ -9,6 +9,7 @@ import static com.github.tonivade.diesel.Trampoline.more;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -196,6 +197,10 @@ public sealed interface Program<S, E, T> {
     return retry(retries, unit());
   }
 
+  default Program<S, E, T> retry(int retries, Duration delay) {
+    return retry(retries, sleep(delay));
+  }
+
   default Program<S, E, T> retry(int retries, Program<S, E, Void> delay) {
     return recover(error -> {
       if (retries > 0) {
@@ -207,6 +212,10 @@ public sealed interface Program<S, E, T> {
 
   default Program<S, E, T> repeat(int times) {
     return repeat(times, unit());
+  }
+
+  default Program<S, E, T> repeat(int times, Duration delay) {
+    return repeat(times, sleep(delay));
   }
 
   default Program<S, E, T> repeat(int times, Program<S, E, Void> delay) {
@@ -232,6 +241,10 @@ public sealed interface Program<S, E, T> {
 
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
     return Program.<S, E>sleep(duration, executor).flatMap(__ -> success(supplier.get()));
+  }
+
+  static <S, E> Program<S, E, Void> sleep(Duration duration) {
+    return sleep(duration, ForkJoinPool.commonPool());
   }
 
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {

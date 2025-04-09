@@ -91,3 +91,104 @@ public static void main(String... args) {
   });
 }
 ```
+
+## Program
+
+`Program` is the base of this library. It's pretty similar to a IO monad but with the ability to extend with additional operations.
+
+You can generate additional operations using the annotation processor. The generated code is based on `Program` and you will need to combine them to build your programs.
+
+There are two basic combinator methods `zip` (and the paralelized version called `parZip`) and `pipe`. 
+
+### Zip
+
+With `zip` you can combine different operations, and with the result of each operation, generate a result.
+
+```
+   |Program1|---\
+   |Program2|----\
+   .              ---> Result
+   .             /
+   |ProgramN|---/
+```
+
+For example:
+
+```java
+  zip(
+    program1,
+    program2,
+    program3,
+    (p1, p2, p3) -> new Result(p1, p2, p3)
+  );
+```
+
+There's a variant of `zip` called `parZip`. This variant will execute all operations in parallel using
+and `Executor`. It will wait until all the operations are completed and after that, the finisher will be
+called.
+
+```java
+  parZip(
+    program1,
+    program2,
+    program3,
+    (p1, p2, p3) -> new Result(p1, p2, p3),
+    executor
+  );
+```
+
+### Pipe
+
+Pipe can be used to create a pipeline of operations, using the result of execute the first operation
+as input of the next operation. Finally the result will be the result of execute the last operation
+in the pipeline.
+
+```
+    |Program1|-->|Program2|-->...|ProgramN|-->Result
+```
+
+For example:
+
+```java
+  pipe(
+    program1,
+    p1 -> program2,
+    p2 -> program3
+  );
+```
+
+### Retries
+
+It's easy to create a retrayable program just using the method `retry`.
+
+```java
+  program.retry(3);
+```
+
+This code will retry tree times if the execution of the program fails.
+
+It's possible to pass a second argument and configure a delay after each retry.
+
+```java
+  program.retry(3, Duration.ofSeconds(5));
+```
+
+### Repeat
+
+It's easy to configure a program to repeat it self using `repeat`.
+
+```java
+  program.repeat(3);
+```
+
+This code will repeat tree times.
+
+It's possible to pass a second argument and configure a delay after each execution.
+
+```java
+  program.retry(3, Duration.ofSeconds(5));
+```
+
+### Evaluation
+
+`Program` is declarative, so nothing is executed until `eval` method is called.
