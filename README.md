@@ -8,7 +8,7 @@ The name of the project is the literal spelling of DSL acronym.
 
 ## Disclaimer
 
-This library is still in development. Use it at you own risk.
+This library is still in **development**. Use it at you own risk.
 
 ## Requirement
 
@@ -16,7 +16,8 @@ This library is based on Java 21.
 
 ## Usage
 
-The idea is to create DSLs for your application. You can annotate your interface with `@Diesel` and the annotation processor will generate the DSL with all the boilerplate code for you.
+The idea is to create DSLs for your application. You can annotate your interface with `@Diesel` and 
+the annotation processor will generate the DSL with all the boilerplate code for you.
 
 For example this interface:
 
@@ -71,6 +72,8 @@ public sealed interface ConsoleDsl<T> extends Program.Dsl<Console, Void, T> {
 After that you could use the DSL inside a program:
 
 ```java
+import static ConsoleDsl.*;
+
 public static void main(String... args) {
 
   var program = writeLine("What's your name?")
@@ -94,15 +97,18 @@ public static void main(String... args) {
 
 ## Program
 
-`Program` is the base of this library. It's pretty similar to a IO monad but with the ability to extend with additional operations.
+`Program` is the base of this library. It's pretty similar to a IO monad but with the ability to 
+extend with additional operations.
 
-You can generate additional operations using the annotation processor. The generated code is based on `Program` and you will need to combine them to build your programs.
+You can generate additional operations using the annotation processor. The generated code is based 
+on `Program` and you will need to combine them to build your programs.
 
-There are two basic combinator methods `zip` (and the paralelized version called `parZip`) and `pipe`. 
+There are two basic combinator methods `zip` (and the parallelized version called `parZip`) and `pipe`. 
 
 ### Zip
 
-With `zip` you can combine different operations, and with the result of each operation, generate a result.
+With `zip` you can combine different operations, and with the result of each operation, generate a 
+result.
 
 ```
    |Program1|---\
@@ -119,12 +125,12 @@ For example:
     program1,
     program2,
     program3,
-    (p1, p2, p3) -> new Result(p1, p2, p3)
+    (r1, r2, r3) -> new Result(r1, r2, r3)
   );
 ```
 
 There's a variant of `zip` called `parZip`. This variant will execute all operations in parallel using
-and `Executor`. It will wait until all the operations are completed and after that, the finisher will be
+an `Executor`. It will wait until all the operations are completed and after that, the finisher will be
 called.
 
 ```java
@@ -132,16 +138,16 @@ called.
     program1,
     program2,
     program3,
-    (p1, p2, p3) -> new Result(p1, p2, p3),
+    (r1, r2, r3) -> new Result(r1, r2, r3),
     executor
   );
 ```
 
-### Pipe
+### Pipe :pipe
 
 Pipe can be used to create a pipeline of operations, using the result of execute the first operation
-as input of the next operation. Finally the result will be the result of execute the last operation
-in the pipeline.
+as input of the next operation. Finally the result will be the result of the execution of the last 
+operation in the pipeline.
 
 ```
     |Program1|-->|Program2|-->...|ProgramN|-->Result
@@ -150,16 +156,16 @@ in the pipeline.
 For example:
 
 ```java
-  pipe(
+  var r3 = pipe(
     program1,
-    p1 -> program2,
-    p2 -> program3
+    r1 -> program2,
+    r2 -> program3
   );
 ```
 
 ### Retries
 
-It's easy to create a retrayable program just using the method `retry`.
+It's easy to create a retryable program just using the method `retry`.
 
 ```java
   program.retry(3);
@@ -191,4 +197,4 @@ It's possible to pass a second argument and configure a delay after each executi
 
 ### Evaluation
 
-`Program` is declarative, so nothing is executed until `eval` method is called.
+`Program` is **declarative**, so nothing is executed until `eval` method is called.
