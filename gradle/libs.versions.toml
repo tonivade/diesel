@@ -1,0 +1,24 @@
+[versions]
+junitVersion = "5.12.1"
+mockitoVersion = "5.17.0"
+nexusVersion = "2.0.0"
+assertjVersion = "3.27.3"
+errorproneVersion = "2.37.0"
+errorpronePluginVersion = "4.1.0"
+nullawayVersion = "0.12.6"
+compileTestingVersion = "0.21.0"
+
+[libraries]
+junitBom = { group = "org.junit", name = "junit-bom", version.ref = "junitVersion" }
+junitJupiter = { module = "org.junit.jupiter:junit-jupiter-engine" }
+junitLauncher = { module = "org.junit.platform:junit-platform-launcher" }
+mockitoCore = { group = "org.mockito", name = "mockito-core", version.ref = "mockitoVersion" }
+mockitoJunit = { group = "org.mockito", name = "mockito-junit-jupiter", version.ref = "mockitoVersion" }
+assertj = { group = "org.assertj", name = "assertj-core", version.ref = "assertjVersion" } 
+compileTesting = { group = "com.google.testing.compile", name = "compile-testing", version.ref = "compileTestingVersion" }
+nullaway = { group = "com.uber.nullaway", name = "nullaway", version.ref = "nullawayVersion" }
+errorprone = { group = "com.google.errorprone", name = "error_prone_core", version.ref = "errorproneVersion" }
+
+[plugins]
+errorprone = { id = "net.ltgt.errorprone", version.ref = "errorpronePluginVersion"}
+nexus = { id = "io.github.gradle-nexus.publish-plugin", version.ref = "nexusVersion" }
