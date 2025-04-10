@@ -1,4 +1,6 @@
 [versions]
+jspecifyVersion = "1.0.0"
+javapoetVersion = "0.7.0"
 junitVersion = "5.12.1"
 mockitoVersion = "5.17.0"
 nexusVersion = "2.0.0"
@@ -9,6 +11,8 @@ nullawayVersion = "0.12.6"
 compileTestingVersion = "0.21.0"
 
 [libraries]
+jspecify = { group = "org.jspecify", name = "jspecify", version.ref = "jspecifyVersion" }
+javapoet = { group = "com.palantir.javapoet", name = "javapoet", version.ref = "javapoetVersion" }
 junitBom = { group = "org.junit", name = "junit-bom", version.ref = "junitVersion" }
 junitJupiter = { module = "org.junit.jupiter:junit-jupiter-engine" }
 junitLauncher = { module = "org.junit.platform:junit-platform-launcher" }

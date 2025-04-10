@@ -44,15 +44,8 @@ dependencies {
   errorprone(libs.errorprone)
   errorprone(libs.nullaway)
 
-  compileOnly 'org.jspecify:jspecify:1.0.0'
-  implementation 'com.palantir.javapoet:javapoet:0.7.0'
-
-  testImplementation 'org.assertj:assertj-core:3.27.3'
-  testImplementation 'org.junit.jupiter:junit-jupiter:5.12.1'
-  testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-  testImplementation 'org.mockito:mockito-core:5.17.0'
-  testImplementation 'org.mockito:mockito-junit-jupiter:5.17.0'
-  testImplementation 'com.google.testing.compile:compile-testing:0.21.0'
+  compileOnly(libs.jspecify)
+  implementation(libs.javapoet)
 
   testImplementation(libs.assertj)
   testImplementation(platform(libs.junitBom))
