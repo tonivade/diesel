@@ -121,7 +121,7 @@ result.
 For example:
 
 ```java
-  zip(
+  var program = zip(
     program1,
     program2,
     program3,
@@ -134,7 +134,7 @@ an `Executor`. It will wait until all the operations are completed and after tha
 called.
 
 ```java
-  parZip(
+  var program = parZip(
     program1,
     program2,
     program3,
@@ -143,7 +143,7 @@ called.
   );
 ```
 
-### Pipe :pipe
+### Pipe
 
 Pipe can be used to create a pipeline of operations, using the result of execute the first operation
 as input of the next operation. Finally the result will be the result of the execution of the last 
@@ -156,7 +156,7 @@ operation in the pipeline.
 For example:
 
 ```java
-  var r3 = pipe(
+  var program = pipe(
     program1,
     r1 -> program2,
     r2 -> program3
