@@ -6,7 +6,7 @@ mockitoVersion = "5.17.0"
 nexusVersion = "2.0.0"
 assertjVersion = "3.27.3"
 errorproneVersion = "2.37.0"
-errorpronePluginVersion = "4.1.0"
+errorpronePluginVersion = "4.2.0"
 nullawayVersion = "0.12.6"
 compileTestingVersion = "0.21.0"
 
