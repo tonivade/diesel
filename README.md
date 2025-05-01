@@ -110,12 +110,14 @@ There are two basic combinator methods `zip` (and the parallelized version calle
 With `zip` you can combine different operations, and with the result of each operation, generate a 
 result.
 
-```
-   |Program1|---\
-   |Program2|----\
-   .              ---> Result
-   .             /
-   |ProgramN|---/
+```mermaid
+flowchart LR
+   Program1 -- Result1 --> Finisher
+   Program2 -- Result2 --> Finisher
+   Program3 -- Result3 --> Finisher
+   Finisher -- Result --> STOP[ ]
+
+   style STOP  fill:#FFFFFF00, stroke:#FFFFFF00;
 ```
 
 For example:
@@ -149,8 +151,13 @@ Pipe can be used to create a pipeline of operations, using the result of execute
 as input of the next operation. Finally the result will be the result of the execution of the last 
 operation in the pipeline.
 
-```
-    |Program1|-->|Program2|-->...|ProgramN|-->Result
+```mermaid
+flowchart LR
+   Program1 -- Result1 --> Program2
+   Program2 -- Result2 --> Program3
+   Program3 -- Result --> STOP[ ]
+
+   style STOP  fill:#FFFFFF00, stroke:#FFFFFF00;
 ```
 
 For example:
