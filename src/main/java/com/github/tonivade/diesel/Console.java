@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
+import static com.github.tonivade.diesel.Program.pipe;
 import static java.lang.System.console;
 
 /**
@@ -83,7 +84,7 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
    * @return A new console operation that prompts the user with a question and reads their response.
    */
   static <S extends Service, E> Program<S, E, String> prompt(String question) {
-    return Console.<S, E>writeLine(question).andThen(readLine());
+    return pipe(writeLine(question), __ -> readLine());
   }
 
   /**
