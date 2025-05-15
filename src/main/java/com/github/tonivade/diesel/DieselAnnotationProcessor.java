@@ -147,6 +147,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var program = ClassName.get(DIESEL_PACKAGE_NAME, PROGRAM);
     var returnType = ParameterizedTypeName.get(program, TypeVariableName.get("S"), TypeVariableName.get("E"), getReturnTypeFor(method));
     return MethodSpec.methodBuilder(methodName)
+        .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember("value", "\"unchecked\"").build())
         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
         .addTypeVariables(List.of(TypeVariableName.get("S", service), TypeVariableName.get("E")))
         .returns(returnType)
@@ -166,6 +167,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var result = ClassName.get(DIESEL_PACKAGE_NAME, RESULT);
     return MethodSpec.methodBuilder("handle")
         .addAnnotation(Override.class)
+        .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember("value", "\"unchecked\"").build())
         .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
         .returns(ParameterizedTypeName.get(result, TypeName.VOID.box(), TypeVariableName.get("T")))
         .addParameter(service, "state")

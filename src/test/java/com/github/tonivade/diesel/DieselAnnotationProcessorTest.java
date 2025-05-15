@@ -33,20 +33,24 @@ class DieselAnnotationProcessorTest {
       import com.github.tonivade.diesel.Result;
       import java.lang.Override;
       import java.lang.String;
+      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public sealed interface ConsoleDsl<T> extends Program.Dsl<Console, Void, T> {
+        @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, String> readLine() {
           return (Program<S, E, String>) new ReadLine();
         }
 
+        @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
           return (Program<S, E, Void>) new WriteLine(line);
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         default Result<Void, T> handle(Console state) {
           var result = (T) switch (this) {
             case ReadLine() -> state.readLine();
