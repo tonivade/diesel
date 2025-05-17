@@ -10,6 +10,16 @@ import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * A Fiber is a lightweight, non-blocking computation that can be cancelled.
+ * It is used to represent a computation that may not have completed yet.
+ * <p>
+ * The Fiber class is a wrapper around CompletableFuture and provides
+ * additional functionality for working with asynchronous computations.
+ *
+ * @param <E> the type of the error
+ * @param <T> the type of the result
+ */
 public record Fiber<E, T>(CompletableFuture<Result<E, T>> future) {
 
   public <S> Program<S, E, T> join() {

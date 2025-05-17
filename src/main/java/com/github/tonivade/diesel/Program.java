@@ -27,6 +27,15 @@ import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 
+/**
+ * A {@code Program} represents a computation that can be executed in a specific context.
+ * It is a functional programming construct that allows for the composition of computations
+ * and error handling.
+ *
+ * @param <S> the type of the state
+ * @param <E> the type of the error
+ * @param <T> the type of the result
+ */
 public sealed interface Program<S, E, T> {
 
   Program<?, ?, Void> UNIT = success(null);
@@ -36,34 +45,106 @@ public sealed interface Program<S, E, T> {
     return (Program<S, E, Void>) UNIT;
   }
 
+  /**
+   * Creates a new program that represents a computation that can be executed in a specific context.
+   *
+   * @param result the Result representing the computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the computation
+   */
   static <S, E, T> Program<S, E, T> from(Result<E, T> result) {
     return result.fold(Program::failure, Program::success);
   }
 
+  /**
+   * Creates a new program that represents an asynchronous computation.
+   *
+   * @param future the CompletableFuture representing the asynchronous computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing an asynchronous computation
+   */
   static <S, E, T> Program<S, E, T> from(CompletableFuture<Result<E, T>> future) {
     return async((__, callback) -> future.whenCompleteAsync(callback));
   }
 
+  /**
+   * Creates a new program that represents a successful computation with the given value.
+   *
+   * @param value the value of the successful computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a successful computation
+   */
   static <S, E, T> Program<S, E, T> success(@Nullable T value) {
     return new Success<>(value);
   }
 
+  /**
+   * Creates a new program that represents a failed computation with the given error.
+   *
+   * @param error the error of the failed computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a failed computation
+   */
   static <S, E, T> Program<S, E, T> failure(E error) {
     return new Failure<>(error);
   }
 
+  /**
+   * Creates a new program that represents a computation that raises an exception.
+   *
+   * @param throwable the exception to be raised
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @param <X> the type of the exception
+   * @return a new program representing a computation that raises an exception
+   */
   static <S, E, T, X extends Throwable> Program<S, E, T> raise(Supplier<X> throwable) {
     return supply(() -> sneakyThrow(throwable.get()));
   }
 
+  /**
+   * Creates a new program that represents a computation that supplies a value.
+   *
+   * @param supplier the supplier of the value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a computation that supplies a value
+   */
   static <S, E, T> Program<S, E, T> supply(Supplier<T> supplier) {
     return Program.<S, E>unit().map(__ -> supplier.get());
   }
 
+  /**
+   * Creates a new program that represents a computation that suspends execution.
+   *
+   * @param supplier the supplier of the program to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a computation that suspends execution
+   */
   static <S, E, T> Program<S, E, T> suspend(Supplier<Program<S, E, T>> supplier) {
     return Program.<S, E>unit().flatMap(__ -> supplier.get());
   }
 
+  /**
+   * Creates a new program that represents a computation that executes a runnable.
+   *
+   * @param runnable the runnable to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing a computation that executes a runnable
+   */
   static <S, E> Program<S, E, Void> task(Runnable runnable) {
     return Program.<S, E>unit().map(__ -> {
       runnable.run();
@@ -71,6 +152,15 @@ public sealed interface Program<S, E, T> {
     });
   }
 
+  /**
+   * Creates a new program that represents an asynchronous computation.
+   *
+   * @param callback the callback to be executed asynchronously
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing an asynchronous computation
+   */
   static <S, E, T> Program<S, E, T> async(
       BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) {
     return new Async<>(callback);
@@ -102,6 +192,12 @@ public sealed interface Program<S, E, T> {
     Result<E, T> handle(S state);
   }
 
+  /**
+   * Evaluates the program using the provided state.
+   *
+   * @param state the state used to evaluate the program
+   * @return the result of the evaluation
+   */
   default Result<E, T> eval(S state) {
     return safeEval(state).run();
   }
@@ -133,10 +229,24 @@ public sealed interface Program<S, E, T> {
     };
   }
 
+  /**
+   * Maps the program to a new program using the provided mapper function.
+   *
+   * @param mapper the function used to map the program
+   * @param <R> the type of the new program
+   * @return a new program representing the mapped computation
+   */
   default <R> Program<S, E, R> map(Function<T, R> mapper) {
     return flatMap(mapper.andThen(Program::success));
   }
 
+  /**
+   * Maps the program to a new program using the provided error mapper function.
+   *
+   * @param mapper the function used to map the error
+   * @param <F> the type of the new program
+   * @return a new program representing the mapped computation
+   */
   default Program<S, E, T> redeem(Function<E, T> mapper) {
     return recover(mapper.andThen(Program::success));
   }
@@ -145,10 +255,23 @@ public sealed interface Program<S, E, T> {
     return recoverWith(success(value));
   }
 
+  /**
+   * Maps the program to a new program using the provided mapper function for errors.
+   *
+   * @param mapper the function used to map the program
+   * @param <F> the type of the new program
+   * @return a new program representing the mapped computation
+   */
   default <F> Program<S, F, T> mapError(Function<E, F> mapper) {
     return flatMapError(mapper.andThen(Program::failure));
   }
 
+  /**
+   * Maps the program to a new program using the provided error mapper function.
+   *
+   * @param mapper the function used to map the error
+   * @return a new program representing the mapped computation
+   */
   default Program<S, E, T> recover(Function<E, Program<S, E, T>> mapper) {
     return flatMapError(mapper);
   }
@@ -169,6 +292,13 @@ public sealed interface Program<S, E, T> {
     return flatMapError(error -> insert.apply(error).andThen(failure(error)));
   }
 
+  /**
+   * Maps the program to a new program using the provided function.
+   *
+   * @param next the function used to map the program
+   * @param <R> the type of the new program
+   * @return a new program representing the mapped computation
+   */
   default <R> Program<S, E, R> flatMap(Function<T, Program<S, E, R>> next) {
     return foldMap(Program::failure, next);
   }

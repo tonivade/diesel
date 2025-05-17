@@ -6,6 +6,17 @@ package com.github.tonivade.diesel;
 
 import java.util.function.Function;
 
+/**
+ * Represents a value of one of two possible types (a disjoint union).
+ * <p>
+ * This is a simple implementation of the Either type, which is often used
+ * in functional programming to represent a value that can be one of two
+ * types. It is commonly used for error handling, where one type represents
+ * a success value and the other type represents an error value.
+ *
+ * @param <L> the type of the left value
+ * @param <R> the type of the right value
+ */
 public sealed interface Either<L, R> {
 
   static <L, R> Either<L, R> left(L left) {
