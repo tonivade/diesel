@@ -31,7 +31,6 @@ sealed interface Trampoline<T> {
    * computation based on its result.
    *
    * @param <T> the type of the result of this computation
-   * @param <R> the type of the result of the next computation
    */
   record More<T>(Supplier<Trampoline<T>> next) implements Trampoline<T> {}
 
@@ -83,7 +82,7 @@ sealed interface Trampoline<T> {
    * Flat maps the result of this computation using a given function.
    *
    * @param <R> the type of the result of the function
-   * @param next the function to apply to the result
+   * @param mapper the function to apply to the result
    * @return a new Trampoline with the flat mapped result
    */
   default <R> Trampoline<R> flatMap(Function<T, Trampoline<R>> mapper) {

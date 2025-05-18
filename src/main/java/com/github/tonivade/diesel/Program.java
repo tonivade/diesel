@@ -244,7 +244,6 @@ public sealed interface Program<S, E, T> {
    * Maps the program to a new program using the provided error mapper function.
    *
    * @param mapper the function used to map the error
-   * @param <F> the type of the new program
    * @return a new program representing the mapped computation
    */
   default Program<S, E, T> redeem(Function<E, T> mapper) {
