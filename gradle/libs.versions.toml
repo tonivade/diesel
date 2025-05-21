@@ -2,7 +2,7 @@
 jspecifyVersion = "1.0.0"
 javapoetVersion = "0.7.0"
 junitVersion = "5.12.2"
-mockitoVersion = "5.17.0"
+mockitoVersion = "5.18.0"
 nexusVersion = "2.0.0"
 assertjVersion = "3.27.3"
 errorproneVersion = "2.38.0"
