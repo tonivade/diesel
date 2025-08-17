@@ -59,6 +59,19 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Creates a new program that represents a computation that can be executed in a specific context.
+   *
+   * @param either the Either representing the computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the computation
+   */
+  static <S, E, T> Program<S, E, T> from(Either<E, T> either) {
+    return either.fold(Program::failure, Program::success);
+  }
+
+  /**
    * Creates a new program that represents an asynchronous computation.
    *
    * @param future the CompletableFuture representing the asynchronous computation
