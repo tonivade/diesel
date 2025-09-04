@@ -8,7 +8,7 @@ assertjVersion = "3.27.4"
 errorproneVersion = "2.41.0"
 errorpronePluginVersion = "4.3.0"
 nullawayVersion = "0.12.9"
-compileTestingVersion = "0.21.0"
+compileTestingVersion = "0.22.0"
 
 [libraries]
 jspecify = { group = "org.jspecify", name = "jspecify", version.ref = "jspecifyVersion" }
