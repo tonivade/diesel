@@ -21,7 +21,7 @@ repositories {
 
 java {
   toolchain {
-    languageVersion = JavaLanguageVersion.of(21)
+    languageVersion = JavaLanguageVersion.of(25)
   }
   withJavadocJar()
   withSourcesJar()
@@ -33,7 +33,7 @@ jacoco {
 
 tasks.withType(JavaCompile) {
   options.compilerArgs << '-Xlint:all'
-  options.release = 21
+  options.release = 25
   if (!name.toLowerCase().contains("test")) {
     options.errorprone {
       check("NullAway", net.ltgt.gradle.errorprone.CheckSeverity.ERROR)
