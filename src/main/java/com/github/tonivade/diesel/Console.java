@@ -6,7 +6,6 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
 import static com.github.tonivade.diesel.Program.pipe;
-import static java.lang.System.console;
 
 /**
  * Represents a console interface that can be used to write to the console or read from the console.
@@ -26,7 +25,7 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
      */
     @SuppressWarnings("NullAway")
     default void writeLine(String line) {
-      System.out.println(line);
+      IO.println(line);
     }
 
     /**
@@ -36,7 +35,7 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
      */
     @SuppressWarnings("NullAway")
     default String readLine() {
-      return console().readLine();
+      return IO.readln();
     }
   }
 
@@ -84,7 +83,7 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
    * @return A new console operation that prompts the user with a question and reads their response.
    */
   static <S extends Service, E> Program<S, E, String> prompt(String question) {
-    return pipe(writeLine(question), __ -> readLine());
+    return pipe(writeLine(question), _ -> readLine());
   }
 
   /**

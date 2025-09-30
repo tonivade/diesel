@@ -81,7 +81,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing an asynchronous computation
    */
   static <S, E, T> Program<S, E, T> from(CompletableFuture<Result<E, T>> future) {
-    return async((__, callback) -> future.whenCompleteAsync(callback));
+    return async((_, callback) -> future.whenCompleteAsync(callback));
   }
 
   /**
@@ -162,7 +162,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a computation that supplies a value
    */
   static <S, E, T> Program<S, E, T> supply(Supplier<T> supplier) {
-    return Program.<S, E>unit().map(__ -> supplier.get());
+    return Program.<S, E>unit().map(_ -> supplier.get());
   }
 
   /**
@@ -175,7 +175,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a computation that suspends execution
    */
   static <S, E, T> Program<S, E, T> suspend(Supplier<Program<S, E, T>> supplier) {
-    return Program.<S, E>unit().flatMap(__ -> supplier.get());
+    return Program.<S, E>unit().flatMap(_ -> supplier.get());
   }
 
   /**
@@ -187,7 +187,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a computation that executes a runnable
    */
   static <S, E> Program<S, E, Void> task(Runnable runnable) {
-    return Program.<S, E>unit().map(__ -> {
+    return Program.<S, E>unit().map(_ -> {
       runnable.run();
       return null;
     });
@@ -317,11 +317,11 @@ public sealed interface Program<S, E, T> {
   }
 
   default Program<S, E, T> recoverWith(Program<S, E, T> value) {
-    return flatMapError(__ -> value);
+    return flatMapError(_ -> value);
   }
 
   default <R> Program<S, E, R> andThen(Program<S, E, R> next) {
-    return flatMap(__ -> next);
+    return flatMap(_ -> next);
   }
 
   default Program<S, E, T> peek(Function<T, Program<S, E, Void>> insert) {
@@ -406,11 +406,11 @@ public sealed interface Program<S, E, T> {
 
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
     return either(sleep(duration, executor), this, executor)
-      .flatMap(either -> either.fold(__ -> raise(TimeoutException::new), Program::success));
+      .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
   }
 
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
-    return Program.<S, E>sleep(duration, executor).flatMap(__ -> success(supplier.get()));
+    return Program.<S, E>sleep(duration, executor).flatMap(_ -> success(supplier.get()));
   }
 
   static <S, E> Program<S, E, Void> sleep(Duration duration) {
@@ -418,10 +418,10 @@ public sealed interface Program<S, E, T> {
   }
 
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
-    return async((__, callback) -> {
+    return async((_, callback) -> {
       var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
       var future = CompletableFuture.runAsync(() -> {}, delayed);
-      future.whenCompleteAsync((i, j) -> callback.accept(Result.success(null), null));
+      future.whenCompleteAsync((_, _) -> callback.accept(Result.success(null), null));
     });
   }
 

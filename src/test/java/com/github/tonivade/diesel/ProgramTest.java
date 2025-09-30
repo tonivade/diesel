@@ -165,7 +165,7 @@ class ProgramTest {
 
   @Test
   void shouldCatchException() {
-    var program = raise(UnsupportedOperationException::new).catchAll(__ -> Program.success(10));
+    var program = raise(UnsupportedOperationException::new).catchAll(_ -> Program.success(10));
 
     var result = program.eval(null);
 
