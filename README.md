@@ -12,7 +12,7 @@ This library is still in **development**. Use it at you own risk.
 
 ## Requirement
 
-This library is based on Java 21.
+This library is based on Java 25.
 
 ## Usage
 
