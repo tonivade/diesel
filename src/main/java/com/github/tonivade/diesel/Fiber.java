@@ -38,6 +38,8 @@ public record Fiber<E, T>(CompletableFuture<Result<E, T>> future) {
     return future.isCancelled();
   }
 
+  // start generated code
+
   public static <E, T0, T1, R> Fiber<E, R> zip(
      Fiber<E, T0> f0,
      Fiber<E, T1> f1,
@@ -173,6 +175,8 @@ public record Fiber<E, T>(CompletableFuture<Result<E, T>> future) {
       ))))))));
     return new Fiber<>(result);
   }
+
+  // end generated code
 
   public static <E, T, U> Fiber<E, Either<T, U>> either(Fiber<E, T> f1, Fiber<E, U> f2) {
     return new Fiber<>(f1.future.thenApplyAsync(t -> t.map(Either::<T, U>left))

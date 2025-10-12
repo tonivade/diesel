@@ -397,6 +397,8 @@ public sealed interface Program<S, E, T> {
     });
   }
 
+  // start generated code
+
   static <S, E, T0, T1> Program<S, E, T1> pipe(
       Program<S, E, T0> p0,
       Function<T0, Program<S, E, T1>> p1) {
@@ -473,6 +475,89 @@ public sealed interface Program<S, E, T> {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7).flatMap(p8);
   }
 
+  static <S, E, T0, T1> Program<S, E, T1> chain(
+      Program<S, E, T0> p0,
+     Function<T0, T1> p1
+    ) {
+      return p0.map(p1);
+  }
+
+  static <S, E, T0, T1, T2> Program<S, E, T2> chain(
+    Program<S, E, T0> p0,
+     Function<T0, T1> p1,
+     Function<T1, T2> p2
+    ) {
+      return p0.map(p1).map(p2);
+  }
+
+  static <S, E, T0, T1, T2, T3> Program<S, E, T3> chain(
+    Program<S, E, T0> p0,
+     Function<T0, T1> p1,
+     Function<T1, T2> p2,
+     Function<T2, T3> p3
+    ) {
+      return p0.map(p1).map(p2).map(p3);
+  }
+
+  static <S, E, T0, T1, T2, T3, T4> Program<S, E, T4> chain(
+    Program<S, E, T0> p0,
+     Function<T0, T1> p1,
+     Function<T1, T2> p2,
+     Function<T2, T3> p3,
+     Function<T3, T4> p4
+    ) {
+      return p0.map(p1).map(p2).map(p3).map(p4);
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5> Program<S, E, T5> chain(
+    Program<S, E, T0> p0,
+     Function<T0, T1> p1,
+     Function<T1, T2> p2,
+     Function<T2, T3> p3,
+     Function<T3, T4> p4,
+     Function<T4, T5> p5
+    ) {
+      return p0.map(p1).map(p2).map(p3).map(p4).map(p5);
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6> Program<S, E, T6> chain(
+    Program<S, E, T0> p0,
+     Function<T0, T1> p1,
+     Function<T1, T2> p2,
+     Function<T2, T3> p3,
+     Function<T3, T4> p4,
+     Function<T4, T5> p5,
+     Function<T5, T6> p6
+    ) {
+      return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6);
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7> Program<S, E, T7> chain(
+    Program<S, E, T0> p0,
+     Function<T0, T1> p1,
+     Function<T1, T2> p2,
+     Function<T2, T3> p3,
+     Function<T3, T4> p4,
+     Function<T4, T5> p5,
+     Function<T5, T6> p6,
+     Function<T6, T7> p7
+    ) {
+      return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6).map(p7);
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8> Program<S, E, T8> chain(
+    Program<S, E, T0> p0,
+     Function<T0, T1> p1,
+     Function<T1, T2> p2,
+     Function<T2, T3> p3,
+     Function<T3, T4> p4,
+     Function<T4, T5> p5,
+     Function<T5, T6> p6,
+     Function<T6, T7> p7,
+     Function<T7, T8> p8
+    ) {
+      return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6).map(p7).map(p8);
+  }
   static <S, E, T0, T1, R> Program<S, E, R> zip(
      Program<S, E, T0> p0,
      Program<S, E, T1> p1,
@@ -756,6 +841,8 @@ public sealed interface Program<S, E, T> {
          (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> Fiber.zip(f0, f1, f2, f3, f4, f5, f6, f7, f8, finisher))
         .flatMap(Fiber::join);
   }
+
+  // end generated code
 
   static <S, E, T, U> Program<S, E, Either<T, U>> either(
       Program<S, E, T> p1,

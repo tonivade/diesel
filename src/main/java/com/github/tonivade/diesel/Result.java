@@ -51,6 +51,8 @@ public sealed interface Result<F, S> {
     return new Success<>(value);
   }
 
+  // start generated code
+
   static <F, T0, T1, R> Result<F, R> zip(
      Result<F, T0> r0,
      Result<F, T1> r1,
@@ -178,6 +180,8 @@ public sealed interface Result<F, S> {
       r8.map(_8 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7, _8))
       ))))))));
   }
+
+  // end generated code
 
   /**
    * A record representing a failure result.

@@ -74,6 +74,15 @@ static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endi
 }
 """)
 
+program_chain_template = environment.from_string("""
+static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Program<S, E, T{{ value - 1}}> chain(
+  Program<S, E, T0> p0,
+  {% for i in range(value - 1) %} Function<T{{ i }}, T{{ i + 1 }}> p{{ i + 1 }}{% if i < value - 2 %},{% endif %}
+  {% endfor %}) {
+    return p0{% for i in range(value - 1) %}.map(p{{ i + 1}}){% endfor %};
+}
+""")
+
 for i in range(2, 10):
   with open(f"src/main/java/com/github/tonivade/diesel/function/Finisher{i}.java", 'w') as file:
     file.write(finisher_template.render(value=i))
@@ -97,3 +106,7 @@ for i in range(2, 10):
 print(">>>> program pipe")
 for i in range(2, 10):
   print(program_pipe_template.render(value=i))
+
+print(">>>> program chain")
+for i in range(2, 10):
+  print(program_chain_template.render(value=i))
