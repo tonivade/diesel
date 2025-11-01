@@ -16,4 +16,6 @@ public @interface Diesel {
 
   String value() default "";
 
+  Class<?> errorType() default Void.class;
+
 }
