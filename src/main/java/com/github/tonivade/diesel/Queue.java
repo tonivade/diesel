@@ -95,7 +95,7 @@ public sealed interface Queue<V, T> extends Program.Dsl<Queue.Service<V>, Void, 
         service.offer((V) offer.item());
         yield null;
       }
-      case Take take -> service.take();
+      case Take _ -> service.take();
     });
   }
 }
