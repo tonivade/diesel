@@ -188,40 +188,45 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
         .returns(ParameterizedTypeName.get(result, errorType, TypeVariableName.get("T")))
         .addParameter(service, "state")
-        .addCode(handleMethod(element))
+        .addCode(handleMethod(element, errorType))
         .build();
   }
 
-  private CodeBlock handleMethod(TypeElement element) {
+  private CodeBlock handleMethod(TypeElement element, TypeName errorType) {
     return CodeBlock.builder()
-        .add(createSwitch(element))
-        .addStatement("return Result.success(result)")
+        .add(createSwitch(element, errorType))
         .build();
   }
 
-  private CodeBlock createSwitch(TypeElement element) {
-    var builder = CodeBlock.builder().beginControlFlow("var result = (T) switch (this)");
+  private CodeBlock createSwitch(TypeElement element, TypeName errorType) {
+    var builder = CodeBlock.builder().beginControlFlow("return switch (this)");
     for (Element enclosedElement : element.getEnclosedElements()) {
       if (enclosedElement.getKind() == ElementKind.METHOD) {
-        builder.add(createCase((ExecutableElement) enclosedElement));
+        builder.add(createCase((ExecutableElement) enclosedElement, errorType));
       }
     }
     // a switch expression must end in a semicolon, don't know how to do it with javapoet
     return builder.unindent().addStatement("}").build();
   }
 
-  private CodeBlock createCase(ExecutableElement method) {
+  private CodeBlock createCase(ExecutableElement method, TypeName errorType) {
     var methodName = method.getSimpleName().toString();
-    if (method.getReturnType().getKind() == TypeKind.VOID) {
+    var returnType = method.getReturnType();
+    if (returnType.getKind() == TypeKind.VOID) {
       return CodeBlock.builder()
           .beginControlFlow("case $N -> ", buildPattern(method))
           .addStatement("state.$N($L)", methodName, builderParams(method))
-          .addStatement("yield null")
+          .addStatement("yield Result.success((T) null)")
           .endControlFlow()
           .build();
     }
+    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
+      return CodeBlock.builder()
+          .addStatement("case $N -> (Result<$T, T>) state.$N($L)", buildPattern(method), errorType, methodName, builderParams(method))
+          .build();
+    }
     return CodeBlock.builder()
-        .addStatement("case $N -> state.$N($L)", buildPattern(method), methodName, builderParams(method))
+        .addStatement("case $N -> Result.success((T) state.$N($L))", buildPattern(method), methodName, builderParams(method))
         .build();
   }
 
@@ -241,6 +246,9 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private TypeName getReturnTypeFor(ExecutableElement method) {
     var returnType = method.getReturnType();
+    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
+      return TypeName.get(declared.getTypeArguments().getLast());
+    }
     return isPrimitiveOrVoid(returnType) ?
         TypeName.get(returnType).box() : TypeName.get(returnType);
   }

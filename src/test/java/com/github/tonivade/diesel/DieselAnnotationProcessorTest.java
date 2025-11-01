@@ -52,14 +52,13 @@ class DieselAnnotationProcessorTest {
         @Override
         @SuppressWarnings("unchecked")
         default Result<Void, T> handle(Console state) {
-          var result = (T) switch (this) {
-            case ReadLine() -> state.readLine();
+          return switch (this) {
+            case ReadLine() -> Result.success((T) state.readLine());
             case WriteLine(var line) ->  {
               state.writeLine(line);
-              yield null;
+              yield Result.success((T) null);
             }
           };
-          return Result.success(result);
         }
 
         record ReadLine() implements ConsoleDsl<String> {
@@ -118,14 +117,76 @@ class DieselAnnotationProcessorTest {
         @Override
         @SuppressWarnings("unchecked")
         default Result<String, T> handle(Console state) {
-          var result = (T) switch (this) {
-            case ReadLine() -> state.readLine();
+          return switch (this) {
+            case ReadLine() -> Result.success((T) state.readLine());
             case WriteLine(var line) ->  {
               state.writeLine(line);
-              yield null;
+              yield Result.success((T) null);
             }
           };
-          return Result.success(result);
+        }
+
+        record ReadLine() implements ConsoleDsl<String> {
+        }
+
+        record WriteLine(String line) implements ConsoleDsl<Void> {
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
+  void shouldGenerateDslCodeWithResult() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+
+      @Diesel(errorType = String.class)
+      public interface Console {
+        Result<String, String> readLine();
+        Result<String, Void> writeLine(String line);
+      }""");
+
+    var expected = forSourceLines("test.ConsoleDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Result;
+      import java.lang.Override;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import java.lang.Void;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public sealed interface ConsoleDsl<T> extends Program.Dsl<Console, String, T> {
+        @SuppressWarnings("unchecked")
+        static <S extends Console, E extends String> Program<S, E, String> readLine() {
+          return (Program<S, E, String>) new ReadLine();
+        }
+
+        @SuppressWarnings("unchecked")
+        static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
+          return (Program<S, E, Void>) new WriteLine(line);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        default Result<String, T> handle(Console state) {
+          return switch (this) {
+            case ReadLine() -> (Result<String, T>) state.readLine();
+            case WriteLine(var line) -> (Result<String, T>) state.writeLine(line);
+          };
         }
 
         record ReadLine() implements ConsoleDsl<String> {
