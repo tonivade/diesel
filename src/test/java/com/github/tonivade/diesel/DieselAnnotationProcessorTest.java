@@ -53,10 +53,10 @@ class DieselAnnotationProcessorTest {
         @SuppressWarnings("unchecked")
         default Result<Void, T> handle(Console state) {
           return switch (this) {
-            case ReadLine() -> Result.success((T) state.readLine());
+            case ReadLine() -> Result.<Void, T>success((T) state.readLine());
             case WriteLine(var line) ->  {
               state.writeLine(line);
-              yield Result.success((T) null);
+              yield Result.<Void, T>success((T) null);
             }
           };
         }
@@ -65,6 +65,71 @@ class DieselAnnotationProcessorTest {
         }
 
         record WriteLine(String line) implements ConsoleDsl<Void> {
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
+  void shouldGenerateDslCodeWithPrimitiveTypes() {
+    var file = forSourceLines("test.State",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+
+      @Diesel
+      public interface State {
+        int get();
+        void set(int value);
+      }""");
+
+    var expected = forSourceLines("test.StateDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Result;
+      import java.lang.Integer;
+      import java.lang.Override;
+      import java.lang.SuppressWarnings;
+      import java.lang.Void;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public sealed interface StateDsl<T> extends Program.Dsl<State, Void, T> {
+        @SuppressWarnings("unchecked")
+        static <S extends State, E> Program<S, E, Integer> get() {
+          return (Program<S, E, Integer>) new Get();
+        }
+
+        @SuppressWarnings("unchecked")
+        static <S extends State, E> Program<S, E, Void> set(int value) {
+          return (Program<S, E, Void>) new Set(value);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        default Result<Void, T> handle(State state) {
+          return switch (this) {
+            case Get() -> Result.<Void, T>success((T) (Integer) state.get());
+            case Set(var value) ->  {
+              state.set(value);
+              yield Result.<Void, T>success((T) null);
+            }
+          };
+        }
+
+        record Get() implements StateDsl<Integer> {
+        }
+
+        record Set(int value) implements StateDsl<Void> {
         }
       }""");
 
@@ -118,10 +183,10 @@ class DieselAnnotationProcessorTest {
         @SuppressWarnings("unchecked")
         default Result<String, T> handle(Console state) {
           return switch (this) {
-            case ReadLine() -> Result.success((T) state.readLine());
+            case ReadLine() -> Result.<String, T>success((T) state.readLine());
             case WriteLine(var line) ->  {
               state.writeLine(line);
-              yield Result.success((T) null);
+              yield Result.<String, T>success((T) null);
             }
           };
         }

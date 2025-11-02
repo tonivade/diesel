@@ -216,8 +216,14 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
       return CodeBlock.builder()
           .beginControlFlow("case $N -> ", buildPattern(method))
           .addStatement("state.$N($L)", methodName, builderParams(method))
-          .addStatement("yield Result.success((T) null)")
+          .addStatement("yield Result.<$T, T>success((T) null)", errorType)
           .endControlFlow()
+          .build();
+    }
+    if (returnType.getKind().isPrimitive()) {
+      return CodeBlock.builder()
+          .addStatement("case $N -> Result.<$T, T>success((T) ($T) state.$N($L))",
+              buildPattern(method), errorType, TypeName.get(returnType).box(), methodName, builderParams(method))
           .build();
     }
     if (returnType instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
@@ -226,7 +232,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
           .build();
     }
     return CodeBlock.builder()
-        .addStatement("case $N -> Result.success((T) state.$N($L))", buildPattern(method), methodName, builderParams(method))
+        .addStatement("case $N -> Result.<$T, T>success((T) state.$N($L))", buildPattern(method), errorType, methodName, builderParams(method))
         .build();
   }
 
