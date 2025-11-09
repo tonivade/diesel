@@ -13,6 +13,13 @@ public interface Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% end
  
   R apply({% for i in range(value) %}T{{ i }} t{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %});
 
+  static <{% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}T0> first() {
+    return (t0{% for i in range(value - 1) %}, _{% endfor %}) -> t0;
+  }
+  
+  static <{% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}T{{ value -1 }}> last() {
+    return ({% for i in range(value - 1) %}_, {% endfor %}t{{ value - 1}}) -> t{{ value - 1}};
+  }
 }
 """)
 

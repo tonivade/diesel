@@ -6,6 +6,7 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.writeLine;
+import static com.github.tonivade.diesel.Program.chain;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.success;
@@ -59,9 +60,9 @@ interface Game {
   }
 
   static Program<Context, Error, Boolean> checkNumber(int number) {
-    return pipe(
+    return chain(
         getNumber(),
-        value -> success(value == number));
+        value -> value == number);
   }
 
   static Program<Context, Error, Integer> getNumber() {
