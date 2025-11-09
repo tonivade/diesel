@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
+
 import java.util.function.UnaryOperator;
 
 /**
