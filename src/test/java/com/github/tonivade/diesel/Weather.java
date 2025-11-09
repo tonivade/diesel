@@ -90,7 +90,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   static Program<Context, Error, Void> loop() {
     return askAndFetchAndPrint()
         .andThen(printHottestCity())
-        .foldMap(Weather::printError, __ -> loop());
+        .foldMap(Weather::printError, _ -> loop());
   }
 
   static Program<Context, Error, Void> askAndFetchAndPrint() {
@@ -111,7 +111,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   static Program<Context, Error, Void> printError(Error error) {
     return pipe(
         writeLine("Error: " + error),
-        __ -> loop());
+        _ -> loop());
   }
 
   static Program<Context, Error, City> askCity() {
@@ -128,7 +128,7 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
   static Program<Context, Error, Void> printForecastAndPersist(CityForecast cityForecast) {
     return pipe(
         writeLine("Forecast for city " + cityForecast.city() + " is " + cityForecast.forecast()),
-        __ -> setForecast(cityForecast.city(), cityForecast.forecast()));
+        _ -> setForecast(cityForecast.city(), cityForecast.forecast()));
   }
 
   static Program<Context, Error, Forecast> forecast() {

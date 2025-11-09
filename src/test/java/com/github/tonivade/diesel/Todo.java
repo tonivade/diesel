@@ -126,7 +126,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
       .andThen(writeLine("7. Exit"))
       .andThen(readLine())
       .flatMap(Todo::parseInt)
-      .recover(__ -> printMenu());
+      .recover(_ -> printMenu());
   }
 
   static Program<Context, Error, Void> executeAction(int action) {
@@ -147,30 +147,30 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
         findAll(),
         list -> success(list.stream().map(Object::toString).collect(joining("\n"))),
         Console::writeLine,
-        __ -> program());
+        _ -> program());
   }
 
   static Program<Context, Error, Void> deleteAllTodos() {
     return pipe(
         deleteAll(),
-        __ -> writeLine("all todo removed"),
-        __ -> program());
+        _ -> writeLine("all todo removed"),
+        _ -> program());
   }
 
   static Program<Context, Error, Void> createTodo() {
     return pipe(
         zip(increment(), prompt("Enter title"), (id, title) -> new TodoEntity(id, title, NOT_COMPLETED)),
         Todo::create,
-        __ -> writeLine("todo created"),
-        __ -> program());
+        _ -> writeLine("todo created"),
+        _ -> program());
   }
 
   static Program<Context, Error, Void> deleteTodo() {
     return pipe(
         promptId(),
         Todo::deleteOne,
-        __ -> writeLine("todo removed"),
-        __ -> program());
+        _ -> writeLine("todo removed"),
+        _ -> program());
   }
 
   static Program<Context, Error, Void> findTodo() {
@@ -179,22 +179,22 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
         Todo::findOne,
         optional -> success(optional.map(Object::toString).orElse("not found")),
         Console::writeLine,
-        __ -> program());
+        _ -> program());
   }
 
   static Program<Context, Error, Void> markCompleted() {
     return pipe(
         promptId(),
         id -> update(id, entity -> entity.withState(COMPLETED)),
-        __ -> writeLine("todo completed"),
-        __ -> program());
+        _ -> writeLine("todo completed"),
+        _ -> program());
   }
 
   static Program<Context, Error, Integer> promptId() {
     return pipe(
         prompt("Enter id"),
         Todo::parseInt,
-        __ -> promptId()).recover(__ -> promptId());
+        _ -> promptId()).recover(_ -> promptId());
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {

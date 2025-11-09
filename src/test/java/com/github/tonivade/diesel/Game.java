@@ -47,7 +47,7 @@ interface Game {
     return pipe(
         prompt("Enter a number"),
         Game::parseInt)
-        .foldMap(__ -> loop(), number -> checkNumber(number).flatMap(Game::winOrContinue));
+        .foldMap(_ -> loop(), number -> checkNumber(number).flatMap(Game::winOrContinue));
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {

@@ -75,7 +75,7 @@ sealed interface Trampoline<T> {
    * @return a new Trampoline that chains the two computations together
    */
   default <R> Trampoline<R> andThen(Trampoline<R> next) {
-    return flatMap(__ -> next);
+    return flatMap(_ -> next);
   }
 
   /**
@@ -102,13 +102,13 @@ sealed interface Trampoline<T> {
    * @return the final result of the computation
    */
   default T run() {
-    return iterate().fold(__ -> {
+    return iterate().fold(_ -> {
       throw new IllegalStateException();
     }, identity());
   }
 
   private Trampoline<T> iterate() {
-    return Stream.iterate(this, t -> t.fold(identity(), __ -> t))
+    return Stream.iterate(this, t -> t.fold(identity(), _ -> t))
         .dropWhile(t -> t instanceof More).findFirst().orElseThrow();
   }
 }
