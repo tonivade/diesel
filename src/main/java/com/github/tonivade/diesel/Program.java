@@ -38,7 +38,7 @@ import com.github.tonivade.diesel.function.Finisher9;
  */
 public sealed interface Program<S, E, T> {
 
-  Program<?, ?, Void> UNIT = success(null);
+  Program<?, ?, Void> UNIT = success((Void) null);
 
   @SuppressWarnings("unchecked")
   static <S, E> Program<S, E, Void> unit() {
@@ -95,6 +95,34 @@ public sealed interface Program<S, E, T> {
    */
   static <S, E, T> Program<S, E, T> success(@Nullable T value) {
     return new Success<>(value);
+  }
+
+  /**
+   * Creates a function that maps a value to a successful program.
+   *
+   * @param mapper the function used to map the value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input value
+   * @param <R> the type of the result
+   * @return a function that maps a value to a successful program
+   */
+  static <S, E, T, R> Function<T, Program<S, E, R>> success(Function<T, R> mapper) {
+    return t -> Program.<S, E, R>success(mapper.apply(t));
+  }
+
+  /**
+   * Creates a function that maps a value to a failed program.
+   *
+   * @param mapper the function used to map the value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input value
+   * @param <R> the type of the result
+   * @return a function that maps a value to a failed program
+   */
+  static <S, E, T, R> Function<T, Program<S, E, R>> failure(Function<T, E> mapper) {
+    return t -> Program.<S, E, R>failure(mapper.apply(t));
   }
 
   /**
