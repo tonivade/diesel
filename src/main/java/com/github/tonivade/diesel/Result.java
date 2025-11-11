@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.function.Function;
 
 import org.jspecify.annotations.Nullable;
@@ -257,6 +258,15 @@ public sealed interface Result<F, S> {
       case Failure<F, S>(F error) -> onFailure.apply(error);
       case Success<F, S>(S value) -> onSuccess.apply(value);
     };
+  }
+
+  /**
+   * Converts this result to an Optional.
+   *
+   * @return An Optional containing the success value if present, or empty if this is a failure.
+   */
+  default Optional<S> toOptional() {
+    return fold(_ -> Optional.empty(), Optional::ofNullable);
   }
 
   /**
