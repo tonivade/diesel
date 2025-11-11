@@ -23,7 +23,6 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
      *
      * @param line The line of text to write.
      */
-    @SuppressWarnings("NullAway")
     default void writeLine(String line) {
       IO.println(line);
     }
@@ -33,7 +32,6 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
      *
      * @return The line of text that was read.
      */
-    @SuppressWarnings("NullAway")
     default String readLine() {
       return IO.readln();
     }
