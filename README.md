@@ -86,10 +86,10 @@ public static void main(String... args) {
   // >> Hello Toni!
   program.eval(new Console() {
     public void writeLine(String line) {
-      System.out.println(line);
+      IO.println(line);
     }
     public String readLine() {
-      return System.console().readLine();
+      return IO.readln();
     }
   });
 }
