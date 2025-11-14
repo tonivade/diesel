@@ -1,6 +1,6 @@
 [versions]
 jspecifyVersion = "1.0.0"
-javapoetVersion = "0.7.0"
+javapoetVersion = "0.8.0"
 junitVersion = "6.0.1"
 mockitoVersion = "5.20.0"
 nexusVersion = "2.0.0"
