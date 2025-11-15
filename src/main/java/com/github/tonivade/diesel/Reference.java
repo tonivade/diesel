@@ -15,7 +15,6 @@ import java.util.function.UnaryOperator;
  *
  * @param <V> the type of the value being stored in the reference
  * @param <T> the type of the result returned by the reference
- * @since 1.0
  */
 public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>, Void, T> {
 
@@ -23,14 +22,12 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    * A {@code Service} provides methods to set and get a value from the reference.
    *
    * @param <V> the type of the value being stored in the reference
-   * @since 1.0
    */
   interface Service<V> {
     /**
      * Sets the value of the reference.
      *
      * @param value the new value to be set
-     * @since 1.0
      */
     void set(V value);
 
@@ -38,7 +35,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
      * Gets the value of the reference.
      *
      * @return the current value of the reference
-     * @since 1.0
      */
     V get();
   }
@@ -47,7 +43,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    * A {@code SetValue} represents a program that sets a new value in the reference.
    *
    * @param <V> the type of the value being stored in the reference
-   * @since 1.0
    */
   record SetValue<V>(V value) implements Reference<V, Void> {}
 
@@ -55,7 +50,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    * A {@code GetValue} represents a program that retrieves the current value from the reference.
    *
    * @param <V> the type of the value being stored in the reference
-   * @since 1.0
    */
   record GetValue<V>() implements Reference<V, V> {}
 
@@ -67,7 +61,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    * @param <E> the type of the error that may occur during execution
    * @param value the new value to be set
    * @return a program that sets the value in the reference
-   * @since 1.0
    */
   @SuppressWarnings("unchecked")
   static <V, S extends Service<V>, E> Program<S, E, Void> set(V value) {
@@ -81,7 +74,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    * @param <S> the type of the service used by the program
    * @param <E> the type of the error that may occur during execution
    * @return a program that retrieves the value from the reference
-   * @since 1.0
    */
   @SuppressWarnings("unchecked")
   static <V, S extends Service<V>, E> Program<S, E, V> get() {
@@ -96,7 +88,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    * @param <E> the type of the error that may occur during execution
    * @param update the function used to update the value in the reference
    * @return a program that updates the value in the reference
-   * @since 1.0
    */
   static <V, S extends Service<V>, E> Program<S, E, Void> update(UnaryOperator<V> update) {
     return Reference.<V, S, E>get().map(update).flatMap(Reference::set);
@@ -107,7 +98,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    *
    * @param state the service used to evaluate the program
    * @return the result of the program evaluation
-   * @since 1.0
    */
   @Override
   @SuppressWarnings({ "unchecked", "rawtypes" })

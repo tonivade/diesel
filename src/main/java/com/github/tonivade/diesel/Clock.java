@@ -20,8 +20,6 @@ public sealed interface Clock extends Program.Dsl<Clock.Service, Void, Long> {
   /**
    * The service interface of the clock, providing a method to retrieve the
    * current time.
-   *
-   * @since 2025
    */
   interface Service {
     /**
@@ -34,8 +32,6 @@ public sealed interface Clock extends Program.Dsl<Clock.Service, Void, Long> {
 
   /**
    * A record class representing a clock that retrieves the current time.
-   *
-   * @since 2025
    */
   record CurrentTime() implements Clock {}
 

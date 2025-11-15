@@ -31,7 +31,7 @@ public class TrampolineTest {
         () -> assertEquals(20100, sum(200)),
         () -> assertEquals(45150, sum(300)),
         () -> assertEquals(705082704, sum(100000))
-        );
+      );
   }
 
   @Test
@@ -47,7 +47,7 @@ public class TrampolineTest {
         () -> assertEquals(21, fib(8)),
         () -> assertEquals(55, fib(10)),
         () -> assertEquals(317811, fib(28))
-        );
+      );
   }
 
   private int fib(int n) {

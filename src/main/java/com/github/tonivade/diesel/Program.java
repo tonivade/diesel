@@ -208,6 +208,25 @@ public sealed interface Program<S, E, T> {
     return new Async<>(callback);
   }
 
+  /**
+   * Creates a new program that represents an either of two programs executed in parallel using the provided executor.
+   *
+   * @param p1 the first program
+   * @param p2 the second program
+   * @param executor the executor used to execute the programs in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result of the first program
+   * @param <U> the type of the result of the second program
+   * @return a new program representing an either of the two programs
+   */
+  static <S, E, T, U> Program<S, E, Either<T, U>> either(
+      Program<S, E, T> p1,
+      Program<S, E, U> p2,
+      Executor executor) {
+    return zip(p1.fork(executor), p2.fork(executor), Fiber::either).flatMap(Fiber::join);
+  }
+
   record Success<S, E, T>(@Nullable T value) implements Program<S, E, T> {}
 
   record Failure<S, E, T>(E error) implements Program<S, E, T> {}
@@ -327,18 +346,43 @@ public sealed interface Program<S, E, T> {
     return flatMapError(mapper);
   }
 
+  /**
+   * Chains the program with the next program using the provided value in case of error.
+   *
+   * @param value the next program to be executed in case of error
+   * @return a new program representing the chained computation
+   */
   default Program<S, E, T> recoverWith(Program<S, E, T> value) {
     return flatMapError(_ -> value);
   }
 
+  /**
+   * Chains the program with the next program using the provided next program.
+   *
+   * @param next the next program to be executed
+   * @param <R> the type of the new program
+   * @return a new program representing the chained computation
+   */
   default <R> Program<S, E, R> andThen(Program<S, E, R> next) {
     return flatMap(_ -> next);
   }
 
+  /**
+   * Inserts a program to be executed with the current value without modifying it.
+   *
+   * @param insert the function used to insert the program
+   * @return a new program representing the computation with the inserted program
+   */
   default Program<S, E, T> peek(Function<T, Program<S, E, Void>> insert) {
     return flatMap(value -> insert.apply(value).andThen(success(value)));
   }
 
+  /**
+   * Inserts a program to be executed with the current error without modifying it.
+   *
+   * @param insert the function used to insert the program
+   * @return a new program representing the computation with the inserted program
+   */
   default Program<S, E, T> peekError(Function<E, Program<S, E, Void>> insert) {
     return flatMapError(error -> insert.apply(error).andThen(failure(error)));
   }
@@ -354,34 +398,81 @@ public sealed interface Program<S, E, T> {
     return foldMap(Program::failure, next);
   }
 
+  /**
+   * Maps the program to a new program using the provided function for errors.
+   *
+   * @param next the function used to map the program
+   * @param <F> the type of the new program
+   * @return a new program representing the mapped computation
+   */
   default <F> Program<S, F, T> flatMapError(Function<E, Program<S, F, T>> next) {
     return foldMap(next, Program::success);
   }
 
+  /**
+   * Catches all exceptions thrown during the execution of the program and recovers using the provided function.
+   *
+   * @param recover the function used to recover from exceptions
+   * @return a new program representing the computation with exception handling
+   */
   default Program<S, E, T> catchAll(Function<Throwable, Program<S, E, T>> recover) {
     return new Catch<>(this, recover);
   }
 
+  /**
+   * Maps the program to a new program using the provided functions for success and failure.
+   *
+   * @param onFailure the function used to map the program in case of failure
+   * @param onSuccess the function used to map the program in case of success
+   * @param <F> the type of the new program in case of failure
+   * @param <R> the type of the new program in case of success
+   * @return a new program representing the mapped computation
+   */
   default <F, R> Program<S, F, R> foldMap(
       Function<E, Program<S, F, R>> onFailure,
       Function<T, Program<S, F, R>> onSuccess) {
     return new FoldMap<>(this, onFailure, onSuccess);
   }
 
+  /**
+   * Measures the time taken to execute the program and returns the elapsed time along with the result.
+   *
+   * @return a new program representing the computation with elapsed time measurement
+   */
   default Program<S, E, ElapsedTime<T>> timed() {
     return pipe(
         start(),
         start -> map(value -> end(start, value)));
   }
 
+  /**
+   * Retries the program a specified number of times in case of failure.
+   *
+   * @param retries the number of retries
+   * @return a new program representing the computation with retries
+   */
   default Program<S, E, T> retry(int retries) {
     return retry(retries, unit());
   }
 
+  /**
+   * Retries the program a specified number of times with a delay in case of failure.
+   *
+   * @param retries the number of retries
+   * @param delay the delay between retries
+   * @return a new program representing the computation with retries and delay
+   */
   default Program<S, E, T> retry(int retries, Duration delay) {
     return retry(retries, sleep(delay));
   }
 
+  /**
+   * Retries the program a specified number of times with a delay program in case of failure.
+   *
+   * @param retries the number of retries
+   * @param delay the delay program between retries
+   * @return a new program representing the computation with retries and delay
+   */
   default Program<S, E, T> retry(int retries, Program<S, E, Void> delay) {
     return recover(error -> {
       if (retries > 0) {
@@ -391,14 +482,34 @@ public sealed interface Program<S, E, T> {
     });
   }
 
+  /**
+   * Repeats the program a specified number of times.
+   *
+   * @param times the number of times to repeat
+   * @return a new program representing the computation repeated
+   */
   default Program<S, E, T> repeat(int times) {
     return repeat(times, unit());
   }
 
+  /**
+   * Repeats the program a specified number of times with a delay.
+   *
+   * @param times the number of times to repeat
+   * @param delay the delay between repetitions
+   * @return a new program representing the computation repeated with delay
+   */
   default Program<S, E, T> repeat(int times, Duration delay) {
     return repeat(times, sleep(delay));
   }
 
+  /**
+   * Repeats the program a specified number of times with a delay program.
+   *
+   * @param times the number of times to repeat
+   * @param delay the delay program between repetitions
+   * @return a new program representing the computation repeated with delay
+   */
   default Program<S, E, T> repeat(int times, Program<S, E, Void> delay) {
     return flatMap(value -> {
       if (times > 0) {
@@ -408,6 +519,12 @@ public sealed interface Program<S, E, T> {
     });
   }
 
+  /**
+   * Forks the program to be executed asynchronously using the provided executor.
+   *
+   * @param executor the executor used to execute the program asynchronously
+   * @return a new program representing the forked computation
+   */
   default Program<S, E, Fiber<E, T>> fork(Executor executor) {
     return async((state, callback) -> {
       var future = CompletableFuture.supplyAsync(() -> eval(state), executor);
@@ -415,19 +532,53 @@ public sealed interface Program<S, E, T> {
     });
   }
 
+  /**
+   * Adds a timeout to the program using the provided duration and executor.
+   *
+   * @param duration the duration of the timeout
+   * @param executor the executor used to execute the timeout
+   * @return a new program representing the computation with timeout
+   */
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
     return either(sleep(duration, executor), this, executor)
       .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
   }
 
+  /**
+   * Delays the execution of the program using the provided duration, supplier, and executor.
+   *
+   * @param duration the duration of the delay
+   * @param supplier the supplier of the value to be returned after the delay
+   * @param executor the executor used to execute the delay
+   * @return a new program representing the delayed computation
+   */
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
-    return Program.<S, E>sleep(duration, executor).flatMap(_ -> success(supplier.get()));
+    return pipe(
+        sleep(duration, executor),
+        success(_ -> supplier.get()));
   }
 
+  /**
+   * Creates a new program that represents a sleep for the given duration.
+   *
+   * @param duration the duration of the sleep
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing a sleep
+   */
   static <S, E> Program<S, E, Void> sleep(Duration duration) {
     return sleep(duration, ForkJoinPool.commonPool());
   }
 
+  /**
+   * Creates a new program that represents a sleep for the given duration using the provided executor.
+   *
+   * @param duration the duration of the sleep
+   * @param executor the executor used to execute the sleep
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing a sleep
+   */
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
     return async((_, callback) -> {
       var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
@@ -882,13 +1033,6 @@ public sealed interface Program<S, E, T> {
   }
 
   // end generated code
-
-  static <S, E, T, U> Program<S, E, Either<T, U>> either(
-      Program<S, E, T> p1,
-      Program<S, E, U> p2,
-      Executor executor) {
-    return zip(p1.fork(executor), p2.fork(executor), Fiber::either).flatMap(Fiber::join);
-  }
 
   record ElapsedTime<T>(Duration duration, T value) {}
 
