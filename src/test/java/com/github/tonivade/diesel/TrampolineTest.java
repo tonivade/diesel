@@ -8,24 +8,24 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.Test;
 
-public class TrampolineTest {
+class TrampolineTest {
 
   @Test
-  public void done() {
+  void done() {
     var done = Trampoline.done("done");
 
     assertEquals("done", done.run());
   }
 
   @Test
-  public void more() {
+  void more() {
     var more = Trampoline.more(() -> Trampoline.done("done"));
 
     assertEquals("done", more.run());
   }
 
   @Test
-  public void sum() {
+  void sum() {
     assertAll(
         () -> assertEquals(5050, sum(100)),
         () -> assertEquals(20100, sum(200)),
@@ -35,7 +35,7 @@ public class TrampolineTest {
   }
 
   @Test
-  public void fib() {
+  void fib() {
     assertAll(
         () -> assertEquals(1, fib(1)),
         () -> assertEquals(1, fib(2)),
