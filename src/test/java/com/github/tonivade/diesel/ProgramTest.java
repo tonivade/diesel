@@ -4,9 +4,11 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Program.all;
 import static com.github.tonivade.diesel.Program.delay;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
+import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Result.failure;
 import static com.github.tonivade.diesel.Result.success;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,11 +21,13 @@ import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
 import com.github.tonivade.diesel.ProgramTest.TestDsl.Operation;
 import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
@@ -161,6 +165,15 @@ class ProgramTest {
 
     assertThatThrownBy(() -> program.eval(null))
       .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void shouldExecuteAllPrograms(@Mock Supplier<String> supplier) {
+    when(supplier.get()).thenReturn("hi!");
+
+    all(supply(supplier), supply(supplier), supply(supplier)).eval(null);
+
+    verify(supplier, times(3)).get();
   }
 
   @Test

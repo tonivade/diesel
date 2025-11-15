@@ -8,6 +8,7 @@ import static com.github.tonivade.diesel.Trampoline.done;
 import static com.github.tonivade.diesel.Trampoline.more;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -16,7 +17,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
 import org.jspecify.annotations.Nullable;
 
 import com.github.tonivade.diesel.function.Finisher2;
@@ -585,6 +585,14 @@ public sealed interface Program<S, E, T> {
       var future = CompletableFuture.runAsync(() -> {}, delayed);
       future.whenCompleteAsync((_, _) -> callback.accept(Result.success(null), null));
     });
+  }
+
+  @SafeVarargs
+  static <S, E> Program<S, E, Void> all(Program<S, E, ?>... programs) {
+    if (programs.length == 0) {
+      return unit();
+    }
+    return programs[0].andThen(all(Arrays.copyOfRange(programs, 1, programs.length)));
   }
 
   // start generated code

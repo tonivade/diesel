@@ -5,9 +5,9 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Console.prompt;
-import static com.github.tonivade.diesel.Console.readLine;
 import static com.github.tonivade.diesel.Console.writeLine;
 import static com.github.tonivade.diesel.Counter.increment;
+import static com.github.tonivade.diesel.Program.all;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.success;
@@ -112,21 +112,32 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
   }
 
   static Program<Context, Error, Void> program() {
-    return printMenu().flatMap(Todo::executeAction);
+    return printMenuAndGetOption().flatMap(Todo::executeAction);
   }
 
-  static Program<Context, Error, Integer> printMenu() {
-    return Console.<Context, Error>writeLine("Menu")
-      .andThen(writeLine("1. Create"))
-      .andThen(writeLine("2. List"))
-      .andThen(writeLine("3. Find"))
-      .andThen(writeLine("4. Delete"))
-      .andThen(writeLine("5. Clear"))
-      .andThen(writeLine("6. Completed"))
-      .andThen(writeLine("7. Exit"))
-      .andThen(readLine())
-      .flatMap(Todo::parseInt)
-      .recover(_ -> printMenu());
+  static Program<Context, Error, Integer> printMenuAndGetOption() {
+    return pipe(
+        printMenu(),
+        _ -> readOption())
+        .recover(_ -> printMenuAndGetOption());
+  }
+
+  static Program<Context, Error, Integer> readOption() {
+    return pipe(
+        prompt("Select an option:"),
+        Todo::parseInt);
+  }
+
+  static Program<Context, Error, Void> printMenu() {
+    return all(
+        writeLine("Menu"),
+        writeLine("1. Create"),
+        writeLine("2. List"),
+        writeLine("3. Find"),
+        writeLine("4. Delete"),
+        writeLine("5. Clear"),
+        writeLine("6. Completed"),
+        writeLine("7. Exit"));
   }
 
   static Program<Context, Error, Void> executeAction(int action) {
