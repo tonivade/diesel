@@ -1168,10 +1168,9 @@ public sealed interface Program<S, E, T> {
     return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
   }
 
-  @SuppressWarnings({ "rawtypes", "unchecked" })
-  private static <S, E, T> Collection<Program<S, E, Fiber<E, ?>>> forkAll(Executor executor, Collection<Program<S, E, ?>> programs) {
-    return (List) programs.stream()
-        .map(p -> p.fork(executor))
+  private static <S, E, T> Collection<Program<S, E, Fiber<E, Void>>> forkAll(Executor executor, Collection<Program<S, E, ?>> programs) {
+    return programs.stream()
+        .map(p -> p.fork(executor).map(f -> f.<Void>map(_ -> null)))
         .toList();
   }
 

@@ -15,6 +15,7 @@ import com.github.tonivade.diesel.function.Finisher9;
 
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 /**
  * A Fiber is a lightweight, non-blocking computation that can be cancelled.
@@ -42,6 +43,11 @@ public record Fiber<E, T>(CompletableFuture<Result<E, T>> future) {
 
   public boolean isCancelled() {
     return future.isCancelled();
+  }
+
+  public <R> Fiber<E, R> map(Function<T, R> mapper) {
+    var mapped = future.thenApply(result -> result.map(mapper));
+    return new Fiber<>(mapped);
   }
 
   public static <E> Fiber<E, Void> all(Collection<? extends Fiber<E, ?>> fibers) {
