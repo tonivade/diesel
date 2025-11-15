@@ -221,11 +221,8 @@ public sealed interface Program<S, E, T> {
       Function<E, Program<S, F, R>> onFailure,
       Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
     private Trampoline<Result<F, R>> foldEval(S state) {
-      return more(() -> current.safeEval(state))
-          .flatMap(result -> {
-            var next = result.fold(onFailure, onSuccess);
-            return more(() -> next.safeEval(state));
-          });
+      return current.step(state)
+          .flatMap(result -> result.fold(onFailure, onSuccess).step(state));
     }
   }
 
@@ -247,15 +244,25 @@ public sealed interface Program<S, E, T> {
     return safeEval(state).run();
   }
 
+  /**
+   * Steps through the program using the provided state.
+   *
+   * @param state the state used to step through the program
+   * @return a trampoline representing the stepped computation
+   */
+  default Trampoline<Result<E, T>> step(S state) {
+    return more(() -> safeEval(state));
+  }
+
   private Trampoline<Result<E, T>> safeEval(S state) {
     return switch (this) {
       case Success<S, E, T>(var value) -> done(Result.success(value));
       case Failure<S, E, T>(var error) -> done(Result.failure(error));
       case Catch<S, E, T>(var current, var recover) -> {
         try {
-          yield done(current.eval(state));
+          yield current.safeEval(state);
         } catch (Throwable t) {
-          yield recover.apply(t).safeEval(state);
+          yield recover.apply(t).step(state);
         }
       }
       case Async<S, E, T>(var callback) -> {
