@@ -12,6 +12,8 @@ import com.github.tonivade.diesel.function.Finisher6;
 import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
+
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -40,6 +42,12 @@ public record Fiber<E, T>(CompletableFuture<Result<E, T>> future) {
 
   public boolean isCancelled() {
     return future.isCancelled();
+  }
+
+  public static <E> Fiber<E, Void> all(Collection<? extends Fiber<E, ?>> fibers) {
+    var all = CompletableFuture.allOf(fibers.stream().map(Fiber::future).toArray(CompletableFuture[]::new))
+        .thenApply(_ -> Result.<E, Void>success(null));
+    return new Fiber<E, Void>(all);
   }
 
   // start generated code

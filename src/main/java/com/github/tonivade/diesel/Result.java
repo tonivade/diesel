@@ -4,9 +4,13 @@
  */
 package com.github.tonivade.diesel;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
 
@@ -50,6 +54,23 @@ public sealed interface Result<F, S> {
    */
   static <F, S> Result<F, S> success(@Nullable S value) {
     return new Success<>(value);
+  }
+
+  /**
+   * Attempts to execute the provided supplier and returns a result.
+   * If the supplier throws a Throwable, a failure result is returned.
+   * Otherwise, a success result is returned with the value from the supplier.
+   *
+   * @param supplier The supplier to execute.
+   * @param <S> The type of the success value.
+   * @return A result representing the outcome of the supplier execution.
+   */
+  static <S> Result<Throwable, S> attemp(Supplier<S> supplier) {
+    try {
+      return success(supplier.get());
+    } catch (Throwable e) {
+      return failure(e);
+    }
   }
 
   // start generated code
@@ -270,6 +291,15 @@ public sealed interface Result<F, S> {
   }
 
   /**
+   * Converts this result to a Stream.
+   *
+   * @return A Stream containing the success value if present, or an empty Stream if this is a failure.
+   */
+  default Stream<S> toStream() {
+    return toOptional().stream();
+  }
+
+  /**
    * Returns the success value of this result, throwing a NoSuchElementException if this is a failure.
    *
    * @return The success value of this result.
@@ -292,5 +322,49 @@ public sealed interface Result<F, S> {
       case Success<F, S>(S value) -> value;
       case Failure<F, S>(F error) -> throw mapper.apply(error);
     };
+  }
+
+  /**
+   * Sequences a collection of results into a single result containing a collection of success values.
+   *
+   * @param values The collection of results to sequence.
+   * @param <F> The type of the failure value.
+   * @param <S> The type of the success value.
+   * @return A result containing a collection of success values, or a failure if any result is a failure.
+   */
+  static <F, S> Result<F, Collection<S>> sequence(Collection<Result<F, S>> values) {
+    Result<F, Collection<S>> initial = success(new ArrayList<>());
+    return values.stream().reduce(
+        initial,
+        (acc, s) -> zip(acc, s, (list, value) -> {
+          list.add(value);
+          return list;
+        }),
+        (_, _) -> {
+          throw new UnsupportedOperationException("Parallel stream not supported");
+        });
+  }
+
+  /**
+   * Traverses a collection of values, applying a mapper function to each value and collecting the results.
+   *
+   * @param values The collection of values to traverse.
+   * @param mapper The function used to map each value to a result.
+   * @param <F> The type of the failure value.
+   * @param <S> The type of the input values.
+   * @param <R> The type of the mapped success values.
+   * @return A result containing a collection of mapped success values, or a failure if any mapping fails.
+   */
+  static <F, S, R> Result<F, Collection<R>> traverse(Collection<S> values, Function<S, Result<F, R>> mapper) {
+    Result<F, Collection<R>> initial = success(new ArrayList<>());
+    return values.stream().reduce(
+        initial,
+        (acc, s) -> zip(acc, mapper.apply(s), (list, value) -> {
+          list.add(value);
+          return list;
+        }),
+        (_, _) -> {
+          throw new UnsupportedOperationException("Parallel stream not supported");
+        });
   }
 }

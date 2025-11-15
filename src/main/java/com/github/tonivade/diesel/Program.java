@@ -9,6 +9,8 @@ import static com.github.tonivade.diesel.Trampoline.more;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -140,6 +142,18 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Creates a new program that represents a computation that attempts to execute the given supplier.
+   *
+   * @param supplier the supplier of the value
+   * @param <S> the type of the state
+   * @param <T> the type of the result
+   * @return a new program representing a computation that attempts to execute the supplier
+   */
+  static <S, T> Program<S, Throwable, T> attemp(Supplier<T> supplier) {
+    return from(Result.attemp(supplier));
+  }
+
+  /**
    * Creates a new program that represents a computation that raises an exception.
    *
    * @param throwable the exception to be raised
@@ -227,14 +241,65 @@ public sealed interface Program<S, E, T> {
     return zip(p1.fork(executor), p2.fork(executor), Fiber::either).flatMap(Fiber::join);
   }
 
+  /**
+   * Evaluates all the given programs using the provided state.
+   *
+   * @param state the state used to evaluate the programs
+   * @param programs the programs to be evaluated
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return the result of evaluating all the programs
+   */
+  static <S, E, T> Result<E, Collection<T>> evalAll(S state, Collection<Program<S, E, T>> programs) {
+    return Result.traverse(programs, p -> p.eval(state));
+  }
+
+  /**
+   * Represents a successful computation within the program.
+   *
+   * @param value the value of the successful computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
   record Success<S, E, T>(@Nullable T value) implements Program<S, E, T> {}
 
+  /**
+   * Represents a failed computation within the program.
+   *
+   * @param error the error of the failed computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
   record Failure<S, E, T>(E error) implements Program<S, E, T> {}
 
+  /**
+   * Represents a computation that catches exceptions within the program.
+   *
+   * @param current the current program
+   * @param recover the function used to recover from exceptions
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
   record Catch<S, E, T>(
       Program<S, E, T> current,
       Function<Throwable, Program<S, E, T>> recover) implements Program<S, E, T> {}
 
+  /**
+   * Represents a computation that folds over the result of the program.
+   *
+   * @param current the current program
+   * @param onFailure the function used to map the program in case of failure
+   * @param onSuccess the function used to map the program in case of success
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <F> the type of the new error
+   * @param <T> the type of the result
+   * @param <R> the type of the new result
+   */
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
       Function<E, Program<S, F, R>> onFailure,
@@ -245,10 +310,25 @@ public sealed interface Program<S, E, T> {
     }
   }
 
+  /**
+   * Represents an asynchronous computation within the program.
+   *
+   * @param callback the callback to be executed asynchronously
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
   record Async<S, E, T>(
       BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) implements Program<S, E, T> {
   }
 
+  /**
+   * Represents a domain-specific language (DSL) computation within the program.
+   *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
   non-sealed interface Dsl<S, E, T> extends Program<S, E, T> {
     Result<E, T> handle(S state);
   }
@@ -321,6 +401,12 @@ public sealed interface Program<S, E, T> {
     return recover(mapper.andThen(Program::success));
   }
 
+  /**
+   * Chains the program with the next program using the provided value in case of error.
+   *
+   * @param value the value to be used in case of error
+   * @return a new program representing the chained computation
+   */
   default Program<S, E, T> redeemWith(T value) {
     return recoverWith(success(value));
   }
@@ -587,12 +673,42 @@ public sealed interface Program<S, E, T> {
     });
   }
 
+  /**
+   * Chains all the given programs sequentially.
+   *
+   * @param programs the programs to be chained
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing the chained computation
+   */
   @SafeVarargs
-  static <S, E> Program<S, E, Void> all(Program<S, E, ?>... programs) {
+  static <S, E> Program<S, E, Void> chainAll(Program<S, E, ?>... programs) {
     if (programs.length == 0) {
       return unit();
     }
-    return programs[0].andThen(all(Arrays.copyOfRange(programs, 1, programs.length)));
+    return programs[0].andThen(chainAll(Arrays.copyOfRange(programs, 1, programs.length)));
+  }
+
+  /**
+   * Executes all the given programs in parallel using the provided executor.
+   *
+   * @param executor the executor used to execute the programs in parallel
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing the parallel computation
+   */
+  @SafeVarargs
+  static <S, E> Program<S, E, Void> parAll(Executor executor, Program<S, E, ?>... programs) {
+    if (programs.length == 0) {
+      return unit();
+    }
+
+    var forked = forkAll(executor, List.of(programs));
+
+    return Program.<S, E, Fiber<E, Void>>async(
+        (state, callback) -> callback.accept(evalAll(state, forked).map(Fiber::all), null))
+        .flatMap(Fiber::join);
   }
 
   // start generated code
@@ -1050,6 +1166,13 @@ public sealed interface Program<S, E, T> {
 
   private static <T> ElapsedTime<T> end(Long start, T value) {
     return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
+  }
+
+  @SuppressWarnings({ "rawtypes", "unchecked" })
+  private static <S, E, T> Collection<Program<S, E, Fiber<E, ?>>> forkAll(Executor executor, Collection<Program<S, E, ?>> programs) {
+    return (List) programs.stream()
+        .map(p -> p.fork(executor))
+        .toList();
   }
 
   // XXX: https://www.baeldung.com/java-sneaky-throws

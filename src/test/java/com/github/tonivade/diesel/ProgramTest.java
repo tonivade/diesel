@@ -4,7 +4,7 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Program.all;
+import static com.github.tonivade.diesel.Program.chainAll;
 import static com.github.tonivade.diesel.Program.delay;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
@@ -171,8 +171,22 @@ class ProgramTest {
   void shouldExecuteAllPrograms(@Mock Supplier<String> supplier) {
     when(supplier.get()).thenReturn("hi!");
 
-    all(supply(supplier), supply(supplier), supply(supplier)).eval(null);
+    chainAll(supply(supplier), supply(supplier), supply(supplier)).eval(null);
 
+    verify(supplier, times(3)).get();
+  }
+
+  @Test
+  void shouldExecuteAllProgramsInParallel(@Mock Supplier<String> supplier) {
+    when(supplier.get()).thenReturn("hi!");
+
+    var result = Program.parAll(executor,
+        delay(Duration.ofSeconds(1), supplier, executor),
+        delay(Duration.ofSeconds(2), supplier, executor),
+        delay(Duration.ofSeconds(3), supplier, executor)).timed().eval(null);
+
+    assertThat(result.getOrElseThrow().duration())
+      .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
     verify(supplier, times(3)).get();
   }
 

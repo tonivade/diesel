@@ -7,7 +7,7 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.writeLine;
 import static com.github.tonivade.diesel.Counter.increment;
-import static com.github.tonivade.diesel.Program.all;
+import static com.github.tonivade.diesel.Program.chainAll;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.success;
@@ -129,7 +129,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
   }
 
   static Program<Context, Error, Void> printMenu() {
-    return all(
+    return chainAll(
         writeLine("Menu"),
         writeLine("1. Create"),
         writeLine("2. List"),
@@ -202,18 +202,12 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
   }
 
   static Program<Context, Error, Integer> promptId() {
-    return pipe(
-        prompt("Enter id"),
-        Todo::parseInt,
-        _ -> promptId()).recover(_ -> promptId());
+    return pipe(prompt("Enter id"), Todo::parseInt).recover(_ -> promptId());
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {
-    try {
-      return success(Integer.parseInt(value));
-    } catch (NumberFormatException e) {
-      return failure(new NumberFormatError(value));
-    }
+    return Program.<Context, Integer>attemp(() -> Integer.parseInt(value))
+        .mapError(_ -> new NumberFormatError(value));
   }
 
   static void main(String... args) {
