@@ -86,7 +86,7 @@ sealed interface Trampoline<T> {
    * @return a new Trampoline with the flat mapped result
    */
   default <R> Trampoline<R> flatMap(Function<T, Trampoline<R>> mapper) {
-    return fold(next -> more(() -> next.flatMap(mapper)), mapper);
+    return fold(next -> next.flatMap(mapper), mapper);
   }
 
   private <R> R fold(Function<Trampoline<T>, R> moreMapper, Function<T, R> doneMapper) {
