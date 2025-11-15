@@ -20,7 +20,7 @@ public sealed interface Random<T> extends Program.Dsl<Random.Service, Void, T> {
    * This interface represents the service provided by the random number generator.
    * It provides a method to generate a random integer within a specified range.
    */
-  public interface Service {
+  interface Service {
     /**
      * Generates a random integer within the range [0, bound).
      *

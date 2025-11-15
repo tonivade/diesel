@@ -111,7 +111,7 @@ public sealed interface Program<S, E, T> {
    * @return a function that maps a value to a successful program
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> success(Function<T, R> mapper) {
-    return t -> Program.<S, E, R>success(mapper.apply(t));
+    return t -> Program.success(mapper.apply(t));
   }
 
   /**
@@ -125,7 +125,7 @@ public sealed interface Program<S, E, T> {
    * @return a function that maps a value to a failed program
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> failure(Function<T, E> mapper) {
-    return t -> Program.<S, E, R>failure(mapper.apply(t));
+    return t -> Program.failure(mapper.apply(t));
   }
 
   /**
@@ -343,13 +343,7 @@ public sealed interface Program<S, E, T> {
     return safeEval(state).run();
   }
 
-  /**
-   * Steps through the program using the provided state.
-   *
-   * @param state the state used to step through the program
-   * @return a trampoline representing the stepped computation
-   */
-  default Trampoline<Result<E, T>> step(S state) {
+  private Trampoline<Result<E, T>> step(S state) {
     return more(() -> safeEval(state));
   }
 
@@ -1168,7 +1162,7 @@ public sealed interface Program<S, E, T> {
     return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
   }
 
-  private static <S, E, T> Collection<Program<S, E, Fiber<E, Void>>> forkAll(Executor executor, Collection<Program<S, E, ?>> programs) {
+  private static <S, E> Collection<Program<S, E, Fiber<E, Void>>> forkAll(Executor executor, Collection<Program<S, E, ?>> programs) {
     return programs.stream()
         .map(p -> p.fork(executor).map(f -> f.<Void>map(_ -> null)))
         .toList();

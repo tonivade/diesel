@@ -53,7 +53,7 @@ public record Fiber<E, T>(CompletableFuture<Result<E, T>> future) {
   public static <E> Fiber<E, Void> all(Collection<? extends Fiber<E, ?>> fibers) {
     var all = CompletableFuture.allOf(fibers.stream().map(Fiber::future).toArray(CompletableFuture[]::new))
         .thenApply(_ -> Result.<E, Void>success(null));
-    return new Fiber<E, Void>(all);
+    return new Fiber<>(all);
   }
 
   // start generated code

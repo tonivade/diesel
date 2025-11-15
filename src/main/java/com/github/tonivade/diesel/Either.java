@@ -24,7 +24,7 @@ public sealed interface Either<L, R> {
   }
 
   static <L, R> Either<L, R> right(R right) {
-    return new Right<L, R>(right);
+    return new Right<>(right);
   }
 
   record Left<L, R>(L left) implements Either<L, R> {}
