@@ -222,7 +222,10 @@ public sealed interface Program<S, E, T> {
       Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
     private Trampoline<Result<F, R>> foldEval(S state) {
       return more(() -> current.safeEval(state))
-          .flatMap(result -> more(() -> result.fold(onFailure, onSuccess).safeEval(state)));
+          .flatMap(result -> {
+            var next = result.fold(onFailure, onSuccess);
+            return more(() -> next.safeEval(state));
+          });
     }
   }
 
