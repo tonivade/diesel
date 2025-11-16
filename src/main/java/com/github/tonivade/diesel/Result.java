@@ -267,6 +267,21 @@ public sealed interface Result<F, S> {
   }
 
   /**
+   * Maps the failure value of this result using the provided mapper function and returns a new result.
+   *
+   * @param mapper The function used to map the failure value.
+   * @param <R> The type of the mapped failure value.
+   * @return A new result with the mapped failure value.
+   */
+  @SuppressWarnings("unchecked")
+  default <R> Result<R, S> flatMapError(Function<F, Result<R, S>> mapper) {
+    return switch (this) {
+      case Failure<F, S>(F error) -> mapper.apply(error);
+      case Success<F, S> _ -> (Result<R, S>) this;
+    };
+  }
+
+  /**
    * Folds the result into a single value using the provided functions.
    *
    * @param onFailure The function used to handle the failure value.
