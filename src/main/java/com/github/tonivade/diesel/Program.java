@@ -58,7 +58,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the computation
    */
   static <S, E, T> Program<S, E, T> from(Result<E, T> result) {
-    return result.fold(Program::failure, Program::success);
+    return new Pure<>(result);
   }
 
   /**
@@ -97,7 +97,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a successful computation
    */
   static <S, E, T> Program<S, E, T> success(@Nullable T value) {
-    return new Success<>(value);
+    return new Pure<>(Result.success(value));
   }
 
   /**
@@ -110,7 +110,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a failed computation
    */
   static <S, E, T> Program<S, E, T> failure(E error) {
-    return new Failure<>(error);
+    return new Pure<>(Result.failure(error));
   }
 
   /**
@@ -256,24 +256,14 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
-   * Represents a successful computation within the program.
+   * Represents a computation that yields a pure result.
    *
-   * @param value the value of the successful computation
+   * @param result the result of the computation
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Success<S, E, T>(@Nullable T value) implements Program<S, E, T> {}
-
-  /**
-   * Represents a failed computation within the program.
-   *
-   * @param error the error of the failed computation
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   */
-  record Failure<S, E, T>(E error) implements Program<S, E, T> {}
+  record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {}
 
   /**
    * Represents a computation that catches exceptions within the program.
@@ -349,8 +339,7 @@ public sealed interface Program<S, E, T> {
 
   private Trampoline<Result<E, T>> safeEval(S state) {
     return switch (this) {
-      case Success<S, E, T>(var value) -> done(Result.success(value));
-      case Failure<S, E, T>(var error) -> done(Result.failure(error));
+      case Pure<S, E, T>(var result) -> done(result);
       case Catch<S, E, T>(var current, var recover) -> {
         try {
           yield current.safeEval(state);
