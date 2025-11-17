@@ -101,6 +101,19 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Creates a new program that represents a failed computation with the given error.
+   *
+   * @param error the error of the failed computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a failed computation
+   */
+  static <S, E, T> Program<S, E, T> failure(E error) {
+    return new Failure<>(error);
+  }
+
+  /**
    * Creates a function that maps a value to a successful program.
    *
    * @param mapper the function used to map the value
@@ -129,19 +142,6 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
-   * Creates a new program that represents a failed computation with the given error.
-   *
-   * @param error the error of the failed computation
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a new program representing a failed computation
-   */
-  static <S, E, T> Program<S, E, T> failure(E error) {
-    return new Failure<>(error);
-  }
-
-  /**
    * Creates a new program that represents a computation that attempts to execute the given supplier.
    *
    * @param supplier the supplier of the value
@@ -150,7 +150,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a computation that attempts to execute the supplier
    */
   static <S, T> Program<S, Throwable, T> attemp(Supplier<T> supplier) {
-    return from(Result.attemp(supplier));
+    return suspend(() -> from(Result.attemp(supplier)));
   }
 
   /**
@@ -177,7 +177,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a computation that supplies a value
    */
   static <S, E, T> Program<S, E, T> supply(Supplier<T> supplier) {
-    return Program.<S, E>unit().map(_ -> supplier.get());
+    return suspend(() -> success(supplier.get()));
   }
 
   /**
@@ -202,7 +202,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a computation that executes a runnable
    */
   static <S, E> Program<S, E, Void> task(Runnable runnable) {
-    return Program.<S, E>unit().map(_ -> {
+    return supply(() -> {
       runnable.run();
       return null;
     });
@@ -698,7 +698,7 @@ public sealed interface Program<S, E, T> {
       return unit();
     }
 
-    var forked = forkAll(executor, List.of(programs));
+    var forked = forkAll(List.of(programs), executor);
 
     return Program.<S, E, Fiber<E, Void>>async(
         (state, callback) -> callback.accept(evalAll(state, forked).map(Fiber::all), null))
@@ -1162,7 +1162,7 @@ public sealed interface Program<S, E, T> {
     return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
   }
 
-  private static <S, E> Collection<Program<S, E, Fiber<E, Void>>> forkAll(Executor executor, Collection<Program<S, E, ?>> programs) {
+  private static <S, E> Collection<Program<S, E, Fiber<E, Void>>> forkAll(Collection<Program<S, E, ?>> programs, Executor executor) {
     return programs.stream()
         .map(p -> p.fork(executor).map(f -> f.<Void>map(_ -> null)))
         .toList();
