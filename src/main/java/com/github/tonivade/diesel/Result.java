@@ -65,7 +65,7 @@ public sealed interface Result<F, S> {
    * @param <S> The type of the success value.
    * @return A result representing the outcome of the supplier execution.
    */
-  static <S> Result<Throwable, S> attemp(Supplier<S> supplier) {
+  static <S> Result<Throwable, S> attempt(Supplier<S> supplier) {
     try {
       return success(supplier.get());
     } catch (Throwable e) {

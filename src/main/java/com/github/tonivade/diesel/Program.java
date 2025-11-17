@@ -124,7 +124,7 @@ public sealed interface Program<S, E, T> {
    * @return a function that maps a value to a successful program
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> success(Function<T, R> mapper) {
-    return t -> Program.success(mapper.apply(t));
+    return t -> success(mapper.apply(t));
   }
 
   /**
@@ -138,7 +138,7 @@ public sealed interface Program<S, E, T> {
    * @return a function that maps a value to a failed program
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> failure(Function<T, E> mapper) {
-    return t -> Program.failure(mapper.apply(t));
+    return t -> failure(mapper.apply(t));
   }
 
   /**
@@ -149,8 +149,8 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a new program representing a computation that attempts to execute the supplier
    */
-  static <S, T> Program<S, Throwable, T> attemp(Supplier<T> supplier) {
-    return suspend(() -> from(Result.attemp(supplier)));
+  static <S, T> Program<S, Throwable, T> attempt(Supplier<T> supplier) {
+    return suspend(() -> from(Result.attempt(supplier)));
   }
 
   /**

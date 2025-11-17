@@ -206,7 +206,7 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {
-    return Program.<Context, Integer>attemp(() -> Integer.parseInt(value))
+    return Program.<Context, Integer>attempt(() -> Integer.parseInt(value))
         .mapError(_ -> new NumberFormatError(value));
   }
 
