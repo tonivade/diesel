@@ -62,9 +62,13 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     for (TypeElement annotation : annotations) {
       for (Element element : roundEnv.getElementsAnnotatedWith(annotation)) {
         var diesel = getAnnotation(annotation, element);
-        getDslFromAnnotation(diesel)
-          .ifPresentOrElse(
-              dsl -> dslAlreadyExists(element, dsl), () -> generate(element, diesel));
+        var dslName = getDslNameFromAnnotation(diesel)
+          .map(a -> a.getValue().toString())
+          .orElse(element.getSimpleName() + DSL_SUFFIX);
+        var errorType = getErrorTypeFromAnnotation(diesel)
+          .map(this::toTypeName)
+          .orElse(TypeName.VOID.box());
+        generate(element, dslName, errorType);
       }
     }
     return false;
@@ -76,21 +80,16 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .findFirst().orElseThrow();
   }
 
-  private Optional<? extends AnnotationValue> getDslFromAnnotation(AnnotationMirror diesel) {
+  private Optional<? extends AnnotationValue> getDslNameFromAnnotation(AnnotationMirror diesel) {
     return diesel.getElementValues().entrySet().stream()
       .filter(entry -> entry.getKey().getSimpleName().toString().equals(VALUE))
       .map(Map.Entry::getValue).findFirst();
   }
 
-  private void dslAlreadyExists(Element element, AnnotationValue dsl) {
-    printNote(element.getSimpleName() + " found with dsl: " + dsl.getValue());
-  }
-
-  private void generate(Element element, AnnotationMirror diesel) {
+  private void generate(Element element, String dslName, TypeName errorType) {
     if (element.getKind() == ElementKind.INTERFACE) {
       printNote(element.getSimpleName() + " interface found");
-      var errorType = getErrorTypeFromAnnotation(diesel).map(this::toTypeName).orElse(TypeName.VOID.box());
-      saveFile(generateDsl((TypeElement) element, errorType));
+      saveFile(generateDsl((TypeElement) element, dslName, errorType));
     } else {
       printError(element.getSimpleName() + " is not supported: " + element.getKind());
     }
@@ -114,10 +113,9 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     }
   }
 
-  private JavaFile generateDsl(TypeElement element, TypeName errorType) {
+  private JavaFile generateDsl(TypeElement element, String dslName, TypeName errorType) {
     String packageName = processingEnv.getElementUtils().getPackageOf(element).getQualifiedName().toString();
     String interfaceName = element.getSimpleName().toString();
-    String dslName = interfaceName + DSL_SUFFIX;
 
     var service = ClassName.get(packageName, interfaceName);
     var dsl = ClassName.get(packageName, dslName);
