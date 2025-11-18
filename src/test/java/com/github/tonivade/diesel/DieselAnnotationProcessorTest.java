@@ -54,7 +54,7 @@ class DieselAnnotationProcessorTest {
         default Result<Void, T> handle(Console state) {
           return switch (this) {
             case ReadLine() -> Result.<Void, T>success((T) state.readLine());
-            case WriteLine(var line) ->  {
+            case WriteLine(var line) -> {
               state.writeLine(line);
               yield Result.<Void, T>success((T) null);
             }
@@ -119,7 +119,7 @@ class DieselAnnotationProcessorTest {
         default Result<Void, T> handle(Console state) {
           return switch (this) {
             case ReadLine() -> Result.<Void, T>success((T) state.readLine());
-            case WriteLine(var line) ->  {
+            case WriteLine(var line) -> {
               state.writeLine(line);
               yield Result.<Void, T>success((T) null);
             }
@@ -184,7 +184,7 @@ class DieselAnnotationProcessorTest {
         default Result<Void, T> handle(State state) {
           return switch (this) {
             case Get() -> Result.<Void, T>success((T) (Integer) state.get());
-            case Set(var value) ->  {
+            case Set(var value) -> {
               state.set(value);
               yield Result.<Void, T>success((T) null);
             }
@@ -249,7 +249,7 @@ class DieselAnnotationProcessorTest {
         default Result<String, T> handle(Console state) {
           return switch (this) {
             case ReadLine() -> Result.<String, T>success((T) state.readLine());
-            case WriteLine(var line) ->  {
+            case WriteLine(var line) -> {
               state.writeLine(line);
               yield Result.<String, T>success((T) null);
             }
