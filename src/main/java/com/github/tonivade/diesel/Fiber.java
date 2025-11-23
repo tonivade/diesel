@@ -28,13 +28,13 @@ import java.util.function.Function;
  * @param <T> the type of the result
  */
 public final class Fiber<E, T> {
-  
+
   private final CompletableFuture<Result<E, T>> future;
-  
+
   Fiber(CompletableFuture<Result<E, T>> future) {
     this.future = future;
   }
-  
+
   CompletableFuture<Result<E, T>> future() {
     return future;
   }
@@ -59,7 +59,7 @@ public final class Fiber<E, T> {
     return Program.task(() -> future.cancel(true));
   }
 
-  /** 
+  /**
    * Checks if the fiber has completed.
    *
    * @return true if the fiber has completed, false otherwise
@@ -68,7 +68,7 @@ public final class Fiber<E, T> {
     return future.isDone();
   }
 
-  /** 
+  /**
    * Checks if the fiber has been cancelled.
    *
    * @return true if the fiber has been cancelled, false otherwise
@@ -88,7 +88,7 @@ public final class Fiber<E, T> {
     var mapped = future.thenApply(result -> result.map(mapper));
     return new Fiber<>(mapped);
   }
-  
+
   /**
    * Flat maps the fiber, returning a new fiber that will complete when the
    * mapped fiber completes.
@@ -113,8 +113,26 @@ public final class Fiber<E, T> {
    * @return a new fiber that will complete when all the fibers have completed
    */
   public static <E> Fiber<E, Void> all(Collection<? extends Fiber<E, ?>> fibers) {
-    var all = CompletableFuture.allOf(fibers.stream().map(Fiber::future).toArray(CompletableFuture[]::new))
-        .thenApply(_ -> Result.<E, Void>success(null));
+    var futures = fibers.stream().map(Fiber::future).toArray(CompletableFuture[]::new);
+    var all = CompletableFuture.allOf(futures)
+        .thenApply(Result::<E, Void>success);
+    return new Fiber<>(all);
+  }
+
+  /**
+   * Sequences the fibers, returning a new fiber that will complete
+   * when all the fibers have completed, with a collection of their results.
+   *
+   * @param <E> the type of the error
+   * @param <T> the type of the result of the fibers
+   * @param fibers the collection of fibers to sequence
+   * @return a new fiber that will complete when all the fibers have completed
+   */
+  public static <E, T> Fiber<E, Collection<T>> sequence(Collection<? extends Fiber<E, T>> fibers) {
+    var futures = fibers.stream().map(Fiber::future).toArray(CompletableFuture[]::new);
+    CompletableFuture<Result<E, Collection<T>>> all = CompletableFuture.allOf(futures)
+        .thenApply(_ -> fibers.stream().map(Fiber::future).map(CompletableFuture::join).toList())
+        .thenApply(Result::sequence);
     return new Fiber<>(all);
   }
 

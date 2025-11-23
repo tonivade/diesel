@@ -8,6 +8,7 @@ import static com.github.tonivade.diesel.Trampoline.done;
 import static com.github.tonivade.diesel.Trampoline.more;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -19,6 +20,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+
 import org.jspecify.annotations.Nullable;
 
 import com.github.tonivade.diesel.function.Finisher2;
@@ -532,7 +535,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the computation with retries and delay
    */
   default Program<S, E, T> retry(int retries, Duration delay) {
-    return retry(retries, sleep(delay));
+    return retry(retries, sleep(delay, ForkJoinPool.commonPool()));
   }
 
   /**
@@ -569,7 +572,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the computation repeated with delay
    */
   default Program<S, E, T> repeat(int times, Duration delay) {
-    return repeat(times, sleep(delay));
+    return repeat(times, sleep(delay, ForkJoinPool.commonPool()));
   }
 
   /**
@@ -628,18 +631,6 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
-   * Creates a new program that represents a sleep for the given duration.
-   *
-   * @param duration the duration of the sleep
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @return a new program representing a sleep
-   */
-  static <S, E> Program<S, E, Void> sleep(Duration duration) {
-    return sleep(duration, ForkJoinPool.commonPool());
-  }
-
-  /**
    * Creates a new program that represents a sleep for the given duration using the provided executor.
    *
    * @param duration the duration of the sleep
@@ -687,10 +678,71 @@ public sealed interface Program<S, E, T> {
       return unit();
     }
 
-    var forked = forkAll(List.of(programs), executor);
+    var forked = forkAll(executor, programs);
 
     return Program.<S, E, Fiber<E, Void>>async(
-        (state, callback) -> callback.accept(evalAll(state, forked).map(Fiber::all), null))
+        (state, callback) -> {
+          try {
+            var result = evalAll(state, forked).map(Fiber::all);
+            callback.accept(result, null);
+          } catch (RuntimeException e) {
+            callback.accept(null, e);
+          }
+        })
+        .flatMap(Fiber::join);
+  }
+
+  /**
+   * Sequences a collection of programs into a single program containing a collection of success values.
+   *
+   * @param programs the programs to be forked
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a collection of forked programs
+   */
+  @SafeVarargs
+  static <S, E, T> Program<S, E, Collection<T>> sequence(Program<S, E, T>... programs) {
+    Program<S, E, Collection<T>> initial = success(new ArrayList<>());
+    return Stream.of(programs).reduce(
+        initial,
+        (acc, s) -> zip(acc, s, (list, value) -> {
+          list.add(value);
+          return list;
+        }),
+        (_, _) -> {
+          throw new UnsupportedOperationException("Parallel stream not supported");
+        });
+  }
+
+  /**
+   * Executes a collection of programs in parallel using the provided executor
+   * and sequences their results into a single program containing a collection of success values.
+   *
+   * @param executor the executor used to execute the programs in parallel
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the parallel computation with sequenced results
+   */
+  @SafeVarargs
+  static <S, E, T> Program<S, E, Collection<T>> parSequence(Executor executor, Program<S, E, T>... programs) {
+    if (programs.length == 0) {
+      return success(List.of());
+    }
+
+    var forked = forkAll(executor, programs);
+
+    return Program.<S, E, Fiber<E, Collection<T>>>async(
+        (state, callback) -> {
+          try {
+            var result = evalAll(state, forked).map(Fiber::sequence);
+            callback.accept(result, null);
+          } catch (RuntimeException e) {
+            callback.accept(null, e);
+          }
+        })
         .flatMap(Fiber::join);
   }
 
@@ -1147,14 +1199,21 @@ public sealed interface Program<S, E, T> {
     return supply(System::nanoTime);
   }
 
-  private static <T> ElapsedTime<T> end(Long start, T value) {
+  private static <T> ElapsedTime<T> end(long start, T value) {
     return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
   }
 
-  private static <S, E> Collection<Program<S, E, Fiber<E, Void>>> forkAll(Collection<Program<S, E, ?>> programs, Executor executor) {
-    return programs.stream()
-        .map(p -> p.fork(executor).map(f -> f.<Void>map(_ -> null)))
+  @SafeVarargs
+  private static <S, E, T> Collection<Program<S, E, Fiber<E, T>>> forkAll(Executor executor, Program<S, E, ? extends T>... programs) {
+    return Stream.of(programs)
+        .map(Program::<S, E, T>narrow)
+        .map(p -> p.fork(executor))
         .toList();
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <S, E, T> Program<S, E, T> narrow(Program<S, E, ? extends T> program) {
+    return (Program<S, E, T>) program;
   }
 
   // XXX: https://www.baeldung.com/java-sneaky-throws

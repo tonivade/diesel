@@ -6,7 +6,10 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.chainAll;
 import static com.github.tonivade.diesel.Program.delay;
+import static com.github.tonivade.diesel.Program.parAll;
+import static com.github.tonivade.diesel.Program.parSequence;
 import static com.github.tonivade.diesel.Program.raise;
+import static com.github.tonivade.diesel.Program.sequence;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Result.failure;
@@ -18,6 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
@@ -177,16 +181,41 @@ class ProgramTest {
   }
 
   @Test
+  void shouldExecuteAllProgramsAndCollectsResult(@Mock Supplier<String> supplier) {
+    when(supplier.get()).thenReturn("1", "2", "3");
+
+    var result = sequence(supply(supplier), supply(supplier), supply(supplier)).eval(null);
+
+    assertThat(result).isEqualTo(Result.success(List.of("1", "2", "3")));
+    verify(supplier, times(3)).get();
+  }
+
+  @Test
   void shouldExecuteAllProgramsInParallel(@Mock Supplier<String> supplier) {
     when(supplier.get()).thenReturn("hi!");
 
-    var result = Program.parAll(executor,
+    var result = parAll(executor,
         delay(Duration.ofSeconds(1), supplier, executor),
         delay(Duration.ofSeconds(2), supplier, executor),
         delay(Duration.ofSeconds(3), supplier, executor)).timed().eval(null);
 
     assertThat(result.getOrElseThrow().duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
+    verify(supplier, times(3)).get();
+  }
+
+  @Test
+  void shouldExecuteAllProgramsInParallelAndCollectsResult(@Mock Supplier<String> supplier) {
+    when(supplier.get()).thenReturn("1", "2", "3");
+
+    var result = parSequence(executor,
+        delay(Duration.ofSeconds(1), supplier, executor),
+        delay(Duration.ofSeconds(2), supplier, executor),
+        delay(Duration.ofSeconds(3), supplier, executor)).timed().eval(null);
+
+    assertThat(result.getOrElseThrow().duration())
+      .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
+    assertThat(result.getOrElseThrow().value()).isEqualTo(List.of("1", "2", "3"));
     verify(supplier, times(3)).get();
   }
 
