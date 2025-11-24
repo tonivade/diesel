@@ -13,7 +13,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
-
+import static java.util.function.Function.identity;
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
 import com.github.tonivade.diesel.function.Finisher4;
@@ -348,16 +348,7 @@ public sealed interface Result<F, S> {
    * @return A result containing a collection of success values, or a failure if any result is a failure.
    */
   static <F, S> Result<F, Collection<S>> sequence(Collection<Result<F, S>> values) {
-    Result<F, Collection<S>> initial = success(new ArrayList<>());
-    return values.stream().reduce(
-        initial,
-        (acc, s) -> zip(acc, s, (list, value) -> {
-          list.add(value);
-          return list;
-        }),
-        (_, _) -> {
-          throw new UnsupportedOperationException("Parallel stream not supported");
-        });
+    return traverse(values, identity());
   }
 
   /**
@@ -374,12 +365,14 @@ public sealed interface Result<F, S> {
     Result<F, Collection<R>> initial = success(new ArrayList<>());
     return values.stream().reduce(
         initial,
-        (acc, s) -> zip(acc, mapper.apply(s), (list, value) -> {
-          list.add(value);
-          return list;
-        }),
+        (acc, s) -> zip(acc, mapper.apply(s), Result::append),
         (_, _) -> {
           throw new UnsupportedOperationException("Parallel stream not supported");
         });
+  }
+
+  private static <R> Collection<R> append(Collection<R> list, R value) {
+    list.add(value);
+    return list;
   }
 }

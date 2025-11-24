@@ -706,10 +706,7 @@ public sealed interface Program<S, E, T> {
     Program<S, E, Collection<T>> initial = success(new ArrayList<>());
     return Stream.of(programs).reduce(
         initial,
-        (acc, s) -> zip(acc, s, (list, value) -> {
-          list.add(value);
-          return list;
-        }),
+        (acc, s) -> zip(acc, s, Program::append),
         (_, _) -> {
           throw new UnsupportedOperationException("Parallel stream not supported");
         });
@@ -1214,6 +1211,11 @@ public sealed interface Program<S, E, T> {
   @SuppressWarnings("unchecked")
   private static <S, E, T> Program<S, E, T> narrow(Program<S, E, ? extends T> program) {
     return (Program<S, E, T>) program;
+  }
+
+  private static <T> Collection<T> append(Collection<T> list, T value) {
+    list.add(value);
+    return list;
   }
 
   // XXX: https://www.baeldung.com/java-sneaky-throws
