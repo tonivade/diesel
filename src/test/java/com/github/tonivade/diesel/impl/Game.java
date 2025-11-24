@@ -2,17 +2,21 @@
  * Copyright (c) 2025, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel;
+package com.github.tonivade.diesel.impl;
 
-import static com.github.tonivade.diesel.Console.prompt;
-import static com.github.tonivade.diesel.Console.writeLine;
 import static com.github.tonivade.diesel.Program.chain;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.success;
-import static com.github.tonivade.diesel.Random.nextInt;
-import static com.github.tonivade.diesel.Reference.get;
+import static com.github.tonivade.diesel.impl.Console.prompt;
+import static com.github.tonivade.diesel.impl.Console.writeLine;
+import static com.github.tonivade.diesel.impl.Random.nextInt;
+import static com.github.tonivade.diesel.impl.Reference.get;
 
+import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.impl.Console;
+import com.github.tonivade.diesel.impl.Random;
+import com.github.tonivade.diesel.impl.Reference;
 import java.util.concurrent.atomic.AtomicInteger;
 
 interface Game {

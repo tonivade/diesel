@@ -2,20 +2,25 @@
  * Copyright (c) 2025, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel;
+package com.github.tonivade.diesel.impl;
 
-import static com.github.tonivade.diesel.Console.prompt;
-import static com.github.tonivade.diesel.Console.writeLine;
-import static com.github.tonivade.diesel.Counter.increment;
 import static com.github.tonivade.diesel.Program.chainAll;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.zip;
-import static com.github.tonivade.diesel.Todo.State.COMPLETED;
-import static com.github.tonivade.diesel.Todo.State.NOT_COMPLETED;
+import static com.github.tonivade.diesel.impl.Console.prompt;
+import static com.github.tonivade.diesel.impl.Console.writeLine;
+import static com.github.tonivade.diesel.impl.Counter.increment;
+import static com.github.tonivade.diesel.impl.Todo.State.COMPLETED;
+import static com.github.tonivade.diesel.impl.Todo.State.NOT_COMPLETED;
 import static java.util.stream.Collectors.joining;
 
+import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Result;
+import com.github.tonivade.diesel.Program.Dsl;
+import com.github.tonivade.diesel.impl.Console;
+import com.github.tonivade.diesel.impl.Counter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

@@ -2,9 +2,9 @@
  * Copyright (c) 2025, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel;
+package com.github.tonivade.diesel.impl;
 
-import static com.github.tonivade.diesel.Game.program;
+import static com.github.tonivade.diesel.impl.Game.program;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;

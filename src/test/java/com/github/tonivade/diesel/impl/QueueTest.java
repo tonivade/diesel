@@ -2,13 +2,16 @@
  * Copyright (c) 2025, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel;
+package com.github.tonivade.diesel.impl;
 
-import static com.github.tonivade.diesel.Queue.offer;
-import static com.github.tonivade.diesel.Queue.take;
 import static com.github.tonivade.diesel.Result.success;
+import static com.github.tonivade.diesel.impl.Queue.offer;
+import static com.github.tonivade.diesel.impl.Queue.take;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Result;
+import com.github.tonivade.diesel.impl.Queue;
 import java.util.ArrayList;
 import java.util.List;
 

@@ -2,13 +2,15 @@
  * Copyright (c) 2025, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel;
+package com.github.tonivade.diesel.impl;
 
-import static com.github.tonivade.diesel.Random.nextInt;
 import static com.github.tonivade.diesel.Result.success;
+import static com.github.tonivade.diesel.impl.Random.nextInt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.github.tonivade.diesel.Result;
+import com.github.tonivade.diesel.impl.Random;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
