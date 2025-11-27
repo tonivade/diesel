@@ -167,7 +167,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a computation that raises an exception
    */
   static <S, E, T, X extends Throwable> Program<S, E, T> raise(Supplier<X> throwable) {
-    return supply(() -> sneakyThrow(throwable.get()));
+    return new Raise<>(throwable);
   }
 
   /**
@@ -281,6 +281,8 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T> current,
       Function<Throwable, Program<S, E, T>> recover) implements Program<S, E, T> {}
 
+  record Raise<S, E, T, X extends Throwable>(Supplier<X> throwable) implements Program<S, E, T> {}
+
   /**
    * Represents a computation that folds over the result of the program.
    *
@@ -343,6 +345,7 @@ public sealed interface Program<S, E, T> {
   private Trampoline<Result<E, T>> safeEval(S state) {
     return switch (this) {
       case Pure<S, E, T>(var result) -> done(result);
+      case Raise<S, E, T, ?>(var throwable) -> sneakyThrow(throwable.get());
       case Catch<S, E, T>(var current, var recover) -> {
         try {
           yield current.safeEval(state);
@@ -1201,7 +1204,8 @@ public sealed interface Program<S, E, T> {
   }
 
   @SafeVarargs
-  private static <S, E, T> Collection<Program<S, E, Fiber<E, T>>> forkAll(Executor executor, Program<S, E, ? extends T>... programs) {
+  private static <S, E, T> Collection<Program<S, E, Fiber<E, T>>> forkAll(
+      Executor executor, Program<S, E, ? extends T>... programs) {
     return Stream.of(programs)
         .map(Program::<S, E, T>narrow)
         .map(p -> p.fork(executor))

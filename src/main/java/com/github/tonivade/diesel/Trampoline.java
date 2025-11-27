@@ -86,14 +86,7 @@ sealed interface Trampoline<T> {
    * @return a new Trampoline with the flat mapped result
    */
   default <R> Trampoline<R> flatMap(Function<T, Trampoline<R>> mapper) {
-    return fold(next -> next.flatMap(mapper), mapper);
-  }
-
-  private <R> R fold(Function<Trampoline<T>, R> moreMapper, Function<T, R> doneMapper) {
-    return switch (this) {
-      case Done<T>(var value) -> doneMapper.apply(value);
-      case More<T>(var next) -> moreMapper.apply(next.get());
-    };
+    return fold(next -> more(() -> next.step(mapper)), mapper);
   }
 
   /**
@@ -110,5 +103,19 @@ sealed interface Trampoline<T> {
   private Trampoline<T> iterate() {
     return Stream.iterate(this, t -> t.fold(identity(), _ -> t))
         .dropWhile(t -> t instanceof More).findFirst().orElseThrow();
+  }
+
+  private <R> R fold(Function<Trampoline<T>, R> moreMapper, Function<T, R> doneMapper) {
+    return switch (this) {
+      case Done<T>(var value) -> doneMapper.apply(value);
+      case More<T>(var next) -> moreMapper.apply(next.get());
+    };
+  }
+
+  private <R> Trampoline<R> step(Function<T, Trampoline<R>> mapper) {
+    return switch (this) {
+      case Done<T>(var value) -> mapper.apply(value);
+      case More<T>(var next) -> next.get().flatMap(mapper);
+    };
   }
 }
