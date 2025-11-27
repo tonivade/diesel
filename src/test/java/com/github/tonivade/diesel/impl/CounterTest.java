@@ -8,14 +8,13 @@ import static com.github.tonivade.diesel.Result.success;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Result;
-import com.github.tonivade.diesel.impl.Counter;
-import com.github.tonivade.diesel.impl.Counter.Service;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.impl.Counter.Service;
 
 @ExtendWith(MockitoExtension.class)
 class CounterTest {

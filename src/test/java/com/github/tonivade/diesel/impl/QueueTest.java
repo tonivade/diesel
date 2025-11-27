@@ -9,9 +9,6 @@ import static com.github.tonivade.diesel.impl.Queue.offer;
 import static com.github.tonivade.diesel.impl.Queue.take;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Result;
-import com.github.tonivade.diesel.impl.Queue;
 import java.util.ArrayList;
 import java.util.List;
 

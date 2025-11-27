@@ -16,17 +16,15 @@ import static com.github.tonivade.diesel.impl.Todo.State.COMPLETED;
 import static com.github.tonivade.diesel.impl.Todo.State.NOT_COMPLETED;
 import static java.util.stream.Collectors.joining;
 
-import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Result;
-import com.github.tonivade.diesel.Program.Dsl;
-import com.github.tonivade.diesel.impl.Console;
-import com.github.tonivade.diesel.impl.Counter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
+
+import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Result;
 
 sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
 

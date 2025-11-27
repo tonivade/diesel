@@ -9,13 +9,13 @@ import static com.github.tonivade.diesel.impl.Console.writeLine;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
-import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.impl.Console;
-import com.github.tonivade.diesel.impl.Console.Service;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.impl.Console.Service;
 
 @ExtendWith(MockitoExtension.class)
 class ConsoleTest {

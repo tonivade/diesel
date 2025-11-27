@@ -17,15 +17,12 @@ import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
 import static java.util.Comparator.comparingInt;
 
-import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Result;
-import com.github.tonivade.diesel.Program.Dsl;
-import com.github.tonivade.diesel.impl.Console;
-import com.github.tonivade.diesel.impl.Logger;
-import com.github.tonivade.diesel.impl.Random;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+
+import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Result;
 
 sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, T> {
 

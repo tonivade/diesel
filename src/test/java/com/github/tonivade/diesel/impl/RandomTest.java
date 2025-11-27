@@ -9,8 +9,6 @@ import static com.github.tonivade.diesel.impl.Random.nextInt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.github.tonivade.diesel.Result;
-import com.github.tonivade.diesel.impl.Random;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
