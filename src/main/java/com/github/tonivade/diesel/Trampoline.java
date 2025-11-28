@@ -4,11 +4,8 @@
  */
 package com.github.tonivade.diesel;
 
-import static java.util.function.Function.identity;
-
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 /**
  * A Trampoline is a data structure used to implement tail recursion in Java.
@@ -86,7 +83,7 @@ sealed interface Trampoline<T> {
    * @return a new Trampoline with the flat mapped result
    */
   default <R> Trampoline<R> flatMap(Function<T, Trampoline<R>> mapper) {
-    return fold(next -> more(() -> next.step(mapper)), mapper);
+    return more(() -> step(mapper));
   }
 
   /**
@@ -95,27 +92,26 @@ sealed interface Trampoline<T> {
    * @return the final result of the computation
    */
   default T run() {
-    return iterate().fold(_ -> {
-      throw new IllegalStateException();
-    }, identity());
-  }
+    var current = this;
 
-  private Trampoline<T> iterate() {
-    return Stream.iterate(this, t -> t.fold(identity(), _ -> t))
-        .dropWhile(t -> t instanceof More).findFirst().orElseThrow();
-  }
+    while (current instanceof More<T> more) {
+      current = more.next.get();
+    }
 
-  private <R> R fold(Function<Trampoline<T>, R> moreMapper, Function<T, R> doneMapper) {
-    return switch (this) {
-      case Done<T>(var value) -> doneMapper.apply(value);
-      case More<T>(var next) -> moreMapper.apply(next.get());
-    };
+    return ((Done<T>) current).value();
   }
 
   private <R> Trampoline<R> step(Function<T, Trampoline<R>> mapper) {
-    return switch (this) {
-      case Done<T>(var value) -> mapper.apply(value);
-      case More<T>(var next) -> next.get().flatMap(mapper);
-    };
+    var current = this;
+
+    while (true) {
+      if (current instanceof Done<T> done) {
+        return mapper.apply(done.value);
+      }
+
+      if (current instanceof More<T> more) {
+        current = more.next.get();
+      }
+    }
   }
 }
