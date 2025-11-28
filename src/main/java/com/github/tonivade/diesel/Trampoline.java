@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2025, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Copyright (c) 2025, Antonio Gabriel Muñoz Conejo <me at tonivade es>
  * Distributed under the terms of the MIT License
  */
 package com.github.tonivade.diesel;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import org.jspecify.annotations.Nullable;
 
 /**
  * A Trampoline is a data structure used to implement tail recursion in Java.
@@ -100,23 +100,33 @@ sealed interface Trampoline<T> {
   /**
    * Runs the computation and returns the final result.
    *
+   * This implementation is stack-safe (no Java stack growth) because it uses
+   * an explicit loop and an explicit Deque for continuations instead of
+   * recursive calls or per-step lambda chaining. It also reduces heap
+   * allocations compared to the previous chained-lambda approach by
+   * keeping continuations in an ArrayDeque (which grows its internal array,
+   * avoiding one-object-per-step allocations).
+   *
+   * Note: heap usage is still O(n) in the number of pending flatMap
+   * continuations: the Deque stores references to the mappers. This is an
+   * improvement in allocation churn but not in asymptotic retained memory.
+   *
    * @return the final result of the computation
    */
   @SuppressWarnings({ "unchecked", "rawtypes" })
   default T run() {
     Trampoline<?> current = this;
-    Function<Object, Trampoline<?>> continuation = null;
+    Deque<Function<Object, Trampoline<?>>> stack = new ArrayDeque<>();
 
     while (true) {
       if (current instanceof Done<?> done) {
-        Object value = done.value();
+        var value = done.value();
 
-        if (continuation == null) {
-          return (T) value;  // end of program
+        if (stack.isEmpty()) {
+          return (T) value; // end of program
         }
 
-        Function<Object, Trampoline<?>> k = continuation;
-        continuation = null; // clear before applying
+        Function<Object, Trampoline<?>> k = stack.pop();
         current = k.apply(value);
       } else if (current instanceof More<?> more) {
         current = more.next().get();
@@ -124,39 +134,11 @@ sealed interface Trampoline<T> {
         Trampoline<Object> source = (Trampoline<Object>) flatMap.current();
         Function<Object, Trampoline<?>> nextFn = (Function) flatMap.mapper();
 
-        if (source instanceof FlatMap<?, ?> sourceFlatMap) {
-          // Reassociate:
-          // FlatMap(FlatMap(x, f), g)
-          // becomes
-          // FlatMap(x, v -> FlatMap(f(v), g))
-          Trampoline<Object> inner = (Trampoline<Object>) sourceFlatMap.current();
-          Function<Object, Trampoline<?>> innerFn = (Function) sourceFlatMap.mapper();
-
-          Function<Object, Trampoline<?>> merged = v -> {
-            Trampoline t = innerFn.apply(v);
-            return t.flatMap(nextFn);
-          };
-
-          current = inner;
-          continuation = chain(merged, continuation);
-        } else {
-          current = source;
-          continuation = chain(nextFn, continuation);
-        }
+        // Push the mapper and continue with the source. Using an explicit
+        // stack avoids allocating a new closure for each chained flatMap step.
+        stack.push(nextFn);
+        current = source;
       }
     }
-  }
-
-  @SuppressWarnings({ "rawtypes", "unchecked" })
-  private static Function<Object, Trampoline<?>> chain(
-      Function<Object, Trampoline<?>> newK, @Nullable Function<Object, Trampoline<?>> existing) {
-    if (existing == null) {
-      return newK;
-    }
-
-    return value -> {
-      Trampoline<?> next = newK.apply(value);
-      return new FlatMap(next, existing);
-    };
   }
 }
