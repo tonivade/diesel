@@ -6,6 +6,7 @@ package com.github.tonivade.diesel;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import org.junit.jupiter.api.Test;
 
 class TrampolineTest {
@@ -48,6 +49,17 @@ class TrampolineTest {
         () -> assertEquals(55, fib(10)),
         () -> assertEquals(317811, fib(28))
       );
+  }
+
+  @Test
+  void heapSafe() {
+    var t = Trampoline.done(0);
+
+    for (int i = 0; i < 10_000_000; i++) {
+      t = t.flatMap(x -> Trampoline.done(x + 1));
+    }
+
+    System.out.println(t.run());
   }
 
   private int fib(int n) {
