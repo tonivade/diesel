@@ -281,6 +281,15 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T> current,
       Function<Throwable, Program<S, E, T>> recover) implements Program<S, E, T> {}
 
+  /**
+   * Represents a computation that raises an exception.
+   *
+   * @param throwable the exception to be raised
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @param <X> the type of the exception
+   */
   record Raise<S, E, T, X extends Throwable>(Supplier<X> throwable) implements Program<S, E, T> {}
 
   /**

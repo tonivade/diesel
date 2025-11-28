@@ -31,7 +31,7 @@ sealed interface Trampoline<T> {
    *
    * @param <T> the type of the result of this computation
    */
-  record More<T>(Supplier<Trampoline<T>> next) implements Trampoline<T> {}
+  record More<T>(Supplier<? extends Trampoline<T>> next) implements Trampoline<T> {}
 
   /**
    * A FlatMap Trampoline represents a computation that continues with another
@@ -40,7 +40,7 @@ sealed interface Trampoline<T> {
    * @param <T> the type of the result of the current computation
    * @param <R> the type of the result of the next computation
    */
-  record FlatMap<T, R>(Trampoline<T> current, Function<T, Trampoline<R>> mapper) implements Trampoline<R> {}
+  record FlatMap<T, R>(Trampoline<T> current, Function<? super T, ? extends Trampoline<R>> mapper) implements Trampoline<R> {}
 
   /**
    * Creates a Done Trampoline with a given value.
@@ -60,7 +60,7 @@ sealed interface Trampoline<T> {
    * @param next a supplier of another Trampoline
    * @return a Trampoline that continues with the supplier of another Trampoline
    */
-  static <T> Trampoline<T> more(Supplier<Trampoline<T>> next) {
+  static <T> Trampoline<T> more(Supplier<? extends Trampoline<T>> next) {
     return new More<>(next);
   }
 
@@ -71,7 +71,7 @@ sealed interface Trampoline<T> {
    * @param mapper the function to apply to the result
    * @return a new Trampoline with the mapped result
    */
-  default <R> Trampoline<R> map(Function<T, R> mapper) {
+  default <R> Trampoline<R> map(Function<? super T, ? extends R> mapper) {
     return flatMap(mapper.andThen(Trampoline::done));
   }
 
@@ -93,7 +93,7 @@ sealed interface Trampoline<T> {
    * @param mapper the function to apply to the result
    * @return a new Trampoline with the flat mapped result
    */
-  default <R> Trampoline<R> flatMap(Function<T, Trampoline<R>> mapper) {
+  default <R> Trampoline<R> flatMap(Function<? super T, ? extends Trampoline<R>> mapper) {
     return new FlatMap<>(this, mapper);
   }
 
@@ -113,7 +113,7 @@ sealed interface Trampoline<T> {
    *
    * @return the final result of the computation
    */
-  @SuppressWarnings({ "unchecked", "rawtypes" })
+  @SuppressWarnings("unchecked")
   default T run() {
     Trampoline<?> current = this;
     Deque<Function<Object, Trampoline<?>>> stack = new ArrayDeque<>();
@@ -132,7 +132,7 @@ sealed interface Trampoline<T> {
         current = more.next().get();
       } else if (current instanceof FlatMap<?, ?> flatMap) {
         Trampoline<Object> source = (Trampoline<Object>) flatMap.current();
-        Function<Object, Trampoline<?>> nextFn = (Function) flatMap.mapper();
+        Function<Object, Trampoline<?>> nextFn = (Function<Object, Trampoline<?>>) flatMap.mapper();
 
         // Push the mapper and continue with the source. Using an explicit
         // stack avoids allocating a new closure for each chained flatMap step.
