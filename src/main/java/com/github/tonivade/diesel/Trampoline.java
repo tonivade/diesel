@@ -119,24 +119,17 @@ sealed interface Trampoline<T> {
     Deque<Function<Object, Trampoline<?>>> stack = new ArrayDeque<>();
 
     while (true) {
-      if (current instanceof Done<?> done) {
-        var value = done.value();
+      if (current instanceof Done(var value)) {
 
         if (stack.isEmpty()) {
-          return (T) value; // end of program
+          return (T) value;
         }
 
-        Function<Object, Trampoline<?>> k = stack.pop();
-        current = k.apply(value);
-      } else if (current instanceof More<?> more) {
-        current = more.next().get();
-      } else if (current instanceof FlatMap<?, ?> flatMap) {
-        Trampoline<Object> source = (Trampoline<Object>) flatMap.current();
-        Function<Object, Trampoline<?>> nextFn = (Function<Object, Trampoline<?>>) flatMap.mapper();
-
-        // Push the mapper and continue with the source. Using an explicit
-        // stack avoids allocating a new closure for each chained flatMap step.
-        stack.push(nextFn);
+        current = stack.pop().apply(value);
+      } else if (current instanceof More(var next)) {
+        current = next.get();
+      } else if (current instanceof FlatMap(var source, var mapper)) {
+        stack.push((Function<Object, Trampoline<?>>) mapper);
         current = source;
       }
     }
