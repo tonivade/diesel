@@ -6,6 +6,7 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Trampoline.done;
 import static com.github.tonivade.diesel.Trampoline.more;
+import static java.util.function.Function.identity;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -715,10 +716,27 @@ public sealed interface Program<S, E, T> {
    */
   @SafeVarargs
   static <S, E, T> Program<S, E, Collection<T>> sequence(Program<S, E, T>... programs) {
-    Program<S, E, Collection<T>> initial = success(new ArrayList<>());
-    return Stream.of(programs).reduce(
+    return traverse(identity(), programs);
+  }
+
+  /**
+   * Traverses a collection of values, applying the provided function to each value
+   * and sequencing the results into a single program containing a collection of success values.
+   *
+   * @param function the function used to map each value to a program
+   * @param values the values to be traversed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input values
+   * @param <R> the type of the result
+   * @return a new program representing the traversed computation with sequenced results
+   */
+  @SafeVarargs
+  static <S, E, T, R> Program<S, E, Collection<R>> traverse(Function<? super T, ? extends Program<S, E, R>> function, T...values) {
+    Program<S, E, Collection<R>> initial = success(new ArrayList<>());
+    return Stream.of(values).reduce(
         initial,
-        (acc, s) -> zip(acc, s, Program::append),
+        (acc, s) -> zip(acc, function.apply(s), Program::append),
         (_, _) -> {
           throw new UnsupportedOperationException("Parallel stream not supported");
         });
