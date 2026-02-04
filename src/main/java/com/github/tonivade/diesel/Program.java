@@ -7,7 +7,6 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Trampoline.done;
 import static com.github.tonivade.diesel.Trampoline.more;
 import static java.util.function.Function.identity;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -716,6 +715,19 @@ public sealed interface Program<S, E, T> {
    */
   @SafeVarargs
   static <S, E, T> Program<S, E, Collection<T>> sequence(Program<S, E, T>... programs) {
+    return sequence(List.of(programs));
+  }
+
+  /**
+   * Sequences a collection of programs into a single program containing a collection of success values.
+   *
+   * @param programs the programs to be forked
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a collection of forked programs
+   */
+  static <S, E, T> Program<S, E, Collection<T>> sequence(Collection<Program<S, E, T>> programs) {
     return traverse(identity(), programs);
   }
 
@@ -732,13 +744,65 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the traversed computation with sequenced results
    */
   @SafeVarargs
-  static <S, E, T, R> Program<S, E, Collection<R>> traverse(Function<? super T, ? extends Program<S, E, R>> function, T...values) {
+  static <S, E, T, R> Program<S, E, Collection<R>> traverse(Function<? super T, ? extends Program<S, E, R>> function, T... values) {
+    return traverse(function, List.of(values));
+  }
+
+  /**
+   * Traverses a collection of values, applying the provided function to each value
+   * and sequencing the results into a single program containing a collection of success values.
+   *
+   * @param function the function used to map each value to a program
+   * @param values the values to be traversed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input values
+   * @param <R> the type of the result
+   * @return a new program representing the traversed computation with sequenced results
+   */
+  static <S, E, T, R> Program<S, E, Collection<R>> traverse(Function<? super T, ? extends Program<S, E, R>> function, Collection<T> values) {
     Program<S, E, Collection<R>> initial = success(new ArrayList<>());
-    return Stream.of(values).reduce(
+    return values.stream().reduce(
         initial,
         (acc, s) -> zip(acc, function.apply(s), Program::append),
         (_, _) -> {
           throw new UnsupportedOperationException("Parallel stream not supported");
+        });
+  }
+
+  /**
+   * Creates a function that validates a value using the provided validators.
+   *
+   * @param validators the validators used to validate the value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the value to be validated
+   * @return a function that validates a value
+   */
+  @SafeVarargs
+  static <S, E, T> Function<T, Program<S, Collection<E>, T>> validator(Validator<S, E, T>... validators) {
+    return value -> validate(value, validators);
+  }
+
+  /**
+   * Validates a value using the provided validators.
+   *
+   * @param value the value to be validated
+   * @param validators the validators used to validate the value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the value to be validated
+   * @return a new program representing the validation computation
+   */
+  @SafeVarargs
+  static <S, E, T> Program<S, Collection<E>, T> validate(T value, Validator<S, E, T>... validators) {
+    return traverse(v -> v.apply(value), validators)
+        .foldMap(_ -> success(value), result -> {
+          var errors = Either.collectRight(result);
+          if (errors.isEmpty()) {
+            return success(value);
+          }
+          return failure(errors);
         });
   }
 

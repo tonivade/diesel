@@ -14,14 +14,19 @@ import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Result.failure;
 import static com.github.tonivade.diesel.Result.success;
+import static java.util.function.Predicate.not;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.github.tonivade.diesel.ProgramTest.TestDsl.Operation;
+import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
+
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
@@ -31,9 +36,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import com.github.tonivade.diesel.ProgramTest.TestDsl.Operation;
-import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 @ExtendWith(MockitoExtension.class)
 class ProgramTest {
@@ -226,6 +228,23 @@ class ProgramTest {
     var result = program.eval(null);
 
     assertThat(result).isEqualTo(Result.success(10));
+  }
+
+  @Test
+  void shouldValidate() {
+    var validator = Program.<Void, String, Tuple<Integer, String>>validator(
+        Validator.of(Tuple::a, Objects::nonNull, _ -> "cannot be null"),
+        Validator.of(Tuple::b, not(String::isEmpty), _ -> "cannot be empty"));
+
+    var result1 = validator.apply(new Tuple<>(1, "hola")).eval(null);
+    var result2 = validator.apply(new Tuple<>(1, "")).eval(null);
+    var result3 = validator.apply(new Tuple<>(null, "hola")).eval(null);
+    var result4 = validator.apply(new Tuple<>(null, "")).eval(null);
+
+    assertThat(result1).isEqualTo(Result.success(new Tuple<>(1, "hola")));
+    assertThat(result2).isEqualTo(Result.failure(List.of("cannot be empty")));
+    assertThat(result3).isEqualTo(Result.failure(List.of("cannot be null")));
+    assertThat(result4).isEqualTo(Result.failure(List.of("cannot be null", "cannot be empty")));
   }
 
   record Tuple<A, B>(A a, B b) {}
