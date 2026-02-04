@@ -4,7 +4,6 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.zip;
 import static java.util.function.Function.identity;
 
@@ -33,12 +32,10 @@ public interface Validator<S, E, T> {
    * @return A Validator that represents the logical AND of this and the other Validator
    */
   default Validator<S, E, T> and(Validator<S, E, T> other) {
-    return value -> pipe(
+    return value -> zip(
         this.apply(value),
-        result -> result.fold(
-            _ -> other.apply(value),
-            error -> invalid(error)
-        )
+        other.apply(value),
+        (first, second) -> first.fold(_ -> second, error -> Either.right(error))
     );
   }
 
@@ -50,13 +47,12 @@ public interface Validator<S, E, T> {
    * @param other The other Validator to combine with
    * @return A Validator that represents the logical OR of this and the other Validator
    */
+  @SuppressWarnings("unchecked")
   default Validator<S, E, T> or(Validator<S, E, T> other) {
-    return value -> pipe(
+    return value -> zip(
         this.apply(value),
-        result -> result.fold(
-            _ -> valid(),
-            _ -> other.apply(value)
-        )
+        other.apply(value),
+        (first, second) -> first.fold(_ -> (Either<?, E>) VALID, _ -> second)
     );
   }
 
