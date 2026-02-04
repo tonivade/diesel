@@ -4,8 +4,12 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Program.pipe;
+import static com.github.tonivade.diesel.Program.zip;
 import static java.util.function.Function.identity;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -19,7 +23,64 @@ import java.util.function.Predicate;
  */
 public interface Validator<S, E, T> {
 
-  Program<?, Void, ?> VALID = Program.success(Either.left(new Object()));
+  Either<?, ?> VALID = Either.left(new Object());
+
+  /**
+   * Combines this Validator with another Validator using logical AND.
+   * Both validators must succeed for the combined validator to succeed.
+   *
+   * @param other The other Validator to combine with
+   * @return A Validator that represents the logical AND of this and the other Validator
+   */
+  default Validator<S, E, T> and(Validator<S, E, T> other) {
+    return value -> pipe(
+        this.apply(value),
+        result -> result.fold(
+            _ -> other.apply(value),
+            error -> invalid(error)
+        )
+    );
+  }
+
+  /**
+   * Combines this Validator with another Validator using logical OR.
+   * If this validator succeeds, the combined validator succeeds.
+   * If this validator fails, the other validator is applied.
+   *
+   * @param other The other Validator to combine with
+   * @return A Validator that represents the logical OR of this and the other Validator
+   */
+  default Validator<S, E, T> or(Validator<S, E, T> other) {
+    return value -> pipe(
+        this.apply(value),
+        result -> result.fold(
+            _ -> valid(),
+            _ -> other.apply(value)
+        )
+    );
+  }
+
+  /**
+   * Combines this Validator with another Validator, collecting all validation errors.
+   * Both validators are applied, and all errors are collected into a collection.
+   *
+   * @param other The other Validator to combine with
+   * @return A Validator that collects all validation errors from both Validators
+   */
+  @SuppressWarnings("unchecked")
+  default Validator<S, Collection<E>, T> combine(Validator<S, E, T> other) {
+    return value -> zip(
+        this.apply(value),
+        other.apply(value),
+        (first, second) -> {
+          var errors = Either.collectRight(List.of(first, second));
+          if (errors.isEmpty()) {
+            return (Either<?, Collection<E>>) VALID;
+          }
+          return Either.right(errors);
+        }
+    );
+  }
 
   /**
    * Applies the validation to the given value.
@@ -31,7 +92,7 @@ public interface Validator<S, E, T> {
 
   @SuppressWarnings("unchecked")
   static <S, E> Program<S, Void, Either<?, E>> valid() {
-    return (Program<S, Void, Either<?, E>>) VALID;
+    return Program.success((Either<?, E>) VALID);
   }
 
   static <S, E> Program<S, Void, Either<?, E>> invalid(E error) {
