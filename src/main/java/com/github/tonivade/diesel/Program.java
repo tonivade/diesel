@@ -797,13 +797,7 @@ public sealed interface Program<S, E, T> {
   @SafeVarargs
   static <S, E, T> Program<S, Collection<E>, T> validate(T value, Validator<S, E, T>... validators) {
     return traverse(v -> v.apply(value), validators)
-        .foldMap(_ -> success(value), result -> {
-          var errors = Either.collectRight(result);
-          if (errors.isEmpty()) {
-            return success(value);
-          }
-          return failure(errors);
-        });
+        .foldMap(_ -> success(value), result -> Validation.combine(result).fold(() -> success(value), Program::failure));
   }
 
   /**

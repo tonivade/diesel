@@ -21,9 +21,16 @@ import java.util.function.Predicate;
  * @param <E> The error type for validation failures
  * @param <T> The type of the value to be validated
  */
+@FunctionalInterface
 public interface Validator<S, E, T> {
 
-  Either<?, ?> VALID = Either.left(new Object());
+  /**
+   * Applies the validation to the given value.
+   *
+   * @param value The value to be validated
+   * @return A Program that produces either a validation error of type E or indicates success
+   */
+  Program<S, Void, Validation<E>> apply(T value);
 
   /**
    * Combines this Validator with another Validator using logical AND.
@@ -36,7 +43,7 @@ public interface Validator<S, E, T> {
     return value -> pipe(
         this.apply(value),
         result -> result.fold(
-            _ -> other.apply(value),
+            () -> other.apply(value),
             Validator::invalid
         )
     );
@@ -54,7 +61,7 @@ public interface Validator<S, E, T> {
     return value -> pipe(
         this.apply(value),
         result -> result.fold(
-            _ -> valid(),
+            Validator::valid,
             _ -> other.apply(value)
         )
     );
@@ -67,36 +74,35 @@ public interface Validator<S, E, T> {
    * @param other The other Validator to combine with
    * @return A Validator that collects all validation errors from both Validators
    */
-  @SuppressWarnings("unchecked")
   default Validator<S, Collection<E>, T> combine(Validator<S, E, T> other) {
     return value -> zip(
         this.apply(value),
         other.apply(value),
-        (first, second) -> {
-          var errors = Either.collectRight(List.of(first, second));
-          if (errors.isEmpty()) {
-            return (Either<?, Collection<E>>) VALID;
-          }
-          return Either.right(errors);
-        }
+        (first, second) -> Validation.combine(List.of(first, second))
     );
   }
 
   /**
-   * Applies the validation to the given value.
+   * Creates a valid validation result.
    *
-   * @param value The value to be validated
-   * @return A Program that produces either a validation error of type E or indicates success
+   * @param <S> The state type of the Program
+   * @param <E> The error type for validation failures
+   * @return A Program representing a valid validation result
    */
-  Program<S, Void, Either<?, E>> apply(T value);
-
-  @SuppressWarnings("unchecked")
-  static <S, E> Program<S, Void, Either<?, E>> valid() {
-    return Program.success((Either<?, E>) VALID);
+  static <S, E> Program<S, Void, Validation<E>> valid() {
+    return Program.success(Validation.valid());
   }
 
-  static <S, E> Program<S, Void, Either<?, E>> invalid(E error) {
-    return Program.success(Either.right(error));
+  /**
+   * Creates an invalid validation result.
+   *
+   * @param <S> The state type of the Program
+   * @param <E> The error type for validation failures
+   * @param error The error associated with the invalid validation
+   * @return A Program representing an invalid validation result
+   */
+  static <S, E> Program<S, Void, Validation<E>> invalid(E error) {
+    return Program.success(Validation.invalid(error));
   }
 
   /**
@@ -147,7 +153,7 @@ public interface Validator<S, E, T> {
    * @return A Validator that uses the given Program and mapper
    */
   static <S, E, T, F> Validator<S, F, T> fromFailure(Program<S, E, ?> program, Function<E, F> mapper) {
-    return _ -> program.foldMap(error -> invalid(mapper.apply(error)), _ -> valid());
+    return _ -> program.foldMap(mapper.andThen(Validator::invalid), _ -> valid());
   }
 
   /**
@@ -163,6 +169,6 @@ public interface Validator<S, E, T> {
    * @return A Validator that uses the given Program and mapper
    */
   static <S, E, T, V, F> Validator<S, F, T> fromSuccess(Program<S, E, V> program, Function<V, F> mapper) {
-    return _ -> program.foldMap(_ -> valid(), value -> invalid(mapper.apply(value)));
+    return _ -> program.foldMap(_ -> valid(), mapper.andThen(Validator::invalid));
   }
 }

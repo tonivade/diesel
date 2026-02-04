@@ -36,24 +36,24 @@ class ValidatorTest {
     var positiveCombineEven = isPositive.combine(isEven);
 
     // Test with a positive even number
-    assertEquals(positiveAndEven.apply(4).eval(null), success(Validator.VALID));
-    assertEquals(positiveOrEven.apply(4).eval(null), success(Validator.VALID));
-    assertEquals(positiveCombineEven.apply(4).eval(null), success(Validator.VALID));
+    assertEquals(positiveAndEven.apply(4).eval(null), success(Validation.valid()));
+    assertEquals(positiveOrEven.apply(4).eval(null), success(Validation.valid()));
+    assertEquals(positiveCombineEven.apply(4).eval(null), success(Validation.valid()));
 
     // Test with a positive odd number
-    assertEquals(positiveAndEven.apply(3).eval(null), success(Either.right("Value must be even")));
-    assertEquals(positiveOrEven.apply(3).eval(null), success(Validator.VALID));
-    assertEquals(positiveCombineEven.apply(3).eval(null), success(Either.right(List.of("Value must be even"))));
+    assertEquals(positiveAndEven.apply(3).eval(null), success(Validation.invalid("Value must be even")));
+    assertEquals(positiveOrEven.apply(3).eval(null), success(Validation.valid()));
+    assertEquals(positiveCombineEven.apply(3).eval(null), success(Validation.invalid(List.of("Value must be even"))));
 
     // Test with a negative even number
-    assertEquals(positiveAndEven.apply(-2).eval(null), success(Either.right("Value must be positive")));
-    assertEquals(positiveOrEven.apply(-2).eval(null), success(Validator.VALID));
-    assertEquals(positiveCombineEven.apply(-2).eval(null), success(Either.right(List.of("Value must be positive"))));
+    assertEquals(positiveAndEven.apply(-2).eval(null), success(Validation.invalid("Value must be positive")));
+    assertEquals(positiveOrEven.apply(-2).eval(null), success(Validation.valid()));
+    assertEquals(positiveCombineEven.apply(-2).eval(null), success(Validation.invalid(List.of("Value must be positive"))));
 
     // Test with a negative odd number
-    assertEquals(positiveAndEven.apply(-3).eval(null), success(Either.right("Value must be positive")));
-    assertEquals(positiveOrEven.apply(-3).eval(null), success(Either.right("Value must be even")));
-    assertEquals(positiveCombineEven.apply(-3).eval(null), success(Either.right(List.of("Value must be positive", "Value must be even"))));
+    assertEquals(positiveAndEven.apply(-3).eval(null), success(Validation.invalid("Value must be positive")));
+    assertEquals(positiveOrEven.apply(-3).eval(null), success(Validation.invalid("Value must be even")));
+    assertEquals(positiveCombineEven.apply(-3).eval(null), success(Validation.invalid(List.of("Value must be positive", "Value must be even"))));
   }
 
 }
