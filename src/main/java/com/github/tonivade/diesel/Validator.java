@@ -142,6 +142,22 @@ public interface Validator<S, E, T> {
   }
 
   /**
+   * Creates a Validator based on the given accessor, predicate, and error.
+   *
+   * @param accessor The function to access the field to be validated
+   * @param predicate The predicate to test the accessed field
+   * @param error The error to return if the validation fails
+   * @param <S> The state type of the Program
+   * @param <E> The error type for validation failures
+   * @param <T> The type of the value to be validated
+   * @param <R> The type of the field to be validated
+   * @return A Validator that uses the given accessor, predicate, and error
+   */
+  static <S, E, T, R> Validator<S, E, T> of(Function<T, R> accessor, Predicate<R> predicate, E error) {
+    return of(accessor, predicate, _ -> error);
+  }
+
+  /**
    * Creates a Validator from a Program that will fail when the program fails, mapping errors of type E to type F.
    *
    * @param program The Program that produces errors of type E

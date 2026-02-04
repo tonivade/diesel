@@ -170,6 +170,39 @@ For example:
   );
 ```
 
+### Validate
+
+Validate can be used to validate if an object meets some criteria and it's well formed
+
+```java
+  record User(Integer id, String name) {}
+  
+  //...
+  
+  var program = validate(
+      user,
+      Validator.of(User::id, id -> id != null, "Id must not be null"), 
+      Validator.of(User::name, name -> name != null && !name.isEmpty(), "Name must not be null"))
+  );
+```
+
+Validate is composed of one or more `Validator`s. Each validator will check a specific property of the object. If all validators pass, the result will be a success with the object. 
+If the validation fails the result will be a failure with all the error messages accumulated in a list.
+
+The `validate` method returns a Program<S, Collection<E>, T> where S is the state of the program, E is the type of the error and T is the type of the object being validated.
+
+Validator can be created using the static method `of`, passing a function to extract the property to validate, a predicate to check if the property is valid and a function to generate the error message in case of failure.
+
+The definition of `Validator` is:
+
+```java
+  public interface Validator<S, E, T> {
+    Program<S, Void, Validation<E>> apply(T value);
+  }
+```
+
+Validated is another data type that represents the result of a validation. It can be valid or invalid. If it's invalid it will contain the error type that describes the error.
+
 ### Retries
 
 It's easy to create a retryable program just using the method `retry`.
