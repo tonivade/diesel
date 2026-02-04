@@ -4,7 +4,6 @@
  */
 package com.github.tonivade.diesel;
 
-import java.util.Collection;
 import java.util.function.Function;
 
 /**
@@ -56,36 +55,6 @@ public sealed interface Either<L, R> {
    */
   static <L, R> Either<L, R> right(R right) {
     return new Right<>(right);
-  }
-
-  /**
-   * Collects all right values from a collection of Either instances.
-   *
-   * @param values the collection of Either instances
-   * @param <R> the type of the right values
-   * @return a collection of right values
-   */
-  static <R> Collection<R> collectRight(Collection<Either<?, R>> values) {
-    return values.stream().<R>mapMulti((item, consumer) -> {
-      if (item instanceof Right(var right)) {
-        consumer.accept(right);
-      }
-    }).toList();
-  }
-
-  /**
-   * Collects all left values from a collection of Either instances.
-   *
-   * @param values the collection of Either instances
-   * @param <L> the type of the left values
-   * @return a collection of left values
-   */
-  static <L> Collection<L> collectLeft(Collection<Either<L, ?>> values) {
-    return values.stream().<L>mapMulti((item, consumer) -> {
-      if (item instanceof Left(var left)) {
-        consumer.accept(left);
-      }
-    }).toList();
   }
 
   /**
