@@ -106,6 +106,20 @@ public interface Validator<S, E, T> {
   }
 
   /**
+   * Creates a Validator based on the given predicate and error.
+   *
+   * @param predicate The predicate to test the value
+   * @param error The error to return if the validation fails
+   * @param <S> The state type of the Program
+   * @param <E> The error type for validation failures
+   * @param <T> The type of the value to be validated
+   * @return A Validator that uses the given predicate and error
+   */
+  static <S, E, T> Validator<S, E, T> of(Predicate<T> predicate, E error) {
+    return of(predicate, _ -> error);
+  }
+
+  /**
    * Creates a Validator based on the given predicate and error mapper.
    *
    * @param predicate The predicate to test the value
@@ -155,6 +169,19 @@ public interface Validator<S, E, T> {
    */
   static <S, E, T, R> Validator<S, E, T> of(Function<T, R> accessor, Predicate<R> predicate, E error) {
     return of(accessor, predicate, _ -> error);
+  }
+
+  /**
+   * Creates a Validator from a Program that will fail when the program fails, using the identity function for error mapping.
+   *
+   * @param program The Program that produces errors of type E
+   * @param <S> The state type of the Program
+   * @param <E> The error type produced by the Program
+   * @param <T> The type of the value to be validated
+   * @return A Validator that uses the given Program and identity mapper
+   */
+  static <S, E, T> Validator<S, E, T> fromFailure(Program<S, E, ?> program) {
+    return fromFailure(program, Function.identity());
   }
 
   /**
