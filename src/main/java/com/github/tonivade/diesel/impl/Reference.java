@@ -4,12 +4,13 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Result.success;
+
+import java.util.function.UnaryOperator;
 
 import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Result;
-
-import java.util.function.UnaryOperator;
 
 /**
  * A {@code Reference} represents a program that operates on a {@link Service} to get or set a value.
@@ -93,7 +94,7 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    * @return a program that updates the value in the reference
    */
   static <V, S extends Service<V>, E> Program<S, E, Void> update(UnaryOperator<V> update) {
-    return Reference.<V, S, E>get().map(update).flatMap(Reference::set);
+    return pipe(get(), value -> set(update.apply(value)));
   }
 
   /**
