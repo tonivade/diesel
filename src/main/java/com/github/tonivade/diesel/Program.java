@@ -7,6 +7,7 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Trampoline.done;
 import static com.github.tonivade.diesel.Trampoline.more;
 import static java.util.function.Function.identity;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;

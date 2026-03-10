@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Program.pipe;
+
 import com.github.tonivade.diesel.Program;
 
 /**

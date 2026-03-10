@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel;
 
+import static java.util.function.Function.identity;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.NoSuchElementException;
@@ -13,7 +15,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
-import static java.util.function.Function.identity;
+
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
 import com.github.tonivade.diesel.function.Finisher4;
