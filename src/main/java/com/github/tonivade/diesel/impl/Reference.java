@@ -5,12 +5,9 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Program.pipe;
-import static com.github.tonivade.diesel.Result.success;
-
 import java.util.function.UnaryOperator;
 
 import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Result;
 
 /**
  * A {@code Reference} represents a program that operates on a {@link Service} to get or set a value.
@@ -20,7 +17,7 @@ import com.github.tonivade.diesel.Result;
  * @param <V> the type of the value being stored in the reference
  * @param <T> the type of the result returned by the reference
  */
-public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>, Void, T> {
+public interface Reference<V, T> {
 
   /**
    * A {@code Service} provides methods to set and get a value from the reference.
@@ -44,20 +41,6 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
   }
 
   /**
-   * A {@code SetValue} represents a program that sets a new value in the reference.
-   *
-   * @param <V> the type of the value being stored in the reference
-   */
-  record SetValue<V>(V value) implements Reference<V, Void> {}
-
-  /**
-   * A {@code GetValue} represents a program that retrieves the current value from the reference.
-   *
-   * @param <V> the type of the value being stored in the reference
-   */
-  record GetValue<V>() implements Reference<V, V> {}
-
-  /**
    * Creates a program that sets a new value in the reference.
    *
    * @param <V> the type of the value being stored in the reference
@@ -66,9 +49,11 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    * @param value the new value to be set
    * @return a program that sets the value in the reference
    */
-  @SuppressWarnings("unchecked")
   static <V, S extends Service<V>, E> Program<S, E, Void> set(V value) {
-    return (Program<S, E, Void>) new SetValue<>(value);
+    return Program.access(state -> {
+      state.set(value);
+      return null;
+    });
   }
 
   /**
@@ -79,9 +64,8 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    * @param <E> the type of the error that may occur during execution
    * @return a program that retrieves the value from the reference
    */
-  @SuppressWarnings("unchecked")
   static <V, S extends Service<V>, E> Program<S, E, V> get() {
-    return (Program<S, E, V>) new GetValue<>();
+    return Program.access(state -> state.get());
   }
 
   /**
@@ -95,23 +79,5 @@ public sealed interface Reference<V, T> extends Program.Dsl<Reference.Service<V>
    */
   static <V, S extends Service<V>, E> Program<S, E, Void> update(UnaryOperator<V> update) {
     return pipe(get(), value -> set(update.apply(value)));
-  }
-
-  /**
-   * Evaluates the reference program using the provided service.
-   *
-   * @param state the service used to evaluate the program
-   * @return the result of the program evaluation
-   */
-  @Override
-  @SuppressWarnings({ "unchecked", "rawtypes" })
-  default Result<Void, T> handle(Service<V> state) {
-    return success((T) switch (this) {
-      case SetValue set -> {
-        state.set((V) set.value());
-        yield null;
-      }
-      case GetValue _ -> state.get();
-    });
   }
 }

@@ -226,6 +226,32 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Creates a new program that represents a domain-specific language (DSL) access.
+   *
+   * @param access the function used to access the DSL computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a DSL access
+   */
+  static <S, E, T> Program<S, E, T> access(Function<S, T> access) {
+    return accessS(access.andThen(Program::success));
+  }
+
+  /**
+   * Creates a new program that represents a domain-specific language (DSL) access.
+   *
+   * @param access the function used to access the DSL computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a DSL access
+   */
+  static <S, E, T> Program<S, E, T> accessS(Function<S, Program<S, E, T>> access) {
+    return new Access<>(access);
+  }
+
+  /**
    * Creates a new program that represents an either of two programs executed in parallel using the provided executor.
    *
    * @param p1 the first program
@@ -327,6 +353,16 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Represents a domain-specific language (DSL) access within the program.
+   *
+   * @param access the function used to access the DSL computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Access<S, E, T>(Function<S, Program<S, E, T>> access) implements Program<S, E, T> {}
+
+  /**
    * Represents a domain-specific language (DSL) computation within the program.
    *
    * @param <S> the type of the state
@@ -374,6 +410,7 @@ public sealed interface Program<S, E, T> {
         yield done(future.join());
       }
       case FoldMap<S, ?, E, ?, T> foldMap -> foldMap.foldEval(state);
+      case Access<S, E, T>(var access) -> access.apply(state).step(state);
       case Dsl<S, E, T> dsl -> done(dsl.handle(state));
     };
   }

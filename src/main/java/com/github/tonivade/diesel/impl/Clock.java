@@ -4,10 +4,7 @@
  */
 package com.github.tonivade.diesel.impl;
 
-import static com.github.tonivade.diesel.Result.success;
-
 import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Result;
 
 /**
  * A sealed interface representing a clock that provides the current time.
@@ -18,7 +15,7 @@ import com.github.tonivade.diesel.Result;
  * @see Program.Dsl
  * @see Service
  */
-public sealed interface Clock extends Program.Dsl<Clock.Service, Void, Long> {
+public interface Clock {
 
   /**
    * The service interface of the clock, providing a method to retrieve the
@@ -34,33 +31,13 @@ public sealed interface Clock extends Program.Dsl<Clock.Service, Void, Long> {
   }
 
   /**
-   * A record class representing a clock that retrieves the current time.
-   */
-  record CurrentTime() implements Clock {}
-
-  /**
    * Creates a new program that retrieves the current time.
    *
    * @param <S> the service type
    * @param <E> the error type
    * @return a program that retrieves the current time
    */
-  @SuppressWarnings("unchecked")
   static <S extends Service, E> Program<S, E, Long> currentTime() {
-    return (Program<S, E, Long>) new CurrentTime();
-  }
-
-  /**
-   * Evaluates the clock in the context of the given service and returns the
-   * result as a success or failure.
-   *
-   * @param service the service to use for evaluation
-   * @return the result of the evaluation
-   */
-  @Override
-  default Result<Void, Long> handle(Service service) {
-    return success(switch (this) {
-      case CurrentTime() -> service.currentTime();
-    });
+    return Program.access(state -> state.currentTime());
   }
 }

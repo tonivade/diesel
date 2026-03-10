@@ -5,17 +5,14 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Program.pipe;
-import static com.github.tonivade.diesel.Result.success;
-
 import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Result;
 
 /**
  * Represents a console interface that can be used to write to the console or read from the console.
  *
  * @param <T> The type of result that will be returned from the console operations.
  */
-public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T> {
+public interface Console {
 
   /**
    * Service interface that provides methods to write to the console and read from the console.
@@ -41,16 +38,6 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
   }
 
   /**
-   * Represents a console operation that writes a line of text to the console.
-   */
-  record WriteLine(String line) implements Console<Void> {}
-
-  /**
-   * Represents a console operation that reads a line of text from the console.
-   */
-  record ReadLine() implements Console<String> {}
-
-  /**
    * Creates a new console operation that writes a line of text to the console.
    *
    * @param line The line of text to write.
@@ -58,9 +45,11 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
    * @param <E>  The type of error.
    * @return A new console operation that writes a line of text to the console.
    */
-  @SuppressWarnings("unchecked")
   static <S extends Service, E> Program<S, E, Void> writeLine(String line) {
-    return (Program<S, E, Void>) new WriteLine(line);
+    return Program.access(state -> {
+      state.writeLine(line);
+      return null;
+    });
   }
 
   /**
@@ -70,9 +59,8 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
    * @param <E>  The type of error.
    * @return A new console operation that reads a line of text from the console.
    */
-  @SuppressWarnings("unchecked")
   static <S extends Service, E> Program<S, E, String> readLine() {
-    return (Program<S, E, String>) new ReadLine();
+    return Program.access(state -> state.readLine());
   }
 
   /**
@@ -85,23 +73,5 @@ public sealed interface Console<T> extends Program.Dsl<Console.Service, Void, T>
    */
   static <S extends Service, E> Program<S, E, String> prompt(String question) {
     return pipe(writeLine(question), _ -> readLine());
-  }
-
-  /**
-   * Evaluates this console operation using the provided service.
-   *
-   * @param service The service to use for evaluation.
-   * @return The result of the evaluation.
-   */
-  @Override
-  @SuppressWarnings("unchecked")
-  default Result<Void, T> handle(Service service) {
-    return success((T) switch (this) {
-      case WriteLine(var line) -> {
-        service.writeLine(line);
-        yield null;
-      }
-      case ReadLine() -> service.readLine();
-    });
   }
 }
