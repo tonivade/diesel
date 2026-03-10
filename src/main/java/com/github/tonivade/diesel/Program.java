@@ -376,17 +376,6 @@ public sealed interface Program<S, E, T> {
   record Access<S, E, T>(Function<S, Program<S, E, T>> access) implements Program<S, E, T> {}
 
   /**
-   * Represents a domain-specific language (DSL) computation within the program.
-   *
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   */
-  non-sealed interface Dsl<S, E, T> extends Program<S, E, T> {
-    Result<E, T> handle(S state);
-  }
-
-  /**
    * Evaluates the program using the provided state.
    *
    * @param state the state used to evaluate the program
@@ -424,7 +413,6 @@ public sealed interface Program<S, E, T> {
       }
       case FoldMap<S, ?, E, ?, T> foldMap -> foldMap.foldEval(state);
       case Access<S, E, T>(var access) -> access.apply(state).step(state);
-      case Dsl<S, E, T> dsl -> done(dsl.handle(state));
     };
   }
 

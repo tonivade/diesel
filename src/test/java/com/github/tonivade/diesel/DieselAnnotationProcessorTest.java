@@ -30,41 +30,21 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
-      import com.github.tonivade.diesel.Result;
-      import java.lang.Override;
       import java.lang.String;
-      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
-      public sealed interface ConsoleDsl<T> extends Program.Dsl<Console, Void, T> {
-        @SuppressWarnings("unchecked")
+      public interface ConsoleDsl {
         static <S extends Console, E> Program<S, E, String> readLine() {
-          return (Program<S, E, String>) new ReadLine();
+          return Program.access(state -> state.readLine());
         }
 
-        @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-          return (Program<S, E, Void>) new WriteLine(line);
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        default Result<Void, T> handle(Console state) {
-          return switch (this) {
-            case ReadLine() -> Result.<Void, T>success((T) state.readLine());
-            case WriteLine(var line) -> {
-              state.writeLine(line);
-              yield Result.<Void, T>success((T) null);
-            }
-          };
-        }
-
-        record ReadLine() implements ConsoleDsl<String> {
-        }
-
-        record WriteLine(String line) implements ConsoleDsl<Void> {
+          return Program.access(state -> {
+            state.writeLine(line);
+            return null;
+          });
         }
       }""");
 
@@ -95,41 +75,21 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
-      import com.github.tonivade.diesel.Result;
-      import java.lang.Override;
       import java.lang.String;
-      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
-      public sealed interface ConsoleApi<T> extends Program.Dsl<Console, Void, T> {
-        @SuppressWarnings("unchecked")
+      public interface ConsoleApi {
         static <S extends Console, E> Program<S, E, String> readLine() {
-          return (Program<S, E, String>) new ReadLine();
+          return Program.access(state -> state.readLine());
         }
 
-        @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-          return (Program<S, E, Void>) new WriteLine(line);
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        default Result<Void, T> handle(Console state) {
-          return switch (this) {
-            case ReadLine() -> Result.<Void, T>success((T) state.readLine());
-            case WriteLine(var line) -> {
-              state.writeLine(line);
-              yield Result.<Void, T>success((T) null);
-            }
-          };
-        }
-
-        record ReadLine() implements ConsoleApi<String> {
-        }
-
-        record WriteLine(String line) implements ConsoleApi<Void> {
+          return Program.access(state -> {
+            state.writeLine(line);
+            return null;
+          });
         }
       }""");
 
@@ -160,41 +120,21 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
-      import com.github.tonivade.diesel.Result;
       import java.lang.Integer;
-      import java.lang.Override;
-      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
-      public sealed interface StateDsl<T> extends Program.Dsl<State, Void, T> {
-        @SuppressWarnings("unchecked")
+      public interface StateDsl {
         static <S extends State, E> Program<S, E, Integer> get() {
-          return (Program<S, E, Integer>) new Get();
+          return Program.access(state -> state.get());
         }
 
-        @SuppressWarnings("unchecked")
         static <S extends State, E> Program<S, E, Void> set(int value) {
-          return (Program<S, E, Void>) new Set(value);
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        default Result<Void, T> handle(State state) {
-          return switch (this) {
-            case Get() -> Result.<Void, T>success((T) (Integer) state.get());
-            case Set(var value) -> {
-              state.set(value);
-              yield Result.<Void, T>success((T) null);
-            }
-          };
-        }
-
-        record Get() implements StateDsl<Integer> {
-        }
-
-        record Set(int value) implements StateDsl<Void> {
+          return Program.access(state -> {
+            state.set(value);
+            return null;
+          });
         }
       }""");
 
@@ -225,41 +165,21 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
-      import com.github.tonivade.diesel.Result;
-      import java.lang.Override;
       import java.lang.String;
-      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
-      public sealed interface ConsoleDsl<T> extends Program.Dsl<Console, String, T> {
-        @SuppressWarnings("unchecked")
+      public interface ConsoleDsl {
         static <S extends Console, E extends String> Program<S, E, String> readLine() {
-          return (Program<S, E, String>) new ReadLine();
+          return Program.access(state -> state.readLine());
         }
 
-        @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
-          return (Program<S, E, Void>) new WriteLine(line);
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        default Result<String, T> handle(Console state) {
-          return switch (this) {
-            case ReadLine() -> Result.<String, T>success((T) state.readLine());
-            case WriteLine(var line) -> {
-              state.writeLine(line);
-              yield Result.<String, T>success((T) null);
-            }
-          };
-        }
-
-        record ReadLine() implements ConsoleDsl<String> {
-        }
-
-        record WriteLine(String line) implements ConsoleDsl<Void> {
+          return Program.access(state -> {
+            state.writeLine(line);
+            return null;
+          });
         }
       }""");
 
@@ -291,38 +211,18 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
-      import com.github.tonivade.diesel.Result;
-      import java.lang.Override;
       import java.lang.String;
-      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
-      public sealed interface ConsoleDsl<T> extends Program.Dsl<Console, String, T> {
-        @SuppressWarnings("unchecked")
+      public interface ConsoleDsl {
         static <S extends Console, E extends String> Program<S, E, String> readLine() {
-          return (Program<S, E, String>) new ReadLine();
+          return Program.accessP(state -> (Program<S, E, String>) Program.from(state.readLine()));
         }
 
-        @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
-          return (Program<S, E, Void>) new WriteLine(line);
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        default Result<String, T> handle(Console state) {
-          return switch (this) {
-            case ReadLine() -> (Result<String, T>) state.readLine();
-            case WriteLine(var line) -> (Result<String, T>) state.writeLine(line);
-          };
-        }
-
-        record ReadLine() implements ConsoleDsl<String> {
-        }
-
-        record WriteLine(String line) implements ConsoleDsl<Void> {
+          return Program.accessP(state -> (Program<S, E, Void>) Program.from(state.writeLine(line)));
         }
       }""");
 

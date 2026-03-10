@@ -24,9 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
 import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Result;
 
-sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
+interface Todo {
 
   sealed interface Error {}
 
@@ -52,65 +51,39 @@ sealed interface Todo<T> extends Program.Dsl<Todo.Repository, Todo.Error, T> {
     }
   }
 
-  record Create(TodoEntity todo) implements Todo<Void> {}
-  record Update(int id, UnaryOperator<TodoEntity> update) implements Todo<Void> {}
-  record FindOne(int id) implements Todo<Optional<TodoEntity>> {}
-  record FindAll() implements Todo<List<TodoEntity>> {}
-  record DeleteOne(int id) implements Todo<Void> {}
-  record DeleteAll() implements Todo<Void> {}
-
-  @SuppressWarnings("unchecked")
   static <S extends Repository, E extends Error> Program<S, E, Void> create(TodoEntity todo) {
-    return (Program<S, E, Void>) new Create(todo);
+    return Program.access(repository -> {
+      repository.create(todo);
+      return null;
+    });
   }
 
-  @SuppressWarnings("unchecked")
   static <S extends Repository, E extends Error> Program<S, E, Void> update(int id, UnaryOperator<TodoEntity> update) {
-    return (Program<S, E, Void>) new Update(id, update);
+    return Program.access(repository -> {
+      repository.update(id, update);
+      return null;
+    });
   }
 
-  @SuppressWarnings("unchecked")
   static <S extends Repository, E extends Error> Program<S, E, Optional<TodoEntity>> findOne(int id) {
-    return (Program<S, E, Optional<TodoEntity>>) new FindOne(id);
+    return Program.access(repository -> repository.find(id));
   }
 
-  @SuppressWarnings("unchecked")
   static <S extends Repository, E extends Error> Program<S, E, List<TodoEntity>> findAll() {
-    return (Program<S, E, List<TodoEntity>>) new FindAll();
+    return Program.access(Repository::findAll);
   }
 
-  @SuppressWarnings("unchecked")
   static <S extends Repository, E extends Error> Program<S, E, Void> deleteOne(int id) {
-    return (Program<S, E, Void>) new DeleteOne(id);
+    return Program.access(repository -> {
+      repository.delete(id);
+      return null;
+    });
   }
 
-  @SuppressWarnings("unchecked")
   static <S extends Repository, E extends Error> Program<S, E, Void> deleteAll() {
-    return (Program<S, E, Void>) new DeleteAll();
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  default Result<Error, T> handle(Repository repository) {
-    return Result.success((T) switch (this) {
-      case Create(TodoEntity todo) -> {
-        repository.create(todo);
-        yield null;
-      }
-      case Update(int id, UnaryOperator<TodoEntity> update) -> {
-        repository.update(id, update);
-        yield null;
-      }
-      case FindOne(int id) -> repository.find(id);
-      case FindAll() -> repository.findAll();
-      case DeleteOne(int id) -> {
-        repository.delete(id);
-        yield null;
-      }
-      case DeleteAll() -> {
-        repository.deleteAll();
-        yield null;
-      }
+    return Program.access(repository -> {
+      repository.deleteAll();
+      return null;
     });
   }
 

@@ -44,7 +44,6 @@ import com.palantir.javapoet.TypeVariableName;
 @SupportedAnnotationTypes("com.github.tonivade.diesel.Diesel")
 public class DieselAnnotationProcessor extends AbstractProcessor {
 
-  private static final String UNCHECKED = "\"unchecked\"";
   private static final String DSL_SUFFIX = "Dsl";
   private static final String DIESEL_PACKAGE_NAME = "com.github.tonivade.diesel";
   private static final String RESULT = "Result";
@@ -118,42 +117,22 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     String interfaceName = element.getSimpleName().toString();
 
     var service = ClassName.get(packageName, interfaceName);
-    var dsl = ClassName.get(packageName, dslName);
 
-    var dslTypeBuilder = createDslType(dslName, service, errorType);
+    var dslTypeBuilder = createDslType(dslName);
 
     for (Element enclosedElement : element.getEnclosedElements()) {
       if (enclosedElement.getKind() == ElementKind.METHOD) {
-        dslTypeBuilder.addType(createRecordClass((ExecutableElement) enclosedElement, dsl));
         dslTypeBuilder.addMethod(createFactoryMethod((ExecutableElement) enclosedElement, service, errorType));
       }
     }
 
-    dslTypeBuilder.addMethod(createHandleMethod(element, service, errorType));
-
     return JavaFile.builder(packageName, dslTypeBuilder.build()).build();
   }
 
-  private TypeSpec.Builder createDslType(String dslName, ClassName service, TypeName errorType) {
-    var program = ClassName.get(DIESEL_PACKAGE_NAME, PROGRAM);
+  private TypeSpec.Builder createDslType(String dslName) {
     return TypeSpec.interfaceBuilder(dslName)
         .addAnnotation(AnnotationSpec.builder(Generated.class).addMember(VALUE, "\"" + getClass().getName() + "\"").build())
-        .addModifiers(Modifier.PUBLIC, Modifier.SEALED)
-        .addTypeVariables(List.of(TypeVariableName.get("T")))
-        .addSuperinterface(ParameterizedTypeName.get(program.nestedClass(DSL_SUFFIX), service, errorType, TypeVariableName.get("T")));
-  }
-
-  private TypeSpec createRecordClass(ExecutableElement method, ClassName dsl) {
-    var methodName = method.getSimpleName().toString();
-    return TypeSpec.recordBuilder(toClassName(methodName))
-        .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-        .addSuperinterface(ParameterizedTypeName.get(dsl, getReturnTypeFor(method)))
-        .recordConstructor(MethodSpec.constructorBuilder()
-            .addParameters(method.getParameters().stream()
-                .map(param -> ParameterSpec.builder(TypeName.get(param.asType()), param.getSimpleName().toString()).build())
-                .toList())
-            .build())
-        .build();
+        .addModifiers(Modifier.PUBLIC);
   }
 
   private MethodSpec createFactoryMethod(ExecutableElement method, ClassName service, TypeName errorType) {
@@ -161,7 +140,6 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var program = ClassName.get(DIESEL_PACKAGE_NAME, PROGRAM);
     var returnType = ParameterizedTypeName.get(program, TypeVariableName.get("S"), TypeVariableName.get("E"), getReturnTypeFor(method));
     return MethodSpec.methodBuilder(methodName)
-        .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember(VALUE, UNCHECKED).build())
         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
         .addTypeVariables(List.of(
             TypeVariableName.get("S", service),
@@ -170,83 +148,35 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .addParameters(method.getParameters().stream()
             .map(param -> ParameterSpec.builder(TypeName.get(param.asType()), param.getSimpleName().toString()).build())
             .toList())
-        .addCode(CodeBlock.builder()
-            .addStatement("return ($T) new $N($L)",
-                returnType,
-                toClassName(methodName),
-                method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
-            .build())
+        .addCode(createMethodBody(method, methodName, returnType))
         .build();
   }
 
-  private MethodSpec createHandleMethod(TypeElement element, ClassName service, TypeName errorType) {
-    var result = ClassName.get(DIESEL_PACKAGE_NAME, RESULT);
-    return MethodSpec.methodBuilder("handle")
-        .addAnnotation(Override.class)
-        .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember(VALUE, UNCHECKED).build())
-        .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
-        .returns(ParameterizedTypeName.get(result, errorType, TypeVariableName.get("T")))
-        .addParameter(service, "state")
-        .addCode(handleMethod(element, errorType))
-        .build();
-  }
-
-  private CodeBlock handleMethod(TypeElement element, TypeName errorType) {
-    return CodeBlock.builder()
-        .add(createSwitch(element, errorType))
-        .build();
-  }
-
-  private CodeBlock createSwitch(TypeElement element, TypeName errorType) {
-    var builder = CodeBlock.builder().beginControlFlow("return switch (this)");
-    for (Element enclosedElement : element.getEnclosedElements()) {
-      if (enclosedElement.getKind() == ElementKind.METHOD) {
-        builder.add(createCase((ExecutableElement) enclosedElement, errorType));
-      }
+  private CodeBlock createMethodBody(ExecutableElement method, String methodName, ParameterizedTypeName returnType) {
+    if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
+      return CodeBlock.builder()
+          .addStatement("return Program.accessP(state -> ($T) Program.from(state.$N($L)))",
+              returnType,
+              methodName,
+              method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+          .build();
     }
-    // a switch expression must end in a semicolon, don't know how to do it with javapoet
-    return builder.unindent().addStatement("}").build();
+    return CodeBlock.builder()
+        .addStatement(createStatement(method.getReturnType()),
+            methodName,
+            method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+        .build();
   }
 
-  private CodeBlock createCase(ExecutableElement method, TypeName errorType) {
-    var methodName = method.getSimpleName().toString();
-    var returnType = method.getReturnType();
+  private String createStatement(TypeMirror returnType) {
     if (returnType.getKind() == TypeKind.VOID) {
-      return CodeBlock.builder()
-          .beginControlFlow("case $N -> ", buildPattern(method))
-          .addStatement("state.$N($L)", methodName, buildParams(method))
-          .addStatement("yield Result.<$T, T>success((T) null)", errorType)
-          .endControlFlow()
-          .build();
+      return """
+          return Program.access(state -> {
+            state.$N($L);
+            return null;
+          })""";
     }
-    if (returnType.getKind().isPrimitive()) {
-      return CodeBlock.builder()
-          .addStatement("case $N -> Result.<$T, T>success((T) ($T) state.$N($L))",
-              buildPattern(method), errorType, TypeName.get(returnType).box(), methodName, buildParams(method))
-          .build();
-    }
-    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
-      return CodeBlock.builder()
-          .addStatement("case $N -> (Result<$T, T>) state.$N($L)", buildPattern(method), errorType, methodName, buildParams(method))
-          .build();
-    }
-    return CodeBlock.builder()
-        .addStatement("case $N -> Result.<$T, T>success((T) state.$N($L))", buildPattern(method), errorType, methodName, buildParams(method))
-        .build();
-  }
-
-  private String buildPattern(ExecutableElement method) {
-    String methodName = method.getSimpleName().toString();
-    return methodName.substring(0, 1).toUpperCase() + methodName.substring(1) +
-        method.getParameters().stream()
-          .map(param -> "var " + param.getSimpleName().toString())
-          .collect(joining(",", "(", ")"));
-  }
-
-  private String buildParams(ExecutableElement method) {
-    return method.getParameters().stream()
-        .map(param -> param.getSimpleName().toString())
-        .collect(joining(","));
+    return "return Program.access(state -> state.$N($L))";
   }
 
   private TypeName getReturnTypeFor(ExecutableElement method) {
@@ -260,10 +190,6 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private boolean isPrimitiveOrVoid(TypeMirror returnType) {
     return returnType.getKind().isPrimitive() || returnType.getKind() == TypeKind.VOID;
-  }
-
-  private String toClassName(String methodName) {
-    return methodName.substring(0, 1).toUpperCase() + methodName.substring(1);
   }
 
   private void printNote(String msg) {

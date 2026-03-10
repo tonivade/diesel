@@ -21,7 +21,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.github.tonivade.diesel.ProgramTest.TestDsl.Operation;
 import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 import java.time.Duration;
@@ -249,28 +248,21 @@ class ProgramTest {
 
   record Tuple<A, B>(A a, B b) {}
 
-  static Operation newOperation() {
-    return new TestDsl.Operation();
+  static Program<TestDsl.Service, TestDsl.Error, Integer> newOperation() {
+    return Program.accessR(TestDsl.Service::operation);
   }
 
   static UnknownError newUnknownError() {
     return new TestDsl.UnknownError();
   }
 
-  sealed interface TestDsl extends Program.Dsl<TestDsl.Service, TestDsl.Error, Integer> {
+  interface TestDsl {
 
     sealed interface Error {}
     record UnknownError() implements Error {}
 
     interface Service {
       Result<Error, Integer> operation();
-    }
-
-    record Operation() implements TestDsl {}
-
-    @Override
-    default Result<Error, Integer> handle(Service state) {
-      return state.operation();
     }
   }
 

@@ -22,9 +22,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Result;
 
-sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, T> {
+interface Weather {
 
   interface Service {
     Config readConfig();
@@ -43,43 +42,23 @@ sealed interface Weather<T> extends Program.Dsl<Weather.Service, Weather.Error, 
 
   record Config(String host, int port) {}
 
-  record ReadConfig() implements Weather<Config> {}
-  record GetForecast(City city) implements Weather<Optional<Forecast>> {}
-  record SetForecast(City city, Forecast forecast) implements Weather<Void> {}
-  record HottestCity() implements Weather<Optional<City>> {}
-
-  @SuppressWarnings("unchecked")
   static <S extends Service, E extends Error> Program<S, E, Config> readConfig() {
-    return (Program<S, E, Config>) new ReadConfig();
+    return Program.access(Service::readConfig);
   }
 
-  @SuppressWarnings("unchecked")
   static <S extends Service, E extends Error> Program<S, E, Optional<Forecast>> getForecast(City city) {
-    return (Program<S, E, Optional<Forecast>>) new GetForecast(city);
+    return Program.access(service -> service.getForecast(city));
   }
 
-  @SuppressWarnings("unchecked")
   static <S extends Service, E extends Error> Program<S, E, Void> setForecast(City city, Forecast forecast) {
-    return (Program<S, E, Void>) new SetForecast(city, forecast);
-  }
-
-  @SuppressWarnings("unchecked")
-  static <S extends Service, E extends Error> Program<S, E, Optional<City>> hottestCity() {
-    return (Program<S, E, Optional<City>>) new HottestCity();
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  default Result<Error, T> handle(Service service) {
-    return Result.success((T) switch (this) {
-      case ReadConfig() -> service.readConfig();
-      case GetForecast(City city) -> service.getForecast(city);
-      case SetForecast(City city, Forecast forecast) -> {
-        service.setForecast(city, forecast);
-        yield null;
-      }
-      case HottestCity() -> service.hottestCity();
+    return Program.access(service -> {
+      service.setForecast(city, forecast);
+      return null;
     });
+  }
+
+  static <S extends Service, E extends Error> Program<S, E, Optional<City>> hottestCity() {
+    return Program.access(Service::hottestCity);
   }
 
   public static void main(String[] args) {
