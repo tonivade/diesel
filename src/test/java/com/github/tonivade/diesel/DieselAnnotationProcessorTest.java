@@ -31,15 +31,18 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Program;
       import java.lang.String;
+      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface ConsoleDsl {
+        @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, String> readLine() {
           return Program.access(state -> state.readLine());
         }
 
+        @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
           return Program.access(state -> {
             state.writeLine(line);
@@ -76,15 +79,18 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Program;
       import java.lang.String;
+      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface ConsoleApi {
+        @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, String> readLine() {
           return Program.access(state -> state.readLine());
         }
 
+        @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
           return Program.access(state -> {
             state.writeLine(line);
@@ -121,15 +127,18 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Program;
       import java.lang.Integer;
+      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface StateDsl {
+        @SuppressWarnings("unchecked")
         static <S extends State, E> Program<S, E, Integer> get() {
           return Program.access(state -> state.get());
         }
 
+        @SuppressWarnings("unchecked")
         static <S extends State, E> Program<S, E, Void> set(int value) {
           return Program.access(state -> {
             state.set(value);
@@ -166,15 +175,18 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Program;
       import java.lang.String;
+      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface ConsoleDsl {
+        @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, String> readLine() {
           return Program.access(state -> state.readLine());
         }
 
+        @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
           return Program.access(state -> {
             state.writeLine(line);
@@ -212,15 +224,18 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Program;
       import java.lang.String;
+      import java.lang.SuppressWarnings;
       import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface ConsoleDsl {
+        @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, String> readLine() {
           return Program.accessR(state -> state.readLine().mapError(e -> (E) e));
         }
 
+        @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
           return Program.accessR(state -> state.writeLine(line).mapError(e -> (E) e));
         }

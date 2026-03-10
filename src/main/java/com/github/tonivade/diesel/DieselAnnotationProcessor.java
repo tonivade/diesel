@@ -44,6 +44,7 @@ import com.palantir.javapoet.TypeVariableName;
 @SupportedAnnotationTypes("com.github.tonivade.diesel.Diesel")
 public class DieselAnnotationProcessor extends AbstractProcessor {
 
+  private static final String UNCHECKED = "\"unchecked\"";
   private static final String DSL_SUFFIX = "Dsl";
   private static final String DIESEL_PACKAGE_NAME = "com.github.tonivade.diesel";
   private static final String RESULT = "Result";
@@ -140,6 +141,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var program = ClassName.get(DIESEL_PACKAGE_NAME, PROGRAM);
     var returnType = ParameterizedTypeName.get(program, TypeVariableName.get("S"), TypeVariableName.get("E"), getReturnTypeFor(method));
     return MethodSpec.methodBuilder(methodName)
+        .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember(VALUE, UNCHECKED).build())
         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
         .addTypeVariables(List.of(
             TypeVariableName.get("S", service),
