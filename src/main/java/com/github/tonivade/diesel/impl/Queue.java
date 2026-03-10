@@ -9,8 +9,6 @@ import com.github.tonivade.diesel.Program;
 /**
  * Represents a program that can be executed on a {@link Service} that provides
  * queue operations.
- * This interface extends {@link Program.Dsl} to provide a domain-specific
- * language (DSL) for working with queues.
  *
  * @param <V> the type of items in the queue
  * @param <T> the type of result returned by the queue operation

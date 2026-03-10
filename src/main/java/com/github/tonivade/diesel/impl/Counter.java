@@ -8,7 +8,6 @@ import com.github.tonivade.diesel.Program;
 
 /**
  * A sealed interface representing a counter that can be incremented or decremented.
- * This interface extends the {@link Program.Dsl} interface, allowing it to be used as a DSL program.
  *
  * @param <T> The type of number used by the counter, which must extend {@link Number}.
  */

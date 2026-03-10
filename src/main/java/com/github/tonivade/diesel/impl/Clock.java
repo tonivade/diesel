@@ -12,7 +12,6 @@ import com.github.tonivade.diesel.Program;
  * provides a way to retrieve the current time in a pure and referentially
  * transparent way.
  *
- * @see Program.Dsl
  * @see Service
  */
 public interface Clock {
