@@ -65,7 +65,7 @@ public interface Reference<V, T> {
    * @return a program that retrieves the value from the reference
    */
   static <V, S extends Service<V>, E> Program<S, E, V> get() {
-    return Program.access(state -> state.get());
+    return Program.access(Service::get);
   }
 
   /**

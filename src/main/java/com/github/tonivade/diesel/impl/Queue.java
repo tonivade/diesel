@@ -65,6 +65,6 @@ public interface Queue<V, T> {
    *         from the queue
    */
   static <V, S extends Service<V>, E> Program<S, E, V> take() {
-    return Program.access(state -> state.take());
+    return Program.access(Service::take);
   }
 }

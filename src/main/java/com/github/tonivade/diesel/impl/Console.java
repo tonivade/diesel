@@ -60,7 +60,7 @@ public interface Console {
    * @return A new console operation that reads a line of text from the console.
    */
   static <S extends Service, E> Program<S, E, String> readLine() {
-    return Program.access(state -> state.readLine());
+    return Program.access(Service::readLine);
   }
 
   /**

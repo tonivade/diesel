@@ -35,36 +35,20 @@ will be transformed into:
 
 ```java
 import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Result;
 import javax.annotation.processing.Generated;
 
 @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
-public sealed interface ConsoleDsl<T> extends Program.Dsl<Console, Void, T> {
-
-  record ReadLine() implements ConsoleDsl<String> {
-  }
-
-  record WriteLine(String line) implements ConsoleDsl<Void> {
-  }
+public interface ConsoleDsl {
 
   static <S extends Console, E> Program<S, E, String> readLine() {
-    return (Program<S, E, String>) new ReadLine();
+    return Program.access(Console::readLine);
   }
 
   static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-    return (Program<S, E, Void>) new WriteLine(line);
-  }
-
-  @Override
-  default Result<Void, T> handle(Console state) {
-    var result = (T) switch (this) {
-      case ReadLine() -> state.readLine();
-      case WriteLine(var line) ->  {
-        state.writeLine(line);
-        yield null;
-      }
-    };
-    return Result.success(result);
+    return Program.access(console -> {
+      console.writeLine(line);
+      return null;
+    });
   }
 }
 ```
@@ -238,3 +222,8 @@ It's possible to pass a second argument and configure a delay after each executi
 ### Evaluation
 
 `Program` is **declarative**, so nothing is executed until `eval` method is called.
+
+
+## Licence
+
+This project is released under MIT License

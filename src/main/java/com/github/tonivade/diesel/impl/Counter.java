@@ -39,7 +39,7 @@ public interface Counter<T extends Number> {
    * @return A new program that increments the counter when evaluated.
    */
   static <T extends Number, S extends Service<T>, E> Program<S, E, T> increment() {
-    return Program.access(state -> state.increment());
+    return Program.access(Service::increment);
   }
 
   /**
@@ -51,6 +51,6 @@ public interface Counter<T extends Number> {
    * @return A new program that decrements the counter when evaluated.
    */
   static <T extends Number, S extends Service<T>, E> Program<S, E, T> decrement() {
-    return Program.access(state -> state.decrement());
+    return Program.access(Service::decrement);
   }
 }
