@@ -148,15 +148,14 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .addParameters(method.getParameters().stream()
             .map(param -> ParameterSpec.builder(TypeName.get(param.asType()), param.getSimpleName().toString()).build())
             .toList())
-        .addCode(createMethodBody(method, methodName, returnType))
+        .addCode(createMethodBody(method, methodName))
         .build();
   }
 
-  private CodeBlock createMethodBody(ExecutableElement method, String methodName, ParameterizedTypeName returnType) {
+  private CodeBlock createMethodBody(ExecutableElement method, String methodName) {
     if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
       return CodeBlock.builder()
-          .addStatement("return Program.accessP(state -> ($T) Program.from(state.$N($L)))",
-              returnType,
+          .addStatement("return Program.accessR(state -> state.$N($L).mapError(e -> (E) e))",
               methodName,
               method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
           .build();

@@ -218,11 +218,11 @@ class DieselAnnotationProcessorTest {
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface ConsoleDsl {
         static <S extends Console, E extends String> Program<S, E, String> readLine() {
-          return Program.accessP(state -> (Program<S, E, String>) Program.from(state.readLine()));
+          return Program.accessR(state -> state.readLine().mapError(e -> (E) e));
         }
 
         static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
-          return Program.accessP(state -> (Program<S, E, Void>) Program.from(state.writeLine(line)));
+          return Program.accessR(state -> state.writeLine(line).mapError(e -> (E) e));
         }
       }""");
 
