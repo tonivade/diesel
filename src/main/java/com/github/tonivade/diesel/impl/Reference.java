@@ -11,8 +11,6 @@ import com.github.tonivade.diesel.Program;
 
 /**
  * A {@code Reference} represents a program that operates on a {@link Service} to get or set a value.
- * It provides a sealed interface that can be extended by a limited set of subclasses, namely
- * {@link SetValue} and {@link GetValue}.
  *
  * @param <V> the type of the value being stored in the reference
  * @param <T> the type of the result returned by the reference

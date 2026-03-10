@@ -9,8 +9,6 @@ import com.github.tonivade.diesel.Program;
 
 /**
  * Represents a console interface that can be used to write to the console or read from the console.
- *
- * @param <T> The type of result that will be returned from the console operations.
  */
 public interface Console {
 
