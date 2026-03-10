@@ -235,7 +235,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a DSL access
    */
   static <S, E, T> Program<S, E, T> access(Function<S, T> access) {
-    return accessS(access.andThen(Program::success));
+    return accessP(access.andThen(Program::success));
   }
 
   /**
@@ -247,7 +247,20 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a new program representing a DSL access
    */
-  static <S, E, T> Program<S, E, T> accessS(Function<S, Program<S, E, T>> access) {
+  static <S, E, T> Program<S, E, T> accessR(Function<S, Result<E, T>> access) {
+    return accessP(access.andThen(Program::from));
+  }
+
+  /**
+   * Creates a new program that represents a domain-specific language (DSL) access.
+   *
+   * @param access the function used to access the DSL computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a DSL access
+   */
+  static <S, E, T> Program<S, E, T> accessP(Function<S, Program<S, E, T>> access) {
     return new Access<>(access);
   }
 
