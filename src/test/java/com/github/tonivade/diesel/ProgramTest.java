@@ -249,7 +249,7 @@ class ProgramTest {
   record Tuple<A, B>(A a, B b) {}
 
   static Program<TestDsl.Service, TestDsl.Error, Integer> newOperation() {
-    return Program.accessR(TestDsl.Service::operation);
+    return Program.effectR(TestDsl.Service::operation);
   }
 
   static UnknownError newUnknownError() {

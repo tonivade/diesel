@@ -49,7 +49,7 @@ public interface Reference<V, T> {
    * @return a program that sets the value in the reference
    */
   static <V, S extends Service<V>, E> Program<S, E, Void> set(V value) {
-    return Program.access(state -> {
+    return Program.effect(state -> {
       state.set(value);
       return null;
     });
@@ -64,7 +64,7 @@ public interface Reference<V, T> {
    * @return a program that retrieves the value from the reference
    */
   static <V, S extends Service<V>, E> Program<S, E, V> get() {
-    return Program.access(Service::get);
+    return Program.effect(Service::get);
   }
 
   /**

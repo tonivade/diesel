@@ -38,6 +38,6 @@ public interface Random<T> {
    * @return a program that generates a random integer
    */
   static <S extends Service, E> Program<S, E, Integer> nextInt(int bound) {
-    return Program.access(state -> state.nextInt(bound));
+    return Program.effect(state -> state.nextInt(bound));
   }
 }

@@ -43,22 +43,22 @@ interface Weather {
   record Config(String host, int port) {}
 
   static <S extends Service, E extends Error> Program<S, E, Config> readConfig() {
-    return Program.access(Service::readConfig);
+    return Program.effect(Service::readConfig);
   }
 
   static <S extends Service, E extends Error> Program<S, E, Optional<Forecast>> getForecast(City city) {
-    return Program.access(service -> service.getForecast(city));
+    return Program.effect(service -> service.getForecast(city));
   }
 
   static <S extends Service, E extends Error> Program<S, E, Void> setForecast(City city, Forecast forecast) {
-    return Program.access(service -> {
+    return Program.effect(service -> {
       service.setForecast(city, forecast);
       return null;
     });
   }
 
   static <S extends Service, E extends Error> Program<S, E, Optional<City>> hottestCity() {
-    return Program.access(Service::hottestCity);
+    return Program.effect(Service::hottestCity);
   }
 
   public static void main(String[] args) {

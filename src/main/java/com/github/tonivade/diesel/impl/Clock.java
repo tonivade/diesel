@@ -37,6 +37,6 @@ public interface Clock {
    * @return a program that retrieves the current time
    */
   static <S extends Service, E> Program<S, E, Long> currentTime() {
-    return Program.access(state -> state.currentTime());
+    return Program.effect(state -> state.currentTime());
   }
 }

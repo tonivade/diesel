@@ -45,7 +45,7 @@ public interface Console {
    * @return A new console operation that writes a line of text to the console.
    */
   static <S extends Service, E> Program<S, E, Void> writeLine(String line) {
-    return Program.access(state -> {
+    return Program.effect(state -> {
       state.writeLine(line);
       return null;
     });
@@ -59,7 +59,7 @@ public interface Console {
    * @return A new console operation that reads a line of text from the console.
    */
   static <S extends Service, E> Program<S, E, String> readLine() {
-    return Program.access(Service::readLine);
+    return Program.effect(Service::readLine);
   }
 
   /**

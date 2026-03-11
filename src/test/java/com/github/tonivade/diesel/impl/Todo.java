@@ -52,36 +52,36 @@ interface Todo {
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> create(TodoEntity todo) {
-    return Program.access(repository -> {
+    return Program.effect(repository -> {
       repository.create(todo);
       return null;
     });
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> update(int id, UnaryOperator<TodoEntity> update) {
-    return Program.access(repository -> {
+    return Program.effect(repository -> {
       repository.update(id, update);
       return null;
     });
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Optional<TodoEntity>> findOne(int id) {
-    return Program.access(repository -> repository.find(id));
+    return Program.effect(repository -> repository.find(id));
   }
 
   static <S extends Repository, E extends Error> Program<S, E, List<TodoEntity>> findAll() {
-    return Program.access(Repository::findAll);
+    return Program.effect(Repository::findAll);
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> deleteOne(int id) {
-    return Program.access(repository -> {
+    return Program.effect(repository -> {
       repository.delete(id);
       return null;
     });
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> deleteAll() {
-    return Program.access(repository -> {
+    return Program.effect(repository -> {
       repository.deleteAll();
       return null;
     });

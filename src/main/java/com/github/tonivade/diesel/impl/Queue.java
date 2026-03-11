@@ -46,7 +46,7 @@ public interface Queue<V, T> {
    * @return a {@link Program} instance that adds an item to the queue
    */
   static <V, S extends Service<V>, E> Program<S, E, Void> offer(V item) {
-    return Program.access(state -> {
+    return Program.effect(state -> {
       state.offer(item);
       return null;
     });
@@ -63,6 +63,6 @@ public interface Queue<V, T> {
    *         from the queue
    */
   static <V, S extends Service<V>, E> Program<S, E, V> take() {
-    return Program.access(Service::take);
+    return Program.effect(Service::take);
   }
 }

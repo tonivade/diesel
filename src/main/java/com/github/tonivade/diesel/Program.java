@@ -227,42 +227,44 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
-   * Creates a new program that represents a domain-specific language (DSL) access.
+   * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
+   * sing the provided function.
    *
-   * @param access the function used to access the DSL computation
+   * @param mapper the function used to access the DSL computation
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
    * @return a new program representing a DSL access
    */
-  static <S, E, T> Program<S, E, T> access(Function<S, T> access) {
-    return accessP(access.andThen(Program::success));
+  static <S, E, T> Program<S, E, T> effect(Function<S, T> mapper) {
+    return effectP(mapper.andThen(Program::success));
+  }
+
+  /**
+   * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
+   * using the provided function that returns a Result.
+   *
+   * @param mapper the function used to access the DSL computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a DSL access
+   */
+  static <S, E, T> Program<S, E, T> effectR(Function<S, Result<E, T>> mapper) {
+    return effectP(mapper.andThen(Program::from));
   }
 
   /**
    * Creates a new program that represents a domain-specific language (DSL) access.
    *
-   * @param access the function used to access the DSL computation
+   * @param mapper the function used to access the DSL computation
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
    * @return a new program representing a DSL access
    */
-  static <S, E, T> Program<S, E, T> accessR(Function<S, Result<E, T>> access) {
-    return accessP(access.andThen(Program::from));
-  }
-
-  /**
-   * Creates a new program that represents a domain-specific language (DSL) access.
-   *
-   * @param access the function used to access the DSL computation
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a new program representing a DSL access
-   */
-  static <S, E, T> Program<S, E, T> accessP(Function<S, Program<S, E, T>> access) {
-    return new Access<>(access);
+  static <S, E, T> Program<S, E, T> effectP(Function<S, Program<S, E, T>> mapper) {
+    return new Effect<>(mapper);
   }
 
   /**
@@ -367,14 +369,14 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
-   * Represents a domain-specific language (DSL) access within the program.
+   * Represents an effectful computation that accesses a domain-specific language (DSL) using the provided function.
    *
-   * @param access the function used to access the DSL computation
+   * @param mapper the function used to access the DSL computation
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Access<S, E, T>(Function<S, Program<S, E, T>> access) implements Program<S, E, T> {}
+  record Effect<S, E, T>(Function<S, Program<S, E, T>> mapper) implements Program<S, E, T> {}
 
   /**
    * Evaluates the program using the provided state.
@@ -413,7 +415,7 @@ public sealed interface Program<S, E, T> {
         yield done(future.join());
       }
       case FoldMap<S, ?, E, ?, T> foldMap -> foldMap.foldEval(state);
-      case Access<S, E, T>(var access) -> access.apply(state).step(state);
+      case Effect<S, E, T>(var mapper) -> mapper.apply(state).step(state);
     };
   }
 
