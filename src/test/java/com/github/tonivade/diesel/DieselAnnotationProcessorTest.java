@@ -39,12 +39,12 @@ class DieselAnnotationProcessorTest {
       public interface ConsoleDsl {
         @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, String> readLine() {
-          return Program.access(state -> state.readLine());
+          return Program.effect(state -> state.readLine());
         }
 
         @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-          return Program.access(state -> {
+          return Program.effect(state -> {
             state.writeLine(line);
             return null;
           });
@@ -87,12 +87,12 @@ class DieselAnnotationProcessorTest {
       public interface ConsoleApi {
         @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, String> readLine() {
-          return Program.access(state -> state.readLine());
+          return Program.effect(state -> state.readLine());
         }
 
         @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-          return Program.access(state -> {
+          return Program.effect(state -> {
             state.writeLine(line);
             return null;
           });
@@ -135,12 +135,12 @@ class DieselAnnotationProcessorTest {
       public interface StateDsl {
         @SuppressWarnings("unchecked")
         static <S extends State, E> Program<S, E, Integer> get() {
-          return Program.access(state -> state.get());
+          return Program.effect(state -> state.get());
         }
 
         @SuppressWarnings("unchecked")
         static <S extends State, E> Program<S, E, Void> set(int value) {
-          return Program.access(state -> {
+          return Program.effect(state -> {
             state.set(value);
             return null;
           });
@@ -183,12 +183,12 @@ class DieselAnnotationProcessorTest {
       public interface ConsoleDsl {
         @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, String> readLine() {
-          return Program.access(state -> state.readLine());
+          return Program.effect(state -> state.readLine());
         }
 
         @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
-          return Program.access(state -> {
+          return Program.effect(state -> {
             state.writeLine(line);
             return null;
           });
@@ -232,12 +232,12 @@ class DieselAnnotationProcessorTest {
       public interface ConsoleDsl {
         @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, String> readLine() {
-          return Program.accessR(state -> state.readLine().mapError(e -> (E) e));
+          return Program.effectR(state -> state.readLine().mapError(e -> (E) e));
         }
 
         @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
-          return Program.accessR(state -> state.writeLine(line).mapError(e -> (E) e));
+          return Program.effectR(state -> state.writeLine(line).mapError(e -> (E) e));
         }
       }""");
 
