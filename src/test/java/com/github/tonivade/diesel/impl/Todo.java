@@ -88,7 +88,9 @@ interface Todo {
   }
 
   static Program<Context, Error, Void> program() {
-    return printMenuAndGetOption().flatMap(Todo::executeAction);
+    return pipe(
+        printMenuAndGetOption(),
+        Todo::executeAction);
   }
 
   static Program<Context, Error, Integer> printMenuAndGetOption() {

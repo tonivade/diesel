@@ -114,7 +114,9 @@ interface Weather {
   }
 
   static Program<Context, Error, Forecast> forecast() {
-    return pipe(nextInt(30), temperature -> success(new Forecast(temperature)));
+    return pipe(
+        nextInt(30),
+        temperature -> success(new Forecast(temperature)));
   }
 
   static Program<Context, Error, City> cityByName(String name) {
