@@ -3,12 +3,13 @@ import jinja2
 environment = jinja2.Environment()
 
 finisher_template = environment.from_string("""/*
- * Copyright (c) 2025, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
 package com.github.tonivade.diesel.function;
 
 // generated code
+@FunctionalInterface
 public interface Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> {
  
   R apply({% for i in range(value) %}T{{ i }} t{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %});
