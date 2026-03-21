@@ -41,11 +41,11 @@ import javax.annotation.processing.Generated;
 public interface ConsoleDsl {
 
   static <S extends Console, E> Program<S, E, String> readLine() {
-    return Program.access(Console::readLine);
+    return Program.effect(Console::readLine);
   }
 
   static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-    return Program.access(console -> {
+    return Program.effect(console -> {
       console.writeLine(line);
       return null;
     });
