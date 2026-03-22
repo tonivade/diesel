@@ -19,6 +19,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -498,8 +499,11 @@ public sealed interface Program<S, E, T> {
    * @param insert the function used to insert the program
    * @return a new program representing the computation with the inserted program
    */
-  default Program<S, E, T> peek(Function<T, Program<S, E, Void>> insert) {
-    return flatMap(value -> insert.apply(value).andThen(success(value)));
+  default Program<S, E, T> peek(Consumer<T> insert) {
+    return flatMap(value -> {
+      insert.accept(value);
+      return success(value);
+    });
   }
 
   /**
@@ -508,8 +512,11 @@ public sealed interface Program<S, E, T> {
    * @param insert the function used to insert the program
    * @return a new program representing the computation with the inserted program
    */
-  default Program<S, E, T> peekError(Function<E, Program<S, E, Void>> insert) {
-    return flatMapError(error -> insert.apply(error).andThen(failure(error)));
+  default Program<S, E, T> peekError(Consumer<E> insert) {
+    return flatMapError(error -> {
+      insert.accept(error);
+      return failure(error);
+    });
   }
 
   /**
