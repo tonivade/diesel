@@ -21,11 +21,6 @@ jobs:
         java-version: '25'
         distribution: 'temurin'
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
-      with:
-        cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-
     - name: Build with Gradle Wrapper
       run: ./gradlew --configuration-cache build
       
