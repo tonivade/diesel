@@ -11,9 +11,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * This sealed interface represents a random number generator that can be used within the Diesel framework.
  * It provides a way to generate random integers within a specified range.
  *
- * @param <T> the type of random value being generated
  */
-public interface Random<T> {
+public interface Random {
 
   /**
    * This interface represents the service provided by the random number generator.
@@ -26,7 +25,7 @@ public interface Random<T> {
      * @param bound the upper bound of the range (exclusive)
      * @return a random integer within the specified range
      */
-    default Integer nextInt(int bound) {
+    default int nextInt(int bound) {
       return ThreadLocalRandom.current().nextInt(bound);
     }
   }

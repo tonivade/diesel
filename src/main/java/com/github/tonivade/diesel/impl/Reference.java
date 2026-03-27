@@ -13,42 +13,41 @@ import com.github.tonivade.diesel.Program;
 /**
  * A {@code Reference} represents a program that operates on a {@link Service} to get or set a value.
  *
- * @param <V> the type of the value being stored in the reference
- * @param <T> the type of the result returned by the reference
+ * @param <T> the type of the value being stored in the reference
  */
-public interface Reference<V, T> {
+public interface Reference<T> {
 
   /**
    * A {@code Service} provides methods to set and get a value from the reference.
    *
-   * @param <V> the type of the value being stored in the reference
+   * @param <T> the type of the value being stored in the reference
    */
-  interface Service<V> {
+  interface Service<T> {
     /**
      * Sets the value of the reference.
      *
      * @param value the new value to be set
      */
-    void set(V value);
+    void set(T value);
 
     /**
      * Gets the value of the reference.
      *
      * @return the current value of the reference
      */
-    V get();
+    T get();
   }
 
   /**
    * Creates a program that sets a new value in the reference.
    *
-   * @param <V> the type of the value being stored in the reference
+   * @param <T> the type of the value being stored in the reference
    * @param <S> the type of the service used by the program
    * @param <E> the type of the error that may occur during execution
    * @param value the new value to be set
    * @return a program that sets the value in the reference
    */
-  static <V, S extends Service<V>, E> Program<S, E, Void> set(V value) {
+  static <T, S extends Service<T>, E> Program<S, E, Void> set(T value) {
     return Program.effect(state -> {
       state.set(value);
       return null;
@@ -58,25 +57,25 @@ public interface Reference<V, T> {
   /**
    * Creates a program that retrieves the current value from the reference.
    *
-   * @param <V> the type of the value being stored in the reference
+   * @param <T> the type of the value being stored in the reference
    * @param <S> the type of the service used by the program
    * @param <E> the type of the error that may occur during execution
    * @return a program that retrieves the value from the reference
    */
-  static <V, S extends Service<V>, E> Program<S, E, V> get() {
+  static <T, S extends Service<T>, E> Program<S, E, T> get() {
     return Program.effect(Service::get);
   }
 
   /**
    * Creates a program that updates the value in the reference using the provided update function.
    *
-   * @param <V> the type of the value being stored in the reference
+   * @param <T> the type of the value being stored in the reference
    * @param <S> the type of the service used by the program
    * @param <E> the type of the error that may occur during execution
    * @param update the function used to update the value in the reference
    * @return a program that updates the value in the reference
    */
-  static <V, S extends Service<V>, E> Program<S, E, Void> update(UnaryOperator<V> update) {
+  static <T, S extends Service<T>, E> Program<S, E, Void> update(UnaryOperator<T> update) {
     return pipe(get(), value -> set(update.apply(value)));
   }
 }

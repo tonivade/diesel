@@ -10,42 +10,41 @@ import com.github.tonivade.diesel.Program;
  * Represents a program that can be executed on a {@link Service} that provides
  * queue operations.
  *
- * @param <V> the type of items in the queue
- * @param <T> the type of result returned by the queue operation
+ * @param <T> the type of items in the queue
  */
-public interface Queue<V, T> {
+public interface Queue<T> {
 
   /**
    * Defines the contract for a queue service.
    *
-   * @param <V> the type of items in the queue
+   * @param <T> the type of items in the queue
    */
-  interface Service<V> {
+  interface Service<T> {
     /**
      * Adds an item to the queue.
      *
      * @param item the item to add
      */
-    void offer(V item);
+    void offer(T item);
 
     /**
      * Removes and returns the next item from the queue.
      *
      * @return the next item from the queue
      */
-    V take();
+    T take();
   }
 
   /**
    * Creates a {@link Program} instance that adds an item to the queue.
    *
-   * @param <V>  the type of items in the queue
+   * @param <T>  the type of items in the queue
    * @param <S>  the type of service
    * @param <E>  the type of error
    * @param item the item to add
    * @return a {@link Program} instance that adds an item to the queue
    */
-  static <V, S extends Service<V>, E> Program<S, E, Void> offer(V item) {
+  static <T, S extends Service<T>, E> Program<S, E, Void> offer(T item) {
     return Program.effect(state -> {
       state.offer(item);
       return null;
@@ -56,13 +55,13 @@ public interface Queue<V, T> {
    * Creates a {@link Program} instance that removes and returns the next item
    * from the queue.
    *
-   * @param <V> the type of items in the queue
+   * @param <T> the type of items in the queue
    * @param <S> the type of service
    * @param <E> the type of error
    * @return a {@link Program} instance that removes and returns the next item
    *         from the queue
    */
-  static <V, S extends Service<V>, E> Program<S, E, V> take() {
+  static <T, S extends Service<T>, E> Program<S, E, T> take() {
     return Program.effect(Service::take);
   }
 }
