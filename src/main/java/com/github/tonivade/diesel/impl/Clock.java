@@ -26,7 +26,7 @@ public interface Clock {
      *
      * @return the current time in nanoseconds
      */
-    Long currentTime();
+    long currentTime();
   }
 
   /**
