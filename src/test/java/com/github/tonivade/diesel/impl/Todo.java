@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Program.chainAll;
+import static com.github.tonivade.diesel.Program.effect;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.recover;
@@ -53,36 +54,36 @@ interface Todo {
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> create(TodoEntity todo) {
-    return Program.effect(repository -> {
+    return effect(repository -> {
       repository.create(todo);
       return null;
     });
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> update(int id, UnaryOperator<TodoEntity> update) {
-    return Program.effect(repository -> {
+    return effect(repository -> {
       repository.update(id, update);
       return null;
     });
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Optional<TodoEntity>> findOne(int id) {
-    return Program.effect(repository -> repository.find(id));
+    return effect(repository -> repository.find(id));
   }
 
   static <S extends Repository, E extends Error> Program<S, E, List<TodoEntity>> findAll() {
-    return Program.effect(Repository::findAll);
+    return effect(Repository::findAll);
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> deleteOne(int id) {
-    return Program.effect(repository -> {
+    return effect(repository -> {
       repository.delete(id);
       return null;
     });
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> deleteAll() {
-    return Program.effect(repository -> {
+    return effect(repository -> {
       repository.deleteAll();
       return null;
     });

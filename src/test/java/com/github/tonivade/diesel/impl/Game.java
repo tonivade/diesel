@@ -31,7 +31,8 @@ interface Game {
   static Program<Context, Error, Void> program() {
     return pipe(
         prompt("Do you want to play a game? (Y/y)"),
-        Game::playOrExit);
+        Game::playOrExit
+      );
   }
 
   static Program<Context, Error, Void> playOrExit(String answer) {
@@ -44,13 +45,14 @@ interface Game {
   static Program<Context, Error, Void> randomNumber() {
     return pipe(
         nextInt(10),
-        Reference::set);
+        Reference::set
+      );
   }
 
   static Program<Context, Error, Void> loop() {
     return pipe(
         recover(readNumber(), _ -> pipe(writeLine("Invalid value"), _ -> readNumber())),
-        number -> checkNumber(number),
+        Game::checkNumber,
         Game::winOrContinue
       );
   }
@@ -72,12 +74,9 @@ interface Game {
 
   static Program<Context, Error, Boolean> checkNumber(int number) {
     return chain(
-        getNumber(),
-        value -> value == number);
-  }
-
-  static Program<Context, Error, Integer> getNumber() {
-    return get();
+        get(),
+        value -> value == number
+      );
   }
 
   static Program<Context, Error, Void> winOrContinue(boolean answer) {
