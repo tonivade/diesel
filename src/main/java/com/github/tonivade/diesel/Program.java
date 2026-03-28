@@ -54,6 +54,84 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Represents a computation that yields a pure result.
+   *
+   * @param result the result of the computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {}
+
+  /**
+   * Represents a computation that catches exceptions within the program.
+   *
+   * @param current the current program
+   * @param recover the function used to recover from exceptions
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Catch<S, E, T>(
+      Program<S, E, T> current,
+      Function<Throwable, Program<S, E, T>> recover) implements Program<S, E, T> {}
+
+  /**
+   * Represents a computation that raises an exception.
+   *
+   * @param throwable the exception to be raised
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @param <X> the type of the exception
+   */
+  record Raise<S, E, T, X extends Throwable>(Supplier<X> throwable) implements Program<S, E, T> {}
+
+  /**
+   * Represents a computation that folds over the result of the program.
+   *
+   * @param current the current program
+   * @param onFailure the function used to map the program in case of failure
+   * @param onSuccess the function used to map the program in case of success
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <F> the type of the new error
+   * @param <T> the type of the result
+   * @param <R> the type of the new result
+   */
+  record FoldMap<S, E, F, T, R>(
+      Program<S, E, T> current,
+      Function<E, Program<S, F, R>> onFailure,
+      Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
+    private Trampoline<Result<F, R>> foldEval(S state) {
+      return current.step(state)
+          .flatMap(result -> result.fold(onFailure, onSuccess).step(state));
+    }
+  }
+
+  /**
+   * Represents an asynchronous computation within the program.
+   *
+   * @param callback the callback to be executed asynchronously
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Async<S, E, T>(
+      BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) implements Program<S, E, T> {
+  }
+
+  /**
+   * Represents an effectful computation that accesses a domain-specific language (DSL) using the provided function.
+   *
+   * @param mapper the function used to access the DSL computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Effect<S, E, T>(Function<S, Program<S, E, T>> mapper) implements Program<S, E, T> {}
+
+  /**
    * Creates a new program that represents a computation that can be executed in a specific context.
    *
    * @param result the Result representing the computation
@@ -156,6 +234,20 @@ public sealed interface Program<S, E, T> {
    */
   static <S, T> Program<S, Throwable, T> attempt(Supplier<T> supplier) {
     return suspend(() -> from(Result.attempt(supplier)));
+  }
+
+  /**
+   * Creates a new program that represents a computation that attempts to execute the given supplier and maps any exceptions to errors using the provided function.
+   *
+   * @param supplier the supplier of the value
+   * @param mapError the function used to map exceptions to errors
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a computation that attempts to execute the supplier and maps exceptions to errors
+   */
+  static <S, E, T> Program<S, E, T> attempt(Supplier<T> supplier, Function<Throwable, E> mapError) {
+    return Program.<S, T>attempt(supplier).mapError(mapError);
   }
 
   /**
@@ -300,84 +392,6 @@ public sealed interface Program<S, E, T> {
   static <S, E, T> Result<E, Collection<T>> evalAll(S state, Collection<Program<S, E, T>> programs) {
     return Result.traverse(programs, p -> p.eval(state));
   }
-
-  /**
-   * Represents a computation that yields a pure result.
-   *
-   * @param result the result of the computation
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   */
-  record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {}
-
-  /**
-   * Represents a computation that catches exceptions within the program.
-   *
-   * @param current the current program
-   * @param recover the function used to recover from exceptions
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   */
-  record Catch<S, E, T>(
-      Program<S, E, T> current,
-      Function<Throwable, Program<S, E, T>> recover) implements Program<S, E, T> {}
-
-  /**
-   * Represents a computation that raises an exception.
-   *
-   * @param throwable the exception to be raised
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @param <X> the type of the exception
-   */
-  record Raise<S, E, T, X extends Throwable>(Supplier<X> throwable) implements Program<S, E, T> {}
-
-  /**
-   * Represents a computation that folds over the result of the program.
-   *
-   * @param current the current program
-   * @param onFailure the function used to map the program in case of failure
-   * @param onSuccess the function used to map the program in case of success
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <F> the type of the new error
-   * @param <T> the type of the result
-   * @param <R> the type of the new result
-   */
-  record FoldMap<S, E, F, T, R>(
-      Program<S, E, T> current,
-      Function<E, Program<S, F, R>> onFailure,
-      Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
-    private Trampoline<Result<F, R>> foldEval(S state) {
-      return current.step(state)
-          .flatMap(result -> result.fold(onFailure, onSuccess).step(state));
-    }
-  }
-
-  /**
-   * Represents an asynchronous computation within the program.
-   *
-   * @param callback the callback to be executed asynchronously
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   */
-  record Async<S, E, T>(
-      BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) implements Program<S, E, T> {
-  }
-
-  /**
-   * Represents an effectful computation that accesses a domain-specific language (DSL) using the provided function.
-   *
-   * @param mapper the function used to access the DSL computation
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   */
-  record Effect<S, E, T>(Function<S, Program<S, E, T>> mapper) implements Program<S, E, T> {}
 
   /**
    * Evaluates the program using the provided state.

@@ -4,6 +4,7 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Program.attempt;
 import static com.github.tonivade.diesel.Program.chainAll;
 import static com.github.tonivade.diesel.Program.effect;
 import static com.github.tonivade.diesel.Program.failure;
@@ -199,8 +200,7 @@ interface Todo {
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {
-    return Program.<Context, Integer>attempt(() -> Integer.parseInt(value))
-        .mapError(_ -> new NumberFormatError(value));
+    return attempt(() -> Integer.parseInt(value), _ -> new NumberFormatError(value));
   }
 
   static void main(String... args) {

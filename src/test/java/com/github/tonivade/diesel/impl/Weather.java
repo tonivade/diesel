@@ -4,6 +4,7 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Program.effect;
 import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.impl.Console.prompt;
@@ -43,22 +44,22 @@ interface Weather {
   record Config(String host, int port) {}
 
   static <S extends Service, E extends Error> Program<S, E, Config> readConfig() {
-    return Program.effect(Service::readConfig);
+    return effect(Service::readConfig);
   }
 
   static <S extends Service, E extends Error> Program<S, E, Optional<Forecast>> getForecast(City city) {
-    return Program.effect(service -> service.getForecast(city));
+    return effect(service -> service.getForecast(city));
   }
 
   static <S extends Service, E extends Error> Program<S, E, Void> setForecast(City city, Forecast forecast) {
-    return Program.effect(service -> {
+    return effect(service -> {
       service.setForecast(city, forecast);
       return null;
     });
   }
 
   static <S extends Service, E extends Error> Program<S, E, Optional<City>> hottestCity() {
-    return Program.effect(Service::hottestCity);
+    return effect(Service::hottestCity);
   }
 
   public static void main(String[] args) {
@@ -66,12 +67,14 @@ interface Weather {
   }
 
   static Program<Context, Error, Void> program() {
-    return hostAndPort().andThen(loop());
+    return pipe(
+        hostAndPort(),
+        _ -> loop()
+      );
   }
 
   static Program<Context, Error, Void> loop() {
-    return askAndFetchAndPrint()
-        .andThen(printHottestCity())
+    return pipe(askAndFetchAndPrint(), _ -> printHottestCity())
         .foldMap(Weather::printError, _ -> loop());
   }
 
@@ -87,36 +90,44 @@ interface Weather {
   static Program<Context, Error, Void> printHottestCity() {
     return pipe(
         hottestCity(),
-        city -> writeLine("Hottest city so far: " + city.map(City::name).orElse("None")));
+        city -> writeLine("Hottest city so far: " + city.map(City::name).orElse("None"))
+      );
   }
 
   static Program<Context, Error, Void> printError(Error error) {
     return pipe(
         writeLine("Error: " + error),
-        _ -> loop());
+        _ -> loop()
+      );
   }
 
   static Program<Context, Error, City> askCity() {
-    return pipe(prompt("What city?"), Weather::cityByName);
+    return pipe(
+        prompt("What city?"),
+        Weather::cityByName
+      );
   }
 
   static Program<Context, Error, CityForecast> fetchForecast(City city) {
     return pipe(
         getForecast(city),
         forecast -> forecast.map(Program::<Context, Error, Forecast>success).orElseGet(Weather::forecast),
-        forecast -> success(new CityForecast(city, forecast)));
+        success(forecast -> new CityForecast(city, forecast))
+      );
   }
 
   static Program<Context, Error, Void> printForecastAndPersist(CityForecast cityForecast) {
     return pipe(
         writeLine("Forecast for city " + cityForecast.city() + " is " + cityForecast.forecast()),
-        _ -> setForecast(cityForecast.city(), cityForecast.forecast()));
+        _ -> setForecast(cityForecast.city(), cityForecast.forecast())
+      );
   }
 
   static Program<Context, Error, Forecast> forecast() {
     return pipe(
         nextInt(30),
-        temperature -> success(new Forecast(temperature)));
+        temperature -> success(new Forecast(temperature))
+      );
   }
 
   static Program<Context, Error, City> cityByName(String name) {
@@ -129,7 +140,8 @@ interface Weather {
   static Program<Context, Error, Void> hostAndPort() {
     return pipe(
         readConfig(),
-        config -> writeLine("conecting to " + config));
+        config -> writeLine("conecting to " + config)
+      );
   }
 
   final class Context implements Service, Console.Service, Random.Service, Logger.Service {
