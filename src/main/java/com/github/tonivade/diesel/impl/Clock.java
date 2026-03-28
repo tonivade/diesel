@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Program.effect;
+
 import com.github.tonivade.diesel.Program;
 
 /**
@@ -37,6 +39,6 @@ public interface Clock {
    * @return a program that retrieves the current time
    */
   static <S extends Service, E> Program<S, E, Long> currentTime() {
-    return Program.effect(state -> state.currentTime());
+    return effect(state -> state.currentTime());
   }
 }

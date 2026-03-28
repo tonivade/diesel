@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Program.effect;
+
 import com.github.tonivade.diesel.Program;
 
 /**
@@ -45,7 +47,7 @@ public interface Queue<T> {
    * @return a {@link Program} instance that adds an item to the queue
    */
   static <T, S extends Service<T>, E> Program<S, E, Void> offer(T item) {
-    return Program.effect(state -> {
+    return effect(state -> {
       state.offer(item);
       return null;
     });
@@ -62,6 +64,6 @@ public interface Queue<T> {
    *         from the queue
    */
   static <T, S extends Service<T>, E> Program<S, E, T> take() {
-    return Program.effect(Service::take);
+    return effect(Service::take);
   }
 }

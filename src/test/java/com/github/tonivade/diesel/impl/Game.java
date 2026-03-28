@@ -7,6 +7,7 @@ package com.github.tonivade.diesel.impl;
 import static com.github.tonivade.diesel.Program.chain;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.pipe;
+import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.impl.Console.prompt;
 import static com.github.tonivade.diesel.impl.Console.writeLine;
@@ -48,9 +49,17 @@ interface Game {
 
   static Program<Context, Error, Void> loop() {
     return pipe(
-        prompt("Enter a number"),
-        Game::parseInt)
-        .foldMap(_ -> loop(), number -> checkNumber(number).flatMap(Game::winOrContinue));
+        recover(readNumber(), _ -> pipe(writeLine("Invalid value"), _ -> readNumber())),
+        number -> checkNumber(number),
+        Game::winOrContinue
+      );
+  }
+
+  static Program<Context, Error, Integer> readNumber() {
+    return pipe(
+          prompt("Enter a number"),
+          Game::parseInt
+        );
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {

@@ -7,6 +7,7 @@ package com.github.tonivade.diesel.impl;
 import static com.github.tonivade.diesel.Program.chainAll;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.pipe;
+import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.zip;
 import static com.github.tonivade.diesel.impl.Console.prompt;
@@ -90,20 +91,25 @@ interface Todo {
   static Program<Context, Error, Void> program() {
     return pipe(
         printMenuAndGetOption(),
-        Todo::executeAction);
+        Todo::executeAction
+      );
   }
 
   static Program<Context, Error, Integer> printMenuAndGetOption() {
-    return pipe(
-        printMenu(),
-        _ -> readOption())
-        .recover(_ -> printMenuAndGetOption());
+    return recover(
+        pipe(
+          printMenu(),
+          _ -> readOption()
+        ),
+        _ -> printMenuAndGetOption()
+      );
   }
 
   static Program<Context, Error, Integer> readOption() {
     return pipe(
         prompt("Select an option:"),
-        Todo::parseInt);
+        Todo::parseInt
+      );
   }
 
   static Program<Context, Error, Void> printMenu() {
@@ -115,7 +121,8 @@ interface Todo {
         writeLine("4. Delete"),
         writeLine("5. Clear"),
         writeLine("6. Completed"),
-        writeLine("7. Exit"));
+        writeLine("7. Exit")
+      );
   }
 
   static Program<Context, Error, Void> executeAction(int action) {
@@ -134,9 +141,10 @@ interface Todo {
   static Program<Context, Error, Void> findAllTodos() {
     return pipe(
         findAll(),
-        list -> success(list.stream().map(Object::toString).collect(joining("\n"))),
+        success(list -> list.stream().map(Object::toString).collect(joining("\n"))),
         Console::writeLine,
-        _ -> program());
+        _ -> program()
+      );
   }
 
   static Program<Context, Error, Void> deleteAllTodos() {
@@ -166,7 +174,7 @@ interface Todo {
     return pipe(
         promptId(),
         Todo::findOne,
-        optional -> success(optional.map(Object::toString).orElse("not found")),
+        success(optional -> optional.map(Object::toString).orElse("not found")),
         Console::writeLine,
         _ -> program());
   }
@@ -180,7 +188,13 @@ interface Todo {
   }
 
   static Program<Context, Error, Integer> promptId() {
-    return pipe(prompt("Enter id"), Todo::parseInt).recover(_ -> promptId());
+    return recover(
+        pipe(
+            prompt("Enter id"),
+            Todo::parseInt
+          ),
+        _ -> promptId()
+      );
   }
 
   static Program<Context, Error, Integer> parseInt(String value) {

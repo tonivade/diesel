@@ -4,6 +4,7 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Program.effect;
 import static com.github.tonivade.diesel.Program.pipe;
 
 import com.github.tonivade.diesel.Program;
@@ -45,7 +46,7 @@ public interface Console {
    * @return A new console operation that writes a line of text to the console.
    */
   static <S extends Service, E> Program<S, E, Void> writeLine(String line) {
-    return Program.effect(state -> {
+    return effect(state -> {
       state.writeLine(line);
       return null;
     });
@@ -59,7 +60,7 @@ public interface Console {
    * @return A new console operation that reads a line of text from the console.
    */
   static <S extends Service, E> Program<S, E, String> readLine() {
-    return Program.effect(Service::readLine);
+    return effect(Service::readLine);
   }
 
   /**

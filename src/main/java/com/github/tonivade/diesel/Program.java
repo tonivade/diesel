@@ -432,26 +432,6 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
-   * Maps the program to a new program using the provided error mapper function.
-   *
-   * @param mapper the function used to map the error
-   * @return a new program representing the mapped computation
-   */
-  default Program<S, E, T> redeem(Function<E, T> mapper) {
-    return recover(mapper.andThen(Program::success));
-  }
-
-  /**
-   * Chains the program with the next program using the provided value in case of error.
-   *
-   * @param value the value to be used in case of error
-   * @return a new program representing the chained computation
-   */
-  default Program<S, E, T> redeemWith(T value) {
-    return recoverWith(success(value));
-  }
-
-  /**
    * Maps the program to a new program using the provided mapper function for errors.
    *
    * @param mapper the function used to map the program
@@ -460,26 +440,6 @@ public sealed interface Program<S, E, T> {
    */
   default <F> Program<S, F, T> mapError(Function<E, F> mapper) {
     return flatMapError(mapper.andThen(Program::failure));
-  }
-
-  /**
-   * Maps the program to a new program using the provided error mapper function.
-   *
-   * @param mapper the function used to map the error
-   * @return a new program representing the mapped computation
-   */
-  default Program<S, E, T> recover(Function<E, Program<S, E, T>> mapper) {
-    return flatMapError(mapper);
-  }
-
-  /**
-   * Chains the program with the next program using the provided value in case of error.
-   *
-   * @param value the next program to be executed in case of error
-   * @return a new program representing the chained computation
-   */
-  default Program<S, E, T> recoverWith(Program<S, E, T> value) {
-    return flatMapError(_ -> value);
   }
 
   /**
@@ -606,7 +566,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the computation with retries and delay
    */
   default Program<S, E, T> retry(int retries, Program<S, E, Void> delay) {
-    return recover(error -> {
+    return flatMapError(error -> {
       if (retries > 0) {
         return delay.andThen(retry(retries - 1, delay));
       }
@@ -877,6 +837,10 @@ public sealed interface Program<S, E, T> {
           }
         })
         .flatMap(Fiber::join);
+  }
+
+  static <S, E, F, T> Program<S, F, T> recover(Program<S, E, T> program, Function<E, Program<S, F, T>> recover) {
+    return program.foldMap(recover, Program::success);
   }
 
   // start generated code

@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Program.effect;
+
 import com.github.tonivade.diesel.Program;
 
 /**
@@ -38,7 +40,7 @@ public interface Counter<T extends Number> {
    * @return A new program that increments the counter when evaluated.
    */
   static <T extends Number, S extends Service<T>, E> Program<S, E, T> increment() {
-    return Program.effect(Service::increment);
+    return effect(Service::increment);
   }
 
   /**
@@ -50,6 +52,6 @@ public interface Counter<T extends Number> {
    * @return A new program that decrements the counter when evaluated.
    */
   static <T extends Number, S extends Service<T>, E> Program<S, E, T> decrement() {
-    return Program.effect(Service::decrement);
+    return effect(Service::decrement);
   }
 }
