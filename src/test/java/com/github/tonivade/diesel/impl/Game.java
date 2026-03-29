@@ -13,7 +13,9 @@ import static com.github.tonivade.diesel.impl.Console.prompt;
 import static com.github.tonivade.diesel.impl.Console.writeLine;
 import static com.github.tonivade.diesel.impl.Random.nextInt;
 import static com.github.tonivade.diesel.impl.Reference.get;
+
 import java.util.concurrent.atomic.AtomicInteger;
+
 import com.github.tonivade.diesel.Program;
 
 interface Game {

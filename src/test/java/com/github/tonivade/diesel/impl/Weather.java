@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Program.effect;
+import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.impl.Console.prompt;
@@ -126,14 +127,14 @@ interface Weather {
   static Program<Context, Error, Forecast> forecast() {
     return pipe(
         nextInt(30),
-        temperature -> success(new Forecast(temperature))
+        success(Forecast::new)
       );
   }
 
   static Program<Context, Error, City> cityByName(String name) {
     return switch (name) {
       case "Madrid", "Getafe", "Elche" -> Program.success(new City(name));
-      default -> Program.failure(new UnknownCity(name));
+      default -> failure(new UnknownCity(name));
     };
   }
 
