@@ -30,8 +30,8 @@ interface Game {
     return pipe(
         prompt("Do you want to play a game? (Y/y)"),
         branch(answer -> answer.equalsIgnoreCase("y"),
-            randomNumber().andThen(loop()),
-            writeLine("Bye!"))
+            () -> randomNumber().andThen(loop()),
+            () -> writeLine("Bye!"))
       );
   }
 
@@ -46,7 +46,7 @@ interface Game {
     return pipe(
         recover(readNumber(), _ -> pipe(writeLine("Invalid value"), _ -> readNumber())),
         Game::checkNumber,
-        branch(writeLine("YOU WIN!"), loop())
+        branch(() -> writeLine("YOU WIN!!"), Game::loop)
       );
   }
 

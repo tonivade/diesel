@@ -882,7 +882,7 @@ public sealed interface Program<S, E, T> {
    * @param <R> the type of the result
    * @return a function that branches the program based on a condition
    */
-  static <S, E, T, R> Function<T, Program<S, E, R>> branch(Predicate<T> condition, Program<S, E, R> onTrue, Program<S, E, R> otherwise) {
+  static <S, E, T, R> Function<T, Program<S, E, R>> branch(Predicate<T> condition, Supplier<Program<S, E, R>> onTrue, Supplier<Program<S, E, R>> otherwise) {
     return branch(onTrue, otherwise).compose(condition::test);
   }
 
@@ -895,12 +895,12 @@ public sealed interface Program<S, E, T> {
    * @param <R> the type of the result
    * @return a function that branches the program based on a boolean condition
    */
-  static <S, E, R> Function<Boolean, Program<S, E, R>> branch(Program<S, E, R> onTrue, Program<S, E, R> otherwise) {
+  static <S, E, R> Function<Boolean, Program<S, E, R>> branch(Supplier<Program<S, E, R>> onTrue, Supplier<Program<S, E, R>> otherwise) {
     return result -> {
       if (result) {
-        return onTrue;
+        return onTrue.get();
       }
-      return otherwise;
+      return otherwise.get();
     };
   }
 
