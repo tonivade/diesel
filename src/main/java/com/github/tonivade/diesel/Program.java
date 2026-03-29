@@ -548,7 +548,8 @@ public sealed interface Program<S, E, T> {
   default Program<S, E, ElapsedTime<T>> timed() {
     return pipe(
         start(),
-        start -> map(value -> end(start, value)));
+        start -> map(value -> end(start, value))
+      );
   }
 
   /**
@@ -661,7 +662,8 @@ public sealed interface Program<S, E, T> {
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
     return pipe(
         sleep(duration, executor),
-        success(_ -> supplier.get()));
+        success(_ -> supplier.get())
+      );
   }
 
   /**
@@ -738,6 +740,37 @@ public sealed interface Program<S, E, T> {
   @SafeVarargs
   static <S, E, T> Program<S, E, Collection<T>> sequence(Program<S, E, T>... programs) {
     return sequence(List.of(programs));
+  }
+
+  /**
+   * Executes a collection of programs in parallel using the provided executor
+   * and sequences their results into a single program containing a collection of success values.
+   *
+   * @param executor the executor used to execute the programs in parallel
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the parallel computation with sequenced results
+   */
+  @SafeVarargs
+  static <S, E, T> Program<S, E, Collection<T>> parSequence(Executor executor, Program<S, E, T>... programs) {
+    if (programs.length == 0) {
+      return success(List.of());
+    }
+
+    var forked = forkAll(executor, programs);
+
+    return Program.<S, E, Fiber<E, Collection<T>>>async(
+        (state, callback) -> {
+          try {
+            var result = evalAll(state, forked).map(Fiber::sequence);
+            callback.accept(result, null);
+          } catch (RuntimeException e) {
+            callback.accept(null, e);
+          }
+        })
+        .flatMap(Fiber::join);
   }
 
   /**
@@ -823,36 +856,16 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
-   * Executes a collection of programs in parallel using the provided executor
-   * and sequences their results into a single program containing a collection of success values.
+   * Catches all errors during the execution of the program and recovers using the provided function.
    *
-   * @param executor the executor used to execute the programs in parallel
-   * @param programs the programs to be executed
+   * @param program the program to be executed
+   * @param recover the function used to recover from errors
    * @param <S> the type of the state
    * @param <E> the type of the error
+   * @param <F> the type of the new error
    * @param <T> the type of the result
-   * @return a new program representing the parallel computation with sequenced results
+   * @return a new program representing the computation with error handling
    */
-  @SafeVarargs
-  static <S, E, T> Program<S, E, Collection<T>> parSequence(Executor executor, Program<S, E, T>... programs) {
-    if (programs.length == 0) {
-      return success(List.of());
-    }
-
-    var forked = forkAll(executor, programs);
-
-    return Program.<S, E, Fiber<E, Collection<T>>>async(
-        (state, callback) -> {
-          try {
-            var result = evalAll(state, forked).map(Fiber::sequence);
-            callback.accept(result, null);
-          } catch (RuntimeException e) {
-            callback.accept(null, e);
-          }
-        })
-        .flatMap(Fiber::join);
-  }
-
   static <S, E, F, T> Program<S, F, T> recover(Program<S, E, T> program, Function<E, Program<S, F, T>> recover) {
     return program.foldMap(recover, Program::success);
   }
@@ -937,368 +950,360 @@ public sealed interface Program<S, E, T> {
 
   static <S, E, T0, T1> Program<S, E, T1> chain(
       Program<S, E, T0> p0,
-     Function<T0, T1> p1
-    ) {
+      Function<T0, T1> p1) {
       return p0.map(p1);
   }
 
   static <S, E, T0, T1, T2> Program<S, E, T2> chain(
-    Program<S, E, T0> p0,
-     Function<T0, T1> p1,
-     Function<T1, T2> p2
-    ) {
-      return p0.map(p1).map(p2);
+      Program<S, E, T0> p0,
+      Function<T0, T1> p1,
+      Function<T1, T2> p2) {
+    return p0.map(p1).map(p2);
   }
 
   static <S, E, T0, T1, T2, T3> Program<S, E, T3> chain(
-    Program<S, E, T0> p0,
-     Function<T0, T1> p1,
-     Function<T1, T2> p2,
-     Function<T2, T3> p3
-    ) {
-      return p0.map(p1).map(p2).map(p3);
+      Program<S, E, T0> p0,
+      Function<T0, T1> p1,
+      Function<T1, T2> p2,
+      Function<T2, T3> p3) {
+    return p0.map(p1).map(p2).map(p3);
   }
 
   static <S, E, T0, T1, T2, T3, T4> Program<S, E, T4> chain(
-    Program<S, E, T0> p0,
-     Function<T0, T1> p1,
-     Function<T1, T2> p2,
-     Function<T2, T3> p3,
-     Function<T3, T4> p4
-    ) {
-      return p0.map(p1).map(p2).map(p3).map(p4);
+      Program<S, E, T0> p0,
+      Function<T0, T1> p1,
+      Function<T1, T2> p2,
+      Function<T2, T3> p3,
+      Function<T3, T4> p4) {
+    return p0.map(p1).map(p2).map(p3).map(p4);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5> Program<S, E, T5> chain(
-    Program<S, E, T0> p0,
-     Function<T0, T1> p1,
-     Function<T1, T2> p2,
-     Function<T2, T3> p3,
-     Function<T3, T4> p4,
-     Function<T4, T5> p5
-    ) {
-      return p0.map(p1).map(p2).map(p3).map(p4).map(p5);
+      Program<S, E, T0> p0,
+      Function<T0, T1> p1,
+      Function<T1, T2> p2,
+      Function<T2, T3> p3,
+      Function<T3, T4> p4,
+      Function<T4, T5> p5) {
+    return p0.map(p1).map(p2).map(p3).map(p4).map(p5);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6> Program<S, E, T6> chain(
-    Program<S, E, T0> p0,
-     Function<T0, T1> p1,
-     Function<T1, T2> p2,
-     Function<T2, T3> p3,
-     Function<T3, T4> p4,
-     Function<T4, T5> p5,
-     Function<T5, T6> p6
-    ) {
-      return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6);
+      Program<S, E, T0> p0,
+      Function<T0, T1> p1,
+      Function<T1, T2> p2,
+      Function<T2, T3> p3,
+      Function<T3, T4> p4,
+      Function<T4, T5> p5,
+      Function<T5, T6> p6) {
+    return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7> Program<S, E, T7> chain(
-    Program<S, E, T0> p0,
-     Function<T0, T1> p1,
-     Function<T1, T2> p2,
-     Function<T2, T3> p3,
-     Function<T3, T4> p4,
-     Function<T4, T5> p5,
-     Function<T5, T6> p6,
-     Function<T6, T7> p7
-    ) {
-      return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6).map(p7);
+      Program<S, E, T0> p0,
+      Function<T0, T1> p1,
+      Function<T1, T2> p2,
+      Function<T2, T3> p3,
+      Function<T3, T4> p4,
+      Function<T4, T5> p5,
+      Function<T5, T6> p6,
+      Function<T6, T7> p7) {
+    return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6).map(p7);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8> Program<S, E, T8> chain(
-    Program<S, E, T0> p0,
-     Function<T0, T1> p1,
-     Function<T1, T2> p2,
-     Function<T2, T3> p3,
-     Function<T3, T4> p4,
-     Function<T4, T5> p5,
-     Function<T5, T6> p6,
-     Function<T6, T7> p7,
-     Function<T7, T8> p8
-    ) {
-      return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6).map(p7).map(p8);
+      Program<S, E, T0> p0,
+      Function<T0, T1> p1,
+      Function<T1, T2> p2,
+      Function<T2, T3> p3,
+      Function<T3, T4> p4,
+      Function<T4, T5> p5,
+      Function<T5, T6> p6,
+      Function<T6, T7> p7,
+      Function<T7, T8> p8) {
+    return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6).map(p7).map(p8);
   }
   static <S, E, T0, T1, R> Program<S, E, R> zip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Finisher2<T0, T1, R> finisher) {
-      return async((state, callback) -> {
-        try {
-          callback.accept(Result.zip(p0.eval(state), p1.eval(state), finisher), null);
-        } catch (RuntimeException e) {
-          callback.accept(null, e);
-        }
-      });
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Finisher2<T0, T1, R> finisher) {
+    return async((state, callback) -> {
+      try {
+        callback.accept(Result.zip(p0.eval(state), p1.eval(state), finisher), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
   }
 
   static <S, E, T0, T1, T2, R> Program<S, E, R> zip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Finisher3<T0, T1, T2, R> finisher) {
-      return async((state, callback) -> {
-        try {
-          callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), finisher), null);
-        } catch (RuntimeException e) {
-          callback.accept(null, e);
-        }
-      });
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Finisher3<T0, T1, T2, R> finisher) {
+    return async((state, callback) -> {
+      try {
+        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), finisher), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
   }
 
   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> zip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Finisher4<T0, T1, T2, T3, R> finisher) {
-      return async((state, callback) -> {
-        try {
-          callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), finisher), null);
-        } catch (RuntimeException e) {
-          callback.accept(null, e);
-        }
-      });
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Finisher4<T0, T1, T2, T3, R> finisher) {
+    return async((state, callback) -> {
+      try {
+        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), finisher), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
   }
 
   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> zip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Finisher5<T0, T1, T2, T3, T4, R> finisher) {
-      return async((state, callback) -> {
-        try {
-          callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), finisher), null);
-        } catch (RuntimeException e) {
-          callback.accept(null, e);
-        }
-      });
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Finisher5<T0, T1, T2, T3, T4, R> finisher) {
+    return async((state, callback) -> {
+      try {
+        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), finisher), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> zip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Finisher6<T0, T1, T2, T3, T4, T5, R> finisher) {
-      return async((state, callback) -> {
-        try {
-          callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), finisher), null);
-        } catch (RuntimeException e) {
-          callback.accept(null, e);
-        }
-      });
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Finisher6<T0, T1, T2, T3, T4, T5, R> finisher) {
+    return async((state, callback) -> {
+      try {
+        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), finisher), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> zip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Program<S, E, T6> p6,
-     Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher) {
-      return async((state, callback) -> {
-        try {
-          callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), finisher), null);
-        } catch (RuntimeException e) {
-          callback.accept(null, e);
-        }
-      });
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher) {
+    return async((state, callback) -> {
+      try {
+        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), finisher), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> zip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Program<S, E, T6> p6,
-     Program<S, E, T7> p7,
-     Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher) {
-      return async((state, callback) -> {
-        try {
-          callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), p7.eval(state), finisher), null);
-        } catch (RuntimeException e) {
-          callback.accept(null, e);
-        }
-      });
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher) {
+    return async((state, callback) -> {
+      try {
+        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), p7.eval(state), finisher), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> zip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Program<S, E, T6> p6,
-     Program<S, E, T7> p7,
-     Program<S, E, T8> p8,
-     Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher) {
-      return async((state, callback) -> {
-        try {
-          callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), p7.eval(state), p8.eval(state), finisher), null);
-        } catch (RuntimeException e) {
-          callback.accept(null, e);
-        }
-      });
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Program<S, E, T8> p8,
+      Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher) {
+    return async((state, callback) -> {
+      try {
+        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), p7.eval(state), p8.eval(state), finisher), null);
+      } catch (RuntimeException e) {
+        callback.accept(null, e);
+      }
+    });
   }
 
   static <S, E, T0, T1, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Finisher2<T0, T1, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         (f0, f1) -> Fiber.zip(f0, f1, finisher))
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Finisher2<T0, T1, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        (f0, f1) -> Fiber.zip(f0, f1, finisher))
         .flatMap(Fiber::join);
   }
 
   static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Finisher3<T0, T1, T2, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         (f0, f1, f2) -> Fiber.zip(f0, f1, f2, finisher))
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Finisher3<T0, T1, T2, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        (f0, f1, f2) -> Fiber.zip(f0, f1, f2, finisher))
         .flatMap(Fiber::join);
   }
 
   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Finisher4<T0, T1, T2, T3, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         (f0, f1, f2, f3) -> Fiber.zip(f0, f1, f2, f3, finisher))
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Finisher4<T0, T1, T2, T3, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        (f0, f1, f2, f3) -> Fiber.zip(f0, f1, f2, f3, finisher))
         .flatMap(Fiber::join);
   }
 
   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Finisher5<T0, T1, T2, T3, T4, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         p4.fork(executor),
-         (f0, f1, f2, f3, f4) -> Fiber.zip(f0, f1, f2, f3, f4, finisher))
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Finisher5<T0, T1, T2, T3, T4, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        p4.fork(executor),
+        (f0, f1, f2, f3, f4) -> Fiber.zip(f0, f1, f2, f3, f4, finisher))
         .flatMap(Fiber::join);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Finisher6<T0, T1, T2, T3, T4, T5, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         p4.fork(executor),
-         p5.fork(executor),
-         (f0, f1, f2, f3, f4, f5) -> Fiber.zip(f0, f1, f2, f3, f4, f5, finisher))
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Finisher6<T0, T1, T2, T3, T4, T5, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        p4.fork(executor),
+        p5.fork(executor),
+        (f0, f1, f2, f3, f4, f5) -> Fiber.zip(f0, f1, f2, f3, f4, f5, finisher))
         .flatMap(Fiber::join);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Program<S, E, T6> p6,
-     Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         p4.fork(executor),
-         p5.fork(executor),
-         p6.fork(executor),
-         (f0, f1, f2, f3, f4, f5, f6) -> Fiber.zip(f0, f1, f2, f3, f4, f5, f6, finisher))
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        p4.fork(executor),
+        p5.fork(executor),
+        p6.fork(executor),
+        (f0, f1, f2, f3, f4, f5, f6) -> Fiber.zip(f0, f1, f2, f3, f4, f5, f6, finisher))
         .flatMap(Fiber::join);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Program<S, E, T6> p6,
-     Program<S, E, T7> p7,
-     Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         p4.fork(executor),
-         p5.fork(executor),
-         p6.fork(executor),
-         p7.fork(executor),
-         (f0, f1, f2, f3, f4, f5, f6, f7) -> Fiber.zip(f0, f1, f2, f3, f4, f5, f6, f7, finisher))
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        p4.fork(executor),
+        p5.fork(executor),
+        p6.fork(executor),
+        p7.fork(executor),
+        (f0, f1, f2, f3, f4, f5, f6, f7) -> Fiber.zip(f0, f1, f2, f3, f4, f5, f6, f7, finisher))
         .flatMap(Fiber::join);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Program<S, E, T6> p6,
-     Program<S, E, T7> p7,
-     Program<S, E, T8> p8,
-     Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         p4.fork(executor),
-         p5.fork(executor),
-         p6.fork(executor),
-         p7.fork(executor),
-         p8.fork(executor),
-         (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> Fiber.zip(f0, f1, f2, f3, f4, f5, f6, f7, f8, finisher))
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Program<S, E, T8> p8,
+      Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        p4.fork(executor),
+        p5.fork(executor),
+        p6.fork(executor),
+        p7.fork(executor),
+        p8.fork(executor),
+        (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> Fiber.zip(f0, f1, f2, f3, f4, f5, f6, f7, f8, finisher))
         .flatMap(Fiber::join);
   }
 
