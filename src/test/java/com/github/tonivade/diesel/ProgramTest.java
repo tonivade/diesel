@@ -246,6 +246,26 @@ class ProgramTest {
     assertThat(result4).isEqualTo(Result.failure(List.of("cannot be null", "cannot be empty")));
   }
 
+  @Test
+  void shouldReleaseResource(@Mock AutoCloseable resource) throws Exception {
+    var program = Program.bracket(() -> resource, Program::success);
+
+    var result = program.eval(null);
+
+    assertThat(result).isEqualTo(Result.success(resource));
+    verify(resource).close();
+  }
+
+  @Test
+  void shouldReleaseResourceOnFailure(@Mock AutoCloseable resource) throws Exception {
+    var program = Program.bracket(() -> resource, _ -> Program.failure(new UnsupportedOperationException()));
+
+    var result = program.eval(null);
+
+    assertThat(result).isInstanceOf(Result.Failure.class);
+    verify(resource).close();
+  }
+
   record Tuple<A, B>(A a, B b) {}
 
   static Program<TestDsl.Service, TestDsl.Error, Integer> newOperation() {
