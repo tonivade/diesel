@@ -4,18 +4,16 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Program.attempt;
+import static com.github.tonivade.diesel.Program.branch;
 import static com.github.tonivade.diesel.Program.chain;
-import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.recover;
-import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.impl.Console.prompt;
 import static com.github.tonivade.diesel.impl.Console.writeLine;
 import static com.github.tonivade.diesel.impl.Random.nextInt;
 import static com.github.tonivade.diesel.impl.Reference.get;
-
 import java.util.concurrent.atomic.AtomicInteger;
-
 import com.github.tonivade.diesel.Program;
 
 interface Game {
@@ -31,15 +29,10 @@ interface Game {
   static Program<Context, Error, Void> program() {
     return pipe(
         prompt("Do you want to play a game? (Y/y)"),
-        Game::playOrExit
+        branch(answer -> answer.equalsIgnoreCase("y"),
+            randomNumber().andThen(loop()),
+            writeLine("Bye!"))
       );
-  }
-
-  static Program<Context, Error, Void> playOrExit(String answer) {
-    if (answer.equalsIgnoreCase("y")) {
-      return randomNumber().andThen(loop());
-    }
-    return writeLine("Bye!");
   }
 
   static Program<Context, Error, Void> randomNumber() {
@@ -53,23 +46,15 @@ interface Game {
     return pipe(
         recover(readNumber(), _ -> pipe(writeLine("Invalid value"), _ -> readNumber())),
         Game::checkNumber,
-        Game::winOrContinue
+        branch(writeLine("YOU WIN!"), loop())
       );
   }
 
   static Program<Context, Error, Integer> readNumber() {
     return pipe(
-          prompt("Enter a number"),
-          Game::parseInt
-        );
-  }
-
-  static Program<Context, Error, Integer> parseInt(String value) {
-    try {
-      return success(Integer.parseInt(value));
-    } catch (NumberFormatException e) {
-      return failure(new NumberFormatError(value));
-    }
+        prompt("Enter a number"),
+        value -> attempt(()  -> Integer.parseInt(value), _ -> new NumberFormatError(value))
+      );
   }
 
   static Program<Context, Error, Boolean> checkNumber(int number) {
@@ -77,13 +62,6 @@ interface Game {
         get(),
         value -> value == number
       );
-  }
-
-  static Program<Context, Error, Void> winOrContinue(boolean answer) {
-    if (answer) {
-      return writeLine("YOU WIN!!");
-    }
-    return loop();
   }
 
   abstract class Context implements Random.Service, Reference.Service<Integer>, Console.Service {

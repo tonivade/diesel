@@ -21,6 +21,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -868,6 +869,39 @@ public sealed interface Program<S, E, T> {
    */
   static <S, E, F, T> Program<S, F, T> recover(Program<S, E, T> program, Function<E, Program<S, F, T>> recover) {
     return program.foldMap(recover, Program::success);
+  }
+
+  /** Creates a function that branches the program based on a condition.
+   *
+   * @param condition the condition used to branch the program
+   * @param onTrue the program to be executed if the condition is true
+   * @param otherwise the program to be executed if the condition is false
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input value
+   * @param <R> the type of the result
+   * @return a function that branches the program based on a condition
+   */
+  static <S, E, T, R> Function<T, Program<S, E, R>> branch(Predicate<T> condition, Program<S, E, R> onTrue, Program<S, E, R> otherwise) {
+    return branch(onTrue, otherwise).compose(condition::test);
+  }
+
+  /** Creates a function that branches the program based on a boolean condition.
+   *
+   * @param onTrue the program to be executed if the condition is true
+   * @param otherwise the program to be executed if the condition is false
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <R> the type of the result
+   * @return a function that branches the program based on a boolean condition
+   */
+  static <S, E, R> Function<Boolean, Program<S, E, R>> branch(Program<S, E, R> onTrue, Program<S, E, R> otherwise) {
+    return result -> {
+      if (result) {
+        return onTrue;
+      }
+      return otherwise;
+    };
   }
 
   // start generated code
