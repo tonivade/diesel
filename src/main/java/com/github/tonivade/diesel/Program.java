@@ -8,6 +8,7 @@ import static com.github.tonivade.diesel.Trampoline.done;
 import static com.github.tonivade.diesel.Trampoline.more;
 import static java.util.function.Function.identity;
 
+import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -892,16 +893,66 @@ public sealed interface Program<S, E, T> {
    * @param otherwise the program to be executed if the condition is false
    * @param <S> the type of the state
    * @param <E> the type of the error
-   * @param <R> the type of the result
+   * @param <T> the type of the result
    * @return a function that branches the program based on a boolean condition
    */
-  static <S, E, R> Function<Boolean, Program<S, E, R>> branch(Supplier<Program<S, E, R>> onTrue, Supplier<Program<S, E, R>> otherwise) {
+  static <S, E, T> Function<Boolean, Program<S, E, T>> branch(Supplier<Program<S, E, T>> onTrue, Supplier<Program<S, E, T>> otherwise) {
     return result -> {
       if (result) {
         return onTrue.get();
       }
       return otherwise.get();
     };
+  }
+
+  /**
+   * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it.
+   *
+   * @param acquire the supplier of the resource to be acquired
+   * @param use the function used to use the acquired resource
+   * @param <S> the type of the state
+   * @param <T> the type of the resource
+   * @param <R> the type of the result
+   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
+   */
+  static <S, T extends AutoCloseable, R> Program<S, Throwable, R> bracket(
+      Supplier<T> acquire, Function<T, Program<S, Throwable, R>> use) {
+    return bracket(
+        attempt(acquire),
+        use,
+        resource -> task(() -> {
+          try {
+            resource.close();
+          } catch (Exception e) {
+            throw new UndeclaredThrowableException(e);
+          }
+        }));
+  }
+
+  /**
+   * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it
+   *
+   * @param acquire the supplier of the resource to be acquired
+   * @param use the function used to use the acquired resource
+   * @param release the function used to release the acquired resource
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the resource
+   * @param <R> the type of the result
+   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
+   */
+  static <S, E, T, R> Program<S, E, R> bracket(
+      Program<S, E, T> acquire,
+      Function<T, Program<S, E, R>> use,
+      Function<T, Program<S, E, Void>> release) {
+    return acquire.flatMap(resource ->
+        use.apply(resource).flatMap(result ->
+            release.apply(resource).andThen(success(result))
+        ).foldMap(
+            e -> release.apply(resource).andThen(failure(e)),
+            Program::success
+        )
+    );
   }
 
   // start generated code
