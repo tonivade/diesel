@@ -14,6 +14,17 @@ This library is still in **development**. Use it at you own risk.
 
 This library is based on Java 25.
 
+## Gradle
+
+For use in a gradle build you will need to add it as a dependency, and activate the annotation processor for the dependency.
+
+For example:
+
+```kotlin
+    implementation("com.github.tonivade:diesel:0.2")
+    annotationProcessor("com.github.tonivade:diesel:0.2")
+```
+
 ## Usage
 
 The idea is to create DSLs for your application. You can annotate your interface with `@Diesel` and 
