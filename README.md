@@ -25,6 +25,14 @@ For example:
     annotationProcessor("com.github.tonivade:diesel:0.2")
 ```
 
+If you want to work with snapshots you will need to add this repository in your gradle configuration:
+
+```kotlin
+  maven {
+    url = 'https://central.sonatype.com/repository/maven-snapshots/'
+  }
+```
+
 ## Usage
 
 The idea is to create DSLs for your application. You can annotate your interface with `@Diesel` and 
