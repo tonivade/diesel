@@ -21,8 +21,8 @@ For use in a gradle build you will need to add it as a dependency, and activate 
 For example:
 
 ```kotlin
-    implementation("com.github.tonivade:diesel:0.2")
-    annotationProcessor("com.github.tonivade:diesel:0.2")
+    implementation("com.github.tonivade:diesel:0.6")
+    annotationProcessor("com.github.tonivade:diesel:0.6")
 ```
 
 If you want to work with snapshots you will need to add this repository in your gradle configuration:
@@ -31,6 +31,18 @@ If you want to work with snapshots you will need to add this repository in your 
   maven {
     url = 'https://central.sonatype.com/repository/maven-snapshots/'
   }
+```
+
+## Maven
+
+In the case of maven:
+
+```xml
+<dependency>
+    <groupId>com.github.tonivade</groupId>
+    <artifactId>diesel</artifactId>
+    <version>0.6</version>
+</dependency>
 ```
 
 ## Usage
