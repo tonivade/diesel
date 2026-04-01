@@ -821,10 +821,14 @@ public sealed interface Program<S, E, T> {
     Program<S, E, Collection<R>> initial = success(new ArrayList<>());
     return values.stream().reduce(
         initial,
-        (acc, s) -> zip(acc, function.apply(s), Program::append),
+        (acc, s) -> append(acc, function.apply(s)),
         (_, _) -> {
           throw new UnsupportedOperationException("Parallel stream not supported");
         });
+  }
+
+  static <S, E, R> Program<S, E, Collection<R>> append(Program<S, E, Collection<R>> acc, Program<S, E, R> value) {
+    return zip(acc, value, Program::append);
   }
 
   /**

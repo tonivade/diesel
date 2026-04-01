@@ -367,10 +367,14 @@ public sealed interface Result<F, S> {
     Result<F, Collection<R>> initial = success(new ArrayList<>());
     return values.stream().reduce(
         initial,
-        (acc, s) -> zip(acc, mapper.apply(s), Result::append),
+        (acc, s) -> append(acc, mapper.apply(s)),
         (_, _) -> {
           throw new UnsupportedOperationException("Parallel stream not supported");
         });
+  }
+
+  static <F, R> Result<F, Collection<R>> append(Result<F, Collection<R>> acc, Result<F, R> value) {
+    return zip(acc, value, Result::append);
   }
 
   private static <R> Collection<R> append(Collection<R> list, R value) {
