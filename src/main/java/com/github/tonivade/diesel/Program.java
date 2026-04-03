@@ -209,7 +209,7 @@ public sealed interface Program<S, E, T> {
    * @return a function that maps a value to a successful program
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> success(Function<T, R> mapper) {
-    return t -> success(mapper.apply(t));
+    return mapper.andThen(Program::success);
   }
 
   /**
@@ -223,7 +223,7 @@ public sealed interface Program<S, E, T> {
    * @return a function that maps a value to a failed program
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> failure(Function<T, E> mapper) {
-    return t -> failure(mapper.apply(t));
+    return mapper.andThen(Program::failure);
   }
 
   /**
@@ -249,7 +249,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a computation that attempts to execute the supplier and maps exceptions to errors
    */
   static <S, E, T> Program<S, E, T> attempt(Supplier<T> supplier, Function<Throwable, E> mapError) {
-    return Program.<S, T>attempt(supplier).mapError(mapError);
+    return recover(attempt(supplier), failure(mapError));
   }
 
   /**
@@ -332,7 +332,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a DSL access
    */
   static <S, E, T> Program<S, E, T> effect(Function<S, T> mapper) {
-    return effectP(mapper.andThen(Program::success));
+    return effectR(mapper.andThen(Result::success));
   }
 
   /**

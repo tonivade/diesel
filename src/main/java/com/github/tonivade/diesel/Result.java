@@ -230,12 +230,8 @@ public sealed interface Result<F, S> {
    * @param <R> The type of the mapped success value.
    * @return A new result with the mapped success value.
    */
-  @SuppressWarnings("unchecked")
   default <R> Result<F, R> map(Function<S, R> mapper) {
-    return switch (this) {
-      case Failure<F, S> _ -> (Result<F, R>) this;
-      case Success<F, S>(S value) -> success(mapper.apply(value));
-    };
+    return flatMap(mapper.andThen(Result::success));
   }
 
   /**
@@ -245,12 +241,8 @@ public sealed interface Result<F, S> {
    * @param <R> The type of the mapped failure value.
    * @return A new result with the mapped failure value.
    */
-  @SuppressWarnings("unchecked")
   default <R> Result<R, S> mapError(Function<F, R> mapper) {
-    return switch (this) {
-      case Failure<F, S>(F error) -> failure(mapper.apply(error));
-      case Success<F, S> _ -> (Result<R, S>) this;
-    };
+    return flatMapError(mapper.andThen(Result::failure));
   }
 
   /**
@@ -262,10 +254,10 @@ public sealed interface Result<F, S> {
    */
   @SuppressWarnings("unchecked")
   default <R> Result<F, R> flatMap(Function<S, Result<F, R>> mapper) {
-    return switch (this) {
-      case Failure<F, S> _ -> (Result<F, R>) this;
-      case Success<F, S>(S value) -> mapper.apply(value);
-    };
+    return fold(
+        _ -> (Result<F, R>) this,
+        value -> mapper.apply(value)
+    );
   }
 
   /**
@@ -277,10 +269,10 @@ public sealed interface Result<F, S> {
    */
   @SuppressWarnings("unchecked")
   default <R> Result<R, S> flatMapError(Function<F, Result<R, S>> mapper) {
-    return switch (this) {
-      case Failure<F, S>(F error) -> mapper.apply(error);
-      case Success<F, S> _ -> (Result<R, S>) this;
-    };
+    return fold(
+        error -> mapper.apply(error),
+        _ -> (Result<R, S>) this
+    );
   }
 
   /**
@@ -335,10 +327,7 @@ public sealed interface Result<F, S> {
    * @throws X If this is a failure.
    */
   default <X extends Throwable> S getOrElseThrow(Function<F, X> mapper) throws X {
-    return switch (this) {
-      case Success<F, S>(S value) -> value;
-      case Failure<F, S>(F error) -> throw mapper.apply(error);
-    };
+    return fold(error -> sneakyThrow(mapper.apply(error)), identity());
   }
 
   /**
@@ -380,5 +369,11 @@ public sealed interface Result<F, S> {
   private static <R> Collection<R> append(Collection<R> list, R value) {
     list.add(value);
     return list;
+  }
+
+  // XXX: https://www.baeldung.com/java-sneaky-throws
+  @SuppressWarnings("unchecked")
+  private static <X extends Throwable, R> R sneakyThrow(Throwable t) throws X {
+    throw (X) t;
   }
 }
