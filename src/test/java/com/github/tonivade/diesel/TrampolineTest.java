@@ -28,26 +28,28 @@ class TrampolineTest {
   @Test
   void sum() {
     assertAll(
-        () -> assertEquals(5050, sum(100)),
-        () -> assertEquals(20100, sum(200)),
-        () -> assertEquals(45150, sum(300)),
-        () -> assertEquals(705082704, sum(100000))
+        () -> assertEquals(5_050, sum(100, 0).run()),
+        () -> assertEquals(20_100, sum(200, 0).run()),
+        () -> assertEquals(45_150, sum(300, 0).run()),
+        () -> assertEquals(705_082_704, sum(100_000, 0).run())
       );
   }
 
   @Test
   void fib() {
     assertAll(
-        () -> assertEquals(1, fib(1)),
-        () -> assertEquals(1, fib(2)),
-        () -> assertEquals(2, fib(3)),
-        () -> assertEquals(3, fib(4)),
-        () -> assertEquals(5, fib(5)),
-        () -> assertEquals(8, fib(6)),
-        () -> assertEquals(13, fib(7)),
-        () -> assertEquals(21, fib(8)),
-        () -> assertEquals(55, fib(10)),
-        () -> assertEquals(317811, fib(28))
+        () -> assertEquals(1, fib(1).run()),
+        () -> assertEquals(1, fib(2).run()),
+        () -> assertEquals(2, fib(3).run()),
+        () -> assertEquals(3, fib(4).run()),
+        () -> assertEquals(5, fib(5).run()),
+        () -> assertEquals(8, fib(6).run()),
+        () -> assertEquals(13, fib(7).run()),
+        () -> assertEquals(21, fib(8).run()),
+        () -> assertEquals(55, fib(10).run()),
+        () -> assertEquals(317_811, fib(28).run()),
+        () -> assertEquals(832_040, fib(30).run()),
+        () -> assertEquals(9_227_465, fib(35).run())
       );
   }
 
@@ -55,32 +57,24 @@ class TrampolineTest {
   void heapSafe() {
     var t = Trampoline.done(0);
 
-    for (int i = 0; i < 10_000_000; i++) {
+    for (var i = 0; i < 10_000_000; i++) {
       t = t.flatMap(x -> Trampoline.done(x + 1));
     }
 
-    System.out.println(t.run());
+    assertEquals(10_000_000, t.run());
   }
 
-  private int fib(int n) {
-    return fibLoop(n).run();
-  }
-
-  private int sum(int n) {
-    return sumLoop(n, 0).run();
-  }
-
-  private Trampoline<Integer> sumLoop(Integer counter, Integer sum) {
+  private Trampoline<Integer> sum(Integer counter, Integer sum) {
     if (counter == 0) {
       return Trampoline.done(sum);
     }
-    return Trampoline.more(() -> sumLoop(counter - 1, sum + counter));
+    return Trampoline.more(() -> sum(counter - 1, sum + counter));
   }
 
-  private Trampoline<Integer> fibLoop(Integer n) {
+  private Trampoline<Integer> fib(Integer n) {
     if (n < 2) {
       return Trampoline.done(n);
     }
-    return Trampoline.more(() -> fibLoop(n - 1)).flatMap(x -> fibLoop(n - 2).map(y -> x + y));
+    return Trampoline.more(() -> fib(n - 1).flatMap(x -> fib(n - 2).map(y -> x + y)));
   }
 }
