@@ -96,7 +96,7 @@ public static void main(String... args) {
      writeLine("What's your name?"),
     _ -> readLine(),
     name -> writeLine("Hello " + name + "!")
-  ;
+  );
 
   // output of the program:
   // >> What's your name?
