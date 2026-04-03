@@ -444,7 +444,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the mapped computation
    */
   default <R> Program<S, E, R> map(Function<T, R> mapper) {
-    return flatMap(mapper.andThen(Program::success));
+    return flatMap(success(mapper));
   }
 
   /**
@@ -455,7 +455,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the mapped computation
    */
   default <F> Program<S, F, T> mapError(Function<E, F> mapper) {
-    return flatMapError(mapper.andThen(Program::failure));
+    return flatMapError(failure(mapper));
   }
 
   /**
