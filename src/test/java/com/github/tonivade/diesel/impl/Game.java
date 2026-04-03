@@ -25,15 +25,16 @@ interface Game {
   record NumberFormatError(String input) implements Error {}
 
   static void main(String... args) {
-    program().eval(new Context() {});
+    game().eval(new Context() {});
   }
 
-  static Program<Context, Error, Void> program() {
+  static Program<Context, Error, Void> game() {
     return pipe(
         prompt("Do you want to play a game? (Y/y)"),
         branch(answer -> answer.equalsIgnoreCase("y"),
             () -> randomNumber().andThen(loop()),
-            () -> writeLine("Bye!"))
+            () -> writeLine("Bye!")
+          )
       );
   }
 
@@ -46,16 +47,22 @@ interface Game {
 
   static Program<Context, Error, Void> loop() {
     return pipe(
-        recover(readNumber(), _ -> pipe(writeLine("Invalid value"), _ -> readNumber())),
+        readNumber(),
         Game::checkNumber,
-        branch(() -> writeLine("YOU WIN!!"), Game::loop)
+        branch(
+            () -> writeLine("YOU WIN!!"),
+            Game::loop
+          )
       );
   }
 
   static Program<Context, Error, Integer> readNumber() {
-    return pipe(
-        prompt("Enter a number"),
-        value -> attempt(()  -> Integer.parseInt(value), _ -> new NumberFormatError(value))
+    return recover(
+        pipe(
+          prompt("Enter a number"),
+          value -> attempt(()  -> Integer.parseInt(value), _ -> new NumberFormatError(value))
+        ),
+        _ -> pipe(writeLine("Invalid value"), _ -> readNumber())
       );
   }
 

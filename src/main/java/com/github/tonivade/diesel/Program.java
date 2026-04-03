@@ -952,9 +952,7 @@ public sealed interface Program<S, E, T> {
     return acquire.flatMap(resource ->
         use.apply(resource).flatMap(result ->
             release.apply(resource).andThen(success(result))
-        ).foldMap(
-            e -> release.apply(resource).andThen(failure(e)),
-            Program::success
+        ).flatMapError(e -> release.apply(resource).andThen(failure(e))
         )
     );
   }
