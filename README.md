@@ -188,6 +188,17 @@ For example:
   );
 ```
 
+### Recover
+
+With recover you can recover from an error and generate a new program to execute.
+
+```java
+  var program = recover(program1, error -> program2);
+```
+
+It works very similar to a try-catch block. If the execution of `program1` fails, the error will 
+be passed to the function and a new program will be generated to execute.
+
 ### Validate
 
 Validate can be used to validate if an object meets some criteria and it's well formed
