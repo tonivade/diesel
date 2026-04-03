@@ -88,7 +88,7 @@ After that you could use the DSL inside a program:
 
 ```java
 import static ConsoleDsl.*;
-import com.github.tonivade.diesel.Program.*;
+import static com.github.tonivade.diesel.Program.*;
 
 public static void main(String... args) {
 
