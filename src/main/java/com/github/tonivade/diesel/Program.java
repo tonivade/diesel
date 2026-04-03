@@ -289,7 +289,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a computation that suspends execution
    */
   static <S, E, T> Program<S, E, T> suspend(Supplier<Program<S, E, T>> supplier) {
-    return Program.<S, E>unit().flatMap(_ -> supplier.get());
+    return pipe(unit(), _ -> supplier.get());
   }
 
   /**
