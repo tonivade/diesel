@@ -88,12 +88,15 @@ After that you could use the DSL inside a program:
 
 ```java
 import static ConsoleDsl.*;
+import com.github.tonivade.diesel.Program.*;
 
 public static void main(String... args) {
 
-  var program = writeLine("What's your name?")
-    .flatMap(_ -> readLine())
-    .flatMap(name -> writeLine("Hello " + name + "!"));
+  var program = pipe(
+     writeLine("What's your name?"),
+    _ -> readLine(),
+    name -> writeLine("Hello " + name + "!")
+  ;
 
   // output of the program:
   // >> What's your name?
