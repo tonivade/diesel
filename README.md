@@ -93,7 +93,7 @@ import static com.github.tonivade.diesel.Program.*;
 public static void main(String... args) {
 
   var program = pipe(
-     writeLine("What's your name?"),
+    writeLine("What's your name?"),
     _ -> readLine(),
     name -> writeLine("Hello " + name + "!")
   );
