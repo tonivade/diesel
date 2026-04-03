@@ -7,6 +7,7 @@ package com.github.tonivade.diesel;
 import static com.google.common.truth.Truth.assert_;
 import static com.google.testing.compile.JavaFileObjects.forSourceLines;
 import static com.google.testing.compile.JavaSourceSubjectFactory.javaSource;
+
 import org.junit.jupiter.api.Test;
 
 class DieselAnnotationProcessorTest {
@@ -212,10 +213,10 @@ class DieselAnnotationProcessorTest {
       import com.github.tonivade.diesel.Diesel;
       import com.github.tonivade.diesel.Result;
 
-      @Diesel(errorType = String.class)
+      @Diesel(errorType = Exception.class)
       public interface Console {
-        Result<String, String> readLine();
-        Result<String, Void> writeLine(String line);
+        Result<Exception, String> readLine();
+        Result<Exception, Void> writeLine(String line);
       }""");
 
     var expected = forSourceLines("test.ConsoleDsl",
@@ -223,6 +224,7 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
+      import java.lang.Exception;
       import java.lang.String;
       import java.lang.SuppressWarnings;
       import java.lang.Void;
@@ -231,12 +233,12 @@ class DieselAnnotationProcessorTest {
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface ConsoleDsl {
         @SuppressWarnings("unchecked")
-        static <S extends Console, E extends String> Program<S, E, String> readLine() {
+        static <S extends Console, E extends Exception> Program<S, E, String> readLine() {
           return Program.effectR(state -> state.readLine().mapError(e -> (E) e));
         }
 
         @SuppressWarnings("unchecked")
-        static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
+        static <S extends Console, E extends Exception> Program<S, E, Void> writeLine(String line) {
           return Program.effectR(state -> state.writeLine(line).mapError(e -> (E) e));
         }
       }""");
