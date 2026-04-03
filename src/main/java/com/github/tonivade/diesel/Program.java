@@ -873,7 +873,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the computation with error handling
    */
   static <S, E, F, T> Program<S, F, T> recover(Program<S, E, T> program, Function<E, Program<S, F, T>> recover) {
-    return program.foldMap(recover, Program::success);
+    return program.flatMapError(recover);
   }
 
   /** Creates a function that branches the program based on a condition.

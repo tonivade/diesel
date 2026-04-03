@@ -9,6 +9,7 @@ import static com.github.tonivade.diesel.Program.delay;
 import static com.github.tonivade.diesel.Program.parAll;
 import static com.github.tonivade.diesel.Program.parSequence;
 import static com.github.tonivade.diesel.Program.raise;
+import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.sequence;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.supply;
@@ -20,8 +21,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 import java.time.Duration;
 import java.util.List;
@@ -35,6 +34,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 @ExtendWith(MockitoExtension.class)
 class ProgramTest {
@@ -264,6 +265,18 @@ class ProgramTest {
 
     assertThat(result).isInstanceOf(Result.Failure.class);
     verify(resource).close();
+  }
+
+  @Test
+  void shouldRecoverFromError(@Mock TestDsl.Service service) {
+    when(service.operation())
+      .thenReturn(failure(newUnknownError()));
+
+    var program = recover(newOperation(), _ -> Program.success(1));
+
+    var result = program.eval(service);
+
+    assertThat(result).isEqualTo(success(1));
   }
 
   record Tuple<A, B>(A a, B b) {}
