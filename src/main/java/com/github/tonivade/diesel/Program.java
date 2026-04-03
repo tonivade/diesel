@@ -827,7 +827,7 @@ public sealed interface Program<S, E, T> {
         });
   }
 
-  static <S, E, R> Program<S, E, Collection<R>> append(Program<S, E, Collection<R>> acc, Program<S, E, R> value) {
+  private static <S, E, R> Program<S, E, Collection<R>> append(Program<S, E, Collection<R>> acc, Program<S, E, R> value) {
     return zip(acc, value, Program::append);
   }
 

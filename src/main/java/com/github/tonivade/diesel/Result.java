@@ -373,7 +373,7 @@ public sealed interface Result<F, S> {
         });
   }
 
-  static <F, R> Result<F, Collection<R>> append(Result<F, Collection<R>> acc, Result<F, R> value) {
+  private static <F, R> Result<F, Collection<R>> append(Result<F, Collection<R>> acc, Result<F, R> value) {
     return zip(acc, value, Result::append);
   }
 
