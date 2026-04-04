@@ -50,6 +50,13 @@ public sealed interface Program<S, E, T> {
 
   Program<?, ?, Void> UNIT = success((Void) null);
 
+  /**
+   * Returns a program that represents a computation that yields no result.
+   *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a program representing a computation that yields no result
+   */
   @SuppressWarnings("unchecked")
   static <S, E> Program<S, E, Void> unit() {
     return (Program<S, E, Void>) UNIT;
