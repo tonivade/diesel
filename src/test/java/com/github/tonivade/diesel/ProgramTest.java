@@ -30,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -279,7 +280,7 @@ class ProgramTest {
     assertThat(result).isEqualTo(success(1));
   }
 
-  record Tuple<A, B>(A a, B b) {}
+  record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
   static Program<TestDsl.Service, TestDsl.Error, Integer> newOperation() {
     return Program.effectR(TestDsl.Service::operation);

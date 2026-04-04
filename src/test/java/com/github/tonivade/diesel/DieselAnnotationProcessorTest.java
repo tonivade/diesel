@@ -45,10 +45,7 @@ class DieselAnnotationProcessorTest {
 
         @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-          return Program.effect(state -> {
-            state.writeLine(line);
-            return null;
-          });
+          return Program.inspect(state -> state.writeLine(line));
         }
       }""");
 
@@ -93,10 +90,7 @@ class DieselAnnotationProcessorTest {
 
         @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-          return Program.effect(state -> {
-            state.writeLine(line);
-            return null;
-          });
+          return Program.inspect(state -> state.writeLine(line));
         }
       }""");
 
@@ -141,10 +135,7 @@ class DieselAnnotationProcessorTest {
 
         @SuppressWarnings("unchecked")
         static <S extends State, E> Program<S, E, Void> set(int value) {
-          return Program.effect(state -> {
-            state.set(value);
-            return null;
-          });
+          return Program.inspect(state -> state.set(value));
         }
       }""");
 
@@ -189,10 +180,7 @@ class DieselAnnotationProcessorTest {
 
         @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
-          return Program.effect(state -> {
-            state.writeLine(line);
-            return null;
-          });
+          return Program.inspect(state -> state.writeLine(line));
         }
       }""");
 

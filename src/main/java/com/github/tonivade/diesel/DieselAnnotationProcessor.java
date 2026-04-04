@@ -41,6 +41,9 @@ import com.palantir.javapoet.TypeName;
 import com.palantir.javapoet.TypeSpec;
 import com.palantir.javapoet.TypeVariableName;
 
+/**
+ * Annotation processor for the {@link Diesel} annotation.
+ */
 @SupportedAnnotationTypes("com.github.tonivade.diesel.Diesel")
 public class DieselAnnotationProcessor extends AbstractProcessor {
 
@@ -171,11 +174,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private String createStatement(TypeMirror returnType) {
     if (returnType.getKind() == TypeKind.VOID) {
-      return """
-          return Program.effect(state -> {
-            state.$N($L);
-            return null;
-          })""";
+      return "return Program.inspect(state -> state.$N($L))";
     }
     return "return Program.effect(state -> state.$N($L))";
   }

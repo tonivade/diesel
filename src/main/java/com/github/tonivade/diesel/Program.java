@@ -48,7 +48,7 @@ import com.github.tonivade.diesel.function.Finisher9;
  */
 public sealed interface Program<S, E, T> {
 
-  Program<?, ?, Void> UNIT = success((Void) null);
+  Program<?, ?, Void> UNIT = from(Result.UNIT);
 
   /**
    * Returns a program that represents a computation that yields no result.
@@ -112,7 +112,7 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T> current,
       Function<E, Program<S, F, R>> onFailure,
       Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
-    private Trampoline<Result<F, R>> foldEval(S state) {
+    private Trampoline<Result<F, R>> foldEval(@Nullable S state) {
       return current.step(state)
           .flatMap(result -> result.fold(onFailure, onSuccess).step(state));
     }
@@ -344,6 +344,22 @@ public sealed interface Program<S, E, T> {
 
   /**
    * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
+   * using the provided consumer.
+   *
+   * @param consumer the consumer used to access the DSL computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing a DSL access
+   */
+  static <S, E> Program<S, E, Void> inspect(Consumer<S> consumer) {
+    return effectR(state -> {
+      consumer.accept(state);
+      return Result.unit();
+    });
+  }
+
+  /**
+   * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
    * using the provided function that returns a Result.
    *
    * @param mapper the function used to access the DSL computation
@@ -398,7 +414,7 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return the result of evaluating all the programs
    */
-  static <S, E, T> Result<E, Collection<T>> evalAll(S state, Collection<Program<S, E, T>> programs) {
+  static <S, E, T> Result<E, Collection<T>> evalAll(@Nullable S state, Collection<Program<S, E, T>> programs) {
     return Result.traverse(programs, p -> p.eval(state));
   }
 
@@ -408,15 +424,15 @@ public sealed interface Program<S, E, T> {
    * @param state the state used to evaluate the program
    * @return the result of the evaluation
    */
-  default Result<E, T> eval(S state) {
+  default Result<E, T> eval(@Nullable S state) {
     return safeEval(state).run();
   }
 
-  private Trampoline<Result<E, T>> step(S state) {
+  private Trampoline<Result<E, T>> step(@Nullable S state) {
     return more(() -> safeEval(state));
   }
 
-  private Trampoline<Result<E, T>> safeEval(S state) {
+  private Trampoline<Result<E, T>> safeEval(@Nullable S state) {
     return switch (this) {
       case Pure<S, E, T>(var result) -> done(result);
       case Raise<S, E, T, ?>(var throwable) -> sneakyThrow(throwable.get());

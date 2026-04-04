@@ -34,6 +34,19 @@ import com.github.tonivade.diesel.function.Finisher9;
  */
 public sealed interface Result<F, S> {
 
+  Result<?, Void> UNIT = success(null);
+
+  /**
+   * Returns a result representing a successful operation with no meaningful value.
+   *
+   * @param <F> The type of the failure value.
+   * @return A result representing a successful operation with no meaningful value.
+   */
+  @SuppressWarnings("unchecked")
+  static <F> Result<F, Void> unit() {
+    return (Result<F, Void>) UNIT;
+  }
+
   /**
    * Creates a new failure result.
    *

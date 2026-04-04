@@ -4,7 +4,7 @@
  */
 package com.github.tonivade.diesel.impl;
 
-import static com.github.tonivade.diesel.Program.effect;
+import static com.github.tonivade.diesel.Program.inspect;
 
 import com.github.tonivade.diesel.Program;
 
@@ -52,10 +52,7 @@ public interface Logger {
    * @return a Program that logs the message when executed
    */
   static <S extends Service, E> Program<S, E, Void> info(String message) {
-    return effect(state -> {
-      state.info(message);
-      return null;
-    });
+    return inspect(state -> state.info(message));
   }
 
   /**
@@ -67,10 +64,7 @@ public interface Logger {
    * @return a Program that logs the message when executed
    */
   static <S extends Service, E> Program<S, E, Void> warn(String message) {
-    return effect(state -> {
-      state.warn(message);
-      return null;
-    });
+    return inspect(state -> state.warn(message));
   }
 
   /**
@@ -83,9 +77,6 @@ public interface Logger {
    * @return a Program that logs the message and exception when executed
    */
   static <S extends Service, E> Program<S, E, Void> error(String message, Throwable error) {
-    return effect(state -> {
-      state.error(message, error);
-      return null;
-    });
+    return inspect(state -> state.error(message, error));
   }
 }

@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Program.effect;
+import static com.github.tonivade.diesel.Program.inspect;
 import static com.github.tonivade.diesel.Program.pipe;
 
 import java.util.function.UnaryOperator;
@@ -49,10 +50,7 @@ public interface Reference<T> {
    * @return a program that sets the value in the reference
    */
   static <T, S extends Service<T>, E> Program<S, E, Void> set(T value) {
-    return effect(state -> {
-      state.set(value);
-      return null;
-    });
+    return inspect(state -> state.set(value));
   }
 
   /**
