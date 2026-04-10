@@ -45,6 +45,25 @@ In the case of maven:
 </dependency>
 ```
 
+For the annotation processor:
+
+```xml
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-compiler-plugin</artifactId>
+  <version>...</version>
+  <configuration>
+    <annotationProcessorPaths>
+      <path>
+        <groupId>com.github.tonivade</groupId>
+        <artifactId>diesel</artifactId>
+        <version>0.6</version>
+      </path>
+    </annotationProcessorPaths>
+  </configuration>
+</plugin>
+```
+
 ## Usage
 
 The idea is to create DSLs for your application. You can annotate your interface with `@Diesel` and 
