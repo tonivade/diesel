@@ -39,6 +39,6 @@ public interface Clock {
    * @return a program that retrieves the current time
    */
   static <S extends Service, E> Program<S, E, Long> currentTime() {
-    return effect(state -> state.currentTime());
+    return effect(Service::currentTime);
   }
 }
