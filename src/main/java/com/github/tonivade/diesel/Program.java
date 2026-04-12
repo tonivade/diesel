@@ -431,9 +431,7 @@ public sealed interface Program<S, E, T> {
           if (successStack.isEmpty() && failureStack.isEmpty()) {
             return (Result<E, T>) result;
           }
-          current = result.fold(
-              failureStack.pop()::apply,
-              successStack.pop()::apply);
+          current = result.fold(failureStack.pop(), successStack.pop());
         } else if (current instanceof Effect(var mapper)) {
           current = mapper.apply(state);
         } else if (current instanceof Async(var callback)) {
