@@ -80,7 +80,7 @@ public sealed interface Result<F, S> {
    * @param <S> The type of the success value.
    * @return A result representing the outcome of the supplier execution.
    */
-  static <S> Result<Throwable, S> attempt(Supplier<S> supplier) {
+  static <S> Result<Throwable, S> attempt(Supplier<? extends S> supplier) {
     try {
       return success(supplier.get());
     } catch (Throwable e) {
@@ -266,7 +266,7 @@ public sealed interface Result<F, S> {
    * @return A new result with the mapped success value.
    */
   @SuppressWarnings("unchecked")
-  default <R> Result<F, R> flatMap(Function<S, Result<F, R>> mapper) {
+  default <R> Result<F, R> flatMap(Function<? super S, ? extends Result<F, R>> mapper) {
     return fold(
         _ -> (Result<F, R>) this,
         value -> mapper.apply(value)
@@ -281,7 +281,7 @@ public sealed interface Result<F, S> {
    * @return A new result with the mapped failure value.
    */
   @SuppressWarnings("unchecked")
-  default <R> Result<R, S> flatMapError(Function<F, Result<R, S>> mapper) {
+  default <R> Result<R, S> flatMapError(Function<? super F, ? extends Result<R, S>> mapper) {
     return fold(
         error -> mapper.apply(error),
         _ -> (Result<R, S>) this
@@ -296,7 +296,7 @@ public sealed interface Result<F, S> {
    * @param <R> The type of the folded value.
    * @return The folded value.
    */
-  default <R> R fold(Function<F, R> onFailure, Function<S, R> onSuccess) {
+  default <R> R fold(Function<? super F, ? extends R> onFailure, Function<? super S, ? extends R> onSuccess) {
     return switch (this) {
       case Failure<F, S>(F error) -> onFailure.apply(error);
       case Success<F, S>(S value) -> onSuccess.apply(value);

@@ -76,7 +76,7 @@ static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, 
 program_pipe_template = environment.from_string("""
 static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Program<S, E, T{{ value - 1}}> pipe(
   Program<S, E, T0> p0,
-  {% for i in range(value - 1) %} Function<T{{ i }}, Program<S, E, T{{ i + 1 }}>> p{{ i + 1 }}{% if i < value - 2 %},{% endif %}
+  {% for i in range(value - 1) %} Function<? super T{{ i }}, ? extends Program<S, E, T{{ i + 1 }}>> p{{ i + 1 }}{% if i < value - 2 %},{% endif %}
   {% endfor %}) {
     return p0{% for i in range(value - 1) %}.flatMap(p{{ i + 1}}){% endfor %};
 }
@@ -85,7 +85,7 @@ static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endi
 program_chain_template = environment.from_string("""
 static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Program<S, E, T{{ value - 1}}> chain(
   Program<S, E, T0> p0,
-  {% for i in range(value - 1) %} Function<T{{ i }}, T{{ i + 1 }}> p{{ i + 1 }}{% if i < value - 2 %},{% endif %}
+  {% for i in range(value - 1) %} Function<? super T{{ i }}, ? extends T{{ i + 1 }}> p{{ i + 1 }}{% if i < value - 2 %},{% endif %}
   {% endfor %}) {
     return p0{% for i in range(value - 1) %}.map(p{{ i + 1}}){% endfor %};
 }

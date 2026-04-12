@@ -4,15 +4,15 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Trampoline.done;
-import static com.github.tonivade.diesel.Trampoline.more;
 import static java.util.function.Function.identity;
 
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -83,7 +83,7 @@ public sealed interface Program<S, E, T> {
    */
   record Catch<S, E, T>(
       Program<S, E, T> current,
-      Function<Throwable, Program<S, E, T>> recover) implements Program<S, E, T> {}
+      Function<? super Throwable, ? extends Program<S, E, T>> recover) implements Program<S, E, T> {}
 
   /**
    * Represents a computation that raises an exception.
@@ -92,9 +92,8 @@ public sealed interface Program<S, E, T> {
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
-   * @param <X> the type of the exception
    */
-  record Raise<S, E, T, X extends Throwable>(Supplier<X> throwable) implements Program<S, E, T> {}
+  record Raise<S, E, T>(Supplier<? extends Throwable> throwable) implements Program<S, E, T> {}
 
   /**
    * Represents a computation that folds over the result of the program.
@@ -110,13 +109,8 @@ public sealed interface Program<S, E, T> {
    */
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
-      Function<E, Program<S, F, R>> onFailure,
-      Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
-    private Trampoline<Result<F, R>> foldEval(@Nullable S state) {
-      return current.step(state)
-          .flatMap(result -> result.fold(onFailure, onSuccess).step(state));
-    }
-  }
+      Function<? super E, ? extends Program<S, F, R>> onFailure,
+      Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {}
 
   /**
    * Represents an asynchronous computation within the program.
@@ -127,7 +121,7 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    */
   record Async<S, E, T>(
-      BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) implements Program<S, E, T> {
+      BiConsumer<S, ? extends BiConsumer<? super Result<E, T>, ? super Throwable>> callback) implements Program<S, E, T> {
   }
 
   /**
@@ -138,7 +132,7 @@ public sealed interface Program<S, E, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Effect<S, E, T>(Function<S, Program<S, E, T>> mapper) implements Program<S, E, T> {}
+  record Effect<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {}
 
   /**
    * Creates a new program that represents a computation that can be executed in a specific context.
@@ -175,7 +169,7 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a new program representing an asynchronous computation
    */
-  static <S, E, T> Program<S, E, T> from(CompletableFuture<Result<E, T>> future) {
+  static <S, E, T> Program<S, E, T> from(CompletableFuture<? extends Result<E, T>> future) {
     return async((_, callback) -> future.whenCompleteAsync(callback));
   }
 
@@ -241,7 +235,7 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a new program representing a computation that attempts to execute the supplier
    */
-  static <S, T> Program<S, Throwable, T> attempt(Supplier<T> supplier) {
+  static <S, T> Program<S, Throwable, T> attempt(Supplier<? extends T> supplier) {
     return suspend(() -> from(Result.attempt(supplier)));
   }
 
@@ -255,8 +249,9 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a new program representing a computation that attempts to execute the supplier and maps exceptions to errors
    */
-  static <S, E, T> Program<S, E, T> attempt(Supplier<T> supplier, Function<Throwable, E> mapError) {
-    return recover(attempt(supplier), failure(mapError));
+  static <S, E, T> Program<S, E, T> attempt(
+      Supplier<? extends T> supplier, Function<? super Throwable, ? extends E> mapError) {
+    return recover(attempt(supplier), mapError.andThen(Program::failure));
   }
 
   /**
@@ -266,10 +261,9 @@ public sealed interface Program<S, E, T> {
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
-   * @param <X> the type of the exception
    * @return a new program representing a computation that raises an exception
    */
-  static <S, E, T, X extends Throwable> Program<S, E, T> raise(Supplier<X> throwable) {
+  static <S, E, T> Program<S, E, T> raise(Supplier<? extends Throwable> throwable) {
     return new Raise<>(throwable);
   }
 
@@ -324,7 +318,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing an asynchronous computation
    */
   static <S, E, T> Program<S, E, T> async(
-      BiConsumer<S, BiConsumer<Result<E, T>, Throwable>> callback) {
+      BiConsumer<S, ? extends BiConsumer<? super Result<E, T>, ? super Throwable>> callback) {
     return new Async<>(callback);
   }
 
@@ -338,7 +332,7 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a new program representing a DSL access
    */
-  static <S, E, T> Program<S, E, T> effect(Function<S, T> mapper) {
+  static <S, E, T> Program<S, E, T> effect(Function<? super S, ? extends T> mapper) {
     return effectR(mapper.andThen(Result::success));
   }
 
@@ -368,7 +362,7 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a new program representing a DSL access
    */
-  static <S, E, T> Program<S, E, T> effectR(Function<S, Result<E, T>> mapper) {
+  static <S, E, T> Program<S, E, T> effectR(Function<? super S, ? extends Result<E, T>> mapper) {
     return effectP(mapper.andThen(Program::from));
   }
 
@@ -381,7 +375,7 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a new program representing a DSL access
    */
-  static <S, E, T> Program<S, E, T> effectP(Function<S, Program<S, E, T>> mapper) {
+  static <S, E, T> Program<S, E, T> effectP(Function<? super S, ? extends Program<S, E, T>> mapper) {
     return new Effect<>(mapper);
   }
 
@@ -424,39 +418,49 @@ public sealed interface Program<S, E, T> {
    * @param state the state used to evaluate the program
    * @return the result of the evaluation
    */
+  @SuppressWarnings("unchecked")
   default Result<E, T> eval(@Nullable S state) {
-    return safeEval(state).run();
-  }
+    Program<S, ?, ?> current = this;
+    Deque<Function<Object, Program<S, ?, ?>>> failureStack = new ArrayDeque<>();
+    Deque<Function<Object, Program<S, ?, ?>>> successStack = new ArrayDeque<>();
+    Deque<Function<Throwable, Program<S, ?, ?>>> catchStack = new ArrayDeque<>();
 
-  private Trampoline<Result<E, T>> step(@Nullable S state) {
-    return more(() -> safeEval(state));
-  }
-
-  private Trampoline<Result<E, T>> safeEval(@Nullable S state) {
-    return switch (this) {
-      case Pure<S, E, T>(var result) -> done(result);
-      case Raise<S, E, T, ?>(var throwable) -> sneakyThrow(throwable.get());
-      case Catch<S, E, T>(var current, var recover) -> {
-        try {
-          yield current.safeEval(state);
-        } catch (Throwable t) {
-          yield recover.apply(t).step(state);
-        }
-      }
-      case Async<S, E, T>(var callback) -> {
-        var future = new CompletableFuture<Result<E, T>>();
-        callback.accept(state, (result, error) -> {
-          if (error != null) {
-            future.completeExceptionally(error);
-          } else {
-            future.complete(result);
+    while (true) {
+      try {
+        if (current instanceof Pure(var result)) {
+          if (successStack.isEmpty() && failureStack.isEmpty()) {
+            return (Result<E, T>) result;
           }
-        });
-        yield done(future.join());
+          current = result.fold(failureStack.pop(), successStack.pop());
+        } else if (current instanceof Effect(var mapper)) {
+          current = mapper.apply(state);
+        } else if (current instanceof Async(var callback)) {
+          var future = new CompletableFuture<Result<?, ?>>();
+          ((BiConsumer<S, BiConsumer<Result<?, ?>, Throwable>>) callback).accept(state, (result, error) -> {
+            if (error != null) {
+              future.completeExceptionally(error);
+            } else {
+              future.complete(result);
+            }
+          });
+          current = from(future.join());
+        } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
+          successStack.push((Function<Object, Program<S, ? ,?>>) onSuccess);
+          failureStack.push((Function<Object, Program<S, ?, ?>>) onFailure);
+          current = source;
+        } else if (current instanceof Raise(var throwable)) {
+          return sneakyThrow(throwable.get());
+        } else if (current instanceof Catch(var source, var recover)) {
+          catchStack.push((Function<Throwable, Program<S, ?, ?>>) recover);
+          current = source;
+        }
+      } catch (Throwable e) {
+        if (catchStack.isEmpty()) {
+          return sneakyThrow(e);
+        }
+        current = catchStack.pop().apply(e);
       }
-      case FoldMap<S, ?, E, ?, T> foldMap -> foldMap.foldEval(state);
-      case Effect<S, E, T>(var mapper) -> mapper.apply(state).step(state);
-    };
+    }
   }
 
   /**
@@ -466,8 +470,8 @@ public sealed interface Program<S, E, T> {
    * @param <R> the type of the new program
    * @return a new program representing the mapped computation
    */
-  default <R> Program<S, E, R> map(Function<T, R> mapper) {
-    return flatMap(success(mapper));
+  default <R> Program<S, E, R> map(Function<? super T, ? extends R> mapper) {
+    return flatMap(mapper.andThen(Program::success));
   }
 
   /**
@@ -477,8 +481,8 @@ public sealed interface Program<S, E, T> {
    * @param <F> the type of the new program
    * @return a new program representing the mapped computation
    */
-  default <F> Program<S, F, T> mapError(Function<E, F> mapper) {
-    return flatMapError(failure(mapper));
+  default <F> Program<S, F, T> mapError(Function<? super E, ? extends F> mapper) {
+    return flatMapError(mapper.andThen(Program::failure));
   }
 
   /**
@@ -525,7 +529,7 @@ public sealed interface Program<S, E, T> {
    * @param <R> the type of the new program
    * @return a new program representing the mapped computation
    */
-  default <R> Program<S, E, R> flatMap(Function<T, Program<S, E, R>> next) {
+  default <R> Program<S, E, R> flatMap(Function<? super T, ? extends Program<S, E, R>> next) {
     return foldMap(Program::failure, next);
   }
 
@@ -536,7 +540,7 @@ public sealed interface Program<S, E, T> {
    * @param <F> the type of the new program
    * @return a new program representing the mapped computation
    */
-  default <F> Program<S, F, T> flatMapError(Function<E, Program<S, F, T>> next) {
+  default <F> Program<S, F, T> flatMapError(Function<? super E, ? extends Program<S, F, T>> next) {
     return foldMap(next, Program::success);
   }
 
@@ -546,7 +550,7 @@ public sealed interface Program<S, E, T> {
    * @param recover the function used to recover from exceptions
    * @return a new program representing the computation with exception handling
    */
-  default Program<S, E, T> catchAll(Function<Throwable, Program<S, E, T>> recover) {
+  default Program<S, E, T> catchAll(Function<? super Throwable, ? extends Program<S, E, T>> recover) {
     return new Catch<>(this, recover);
   }
 
@@ -560,8 +564,8 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the mapped computation
    */
   default <F, R> Program<S, F, R> foldMap(
-      Function<E, Program<S, F, R>> onFailure,
-      Function<T, Program<S, F, R>> onSuccess) {
+      Function<? super E, ? extends Program<S, F, R>> onFailure,
+      Function<? super T, ? extends Program<S, F, R>> onSuccess) {
     return new FoldMap<>(this, onFailure, onSuccess);
   }
 
@@ -685,9 +689,21 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the delayed computation
    */
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
+    return delay(duration, supply(supplier), executor);
+  }
+
+  /**
+   * Delays the execution of the program using the provided duration, next program, and executor.
+   *
+   * @param duration the duration of the delay
+   * @param andThen the next program to be executed after the delay
+   * @param executor the executor used to execute the delay
+   * @return a new program representing the delayed computation
+   */
+  static <S, E, T> Program<S, E, T> delay(Duration duration, Program<S, E, T> andThen, Executor executor) {
     return pipe(
         sleep(duration, executor),
-        success(_ -> supplier.get())
+        _ -> andThen
       );
   }
 
@@ -895,7 +911,7 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a new program representing the computation with error handling
    */
-  static <S, E, F, T> Program<S, F, T> recover(Program<S, E, T> program, Function<E, Program<S, F, T>> recover) {
+  static <S, E, F, T> Program<S, F, T> recover(Program<S, E, T> program, Function<? super E, ? extends Program<S, F, T>> recover) {
     return program.flatMapError(recover);
   }
 
@@ -910,7 +926,7 @@ public sealed interface Program<S, E, T> {
    * @param <R> the type of the result
    * @return a function that branches the program based on a condition
    */
-  static <S, E, T, R> Function<T, Program<S, E, R>> branch(Predicate<T> condition, Supplier<Program<S, E, R>> onTrue, Supplier<Program<S, E, R>> otherwise) {
+  static <S, E, T, R> Function<T, Program<S, E, R>> branch(Predicate<? super T> condition, Supplier<? extends Program<S, E, R>> onTrue, Supplier<? extends Program<S, E, R>> otherwise) {
     return branch(onTrue, otherwise).compose(condition::test);
   }
 
@@ -923,7 +939,7 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a function that branches the program based on a boolean condition
    */
-  static <S, E, T> Function<Boolean, Program<S, E, T>> branch(Supplier<Program<S, E, T>> onTrue, Supplier<Program<S, E, T>> otherwise) {
+  static <S, E, T> Function<Boolean, Program<S, E, T>> branch(Supplier<? extends Program<S, E, T>> onTrue, Supplier<? extends Program<S, E, T>> otherwise) {
     return result -> {
       if (result) {
         return onTrue.get();
@@ -943,7 +959,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a computation that acquires a resource, uses it, and then releases it
    */
   static <S, T extends AutoCloseable, R> Program<S, Throwable, R> bracket(
-      Supplier<T> acquire, Function<T, Program<S, Throwable, R>> use) {
+      Supplier<? extends T> acquire, Function<? super T, ? extends Program<S, Throwable, R>> use) {
     return bracket(
         attempt(acquire),
         use,
@@ -970,8 +986,8 @@ public sealed interface Program<S, E, T> {
    */
   static <S, E, T, R> Program<S, E, R> bracket(
       Program<S, E, T> acquire,
-      Function<T, Program<S, E, R>> use,
-      Function<T, Program<S, E, Void>> release) {
+      Function<? super T, ? extends Program<S, E, R>> use,
+      Function<? super T, ? extends Program<S, E, Void>> release) {
     return acquire.flatMap(resource ->
         use.apply(resource).flatMap(result ->
             release.apply(resource).andThen(success(result))
@@ -984,155 +1000,156 @@ public sealed interface Program<S, E, T> {
 
   static <S, E, T0, T1> Program<S, E, T1> pipe(
       Program<S, E, T0> p0,
-      Function<T0, Program<S, E, T1>> p1) {
+      Function<? super T0, ? extends Program<S, E, T1>> p1) {
     return p0.flatMap(p1);
   }
 
   static <S, E, T0, T1, T2> Program<S, E, T2> pipe(
       Program<S, E, T0> p0,
-      Function<T0, Program<S, E, T1>> p1,
-      Function<T1, Program<S, E, T2>> p2) {
+      Function<? super T0, ? extends Program<S, E, T1>> p1,
+      Function<? super T1, ? extends Program<S, E, T2>> p2) {
     return p0.flatMap(p1).flatMap(p2);
   }
 
   static <S, E, T0, T1, T2, T3> Program<S, E, T3> pipe(
       Program<S, E, T0> p0,
-      Function<T0, Program<S, E, T1>> p1,
-      Function<T1, Program<S, E, T2>> p2,
-      Function<T2, Program<S, E, T3>> p3) {
+      Function<? super T0, ? extends Program<S, E, T1>> p1,
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3);
   }
 
   static <S, E, T0, T1, T2, T3, T4> Program<S, E, T4> pipe(
       Program<S, E, T0> p0,
-      Function<T0, Program<S, E, T1>> p1,
-      Function<T1, Program<S, E, T2>> p2,
-      Function<T2, Program<S, E, T3>> p3,
-      Function<T3, Program<S, E, T4>> p4) {
+      Function<? super T0, ? extends Program<S, E, T1>> p1,
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3,
+      Function<? super T3, ? extends Program<S, E, T4>> p4) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5> Program<S, E, T5> pipe(
       Program<S, E, T0> p0,
-      Function<T0, Program<S, E, T1>> p1,
-      Function<T1, Program<S, E, T2>> p2,
-      Function<T2, Program<S, E, T3>> p3,
-      Function<T3, Program<S, E, T4>> p4,
-      Function<T4, Program<S, E, T5>> p5) {
+      Function<? super T0, ? extends Program<S, E, T1>> p1,
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3,
+      Function<? super T3, ? extends Program<S, E, T4>> p4,
+      Function<? super T4, ? extends Program<S, E, T5>> p5) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6> Program<S, E, T6> pipe(
       Program<S, E, T0> p0,
-      Function<T0, Program<S, E, T1>> p1,
-      Function<T1, Program<S, E, T2>> p2,
-      Function<T2, Program<S, E, T3>> p3,
-      Function<T3, Program<S, E, T4>> p4,
-      Function<T4, Program<S, E, T5>> p5,
-      Function<T5, Program<S, E, T6>> p6) {
+      Function<? super T0, ? extends Program<S, E, T1>> p1,
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3,
+      Function<? super T3, ? extends Program<S, E, T4>> p4,
+      Function<? super T4, ? extends Program<S, E, T5>> p5,
+      Function<? super T5, ? extends Program<S, E, T6>> p6) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7> Program<S, E, T7> pipe(
       Program<S, E, T0> p0,
-      Function<T0, Program<S, E, T1>> p1,
-      Function<T1, Program<S, E, T2>> p2,
-      Function<T2, Program<S, E, T3>> p3,
-      Function<T3, Program<S, E, T4>> p4,
-      Function<T4, Program<S, E, T5>> p5,
-      Function<T5, Program<S, E, T6>> p6,
-      Function<T6, Program<S, E, T7>> p7) {
+      Function<? super T0, ? extends Program<S, E, T1>> p1,
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3,
+      Function<? super T3, ? extends Program<S, E, T4>> p4,
+      Function<? super T4, ? extends Program<S, E, T5>> p5,
+      Function<? super T5, ? extends Program<S, E, T6>> p6,
+      Function<? super T6, ? extends Program<S, E, T7>> p7) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8> Program<S, E, T8> pipe(
       Program<S, E, T0> p0,
-      Function<T0, Program<S, E, T1>> p1,
-      Function<T1, Program<S, E, T2>> p2,
-      Function<T2, Program<S, E, T3>> p3,
-      Function<T3, Program<S, E, T4>> p4,
-      Function<T4, Program<S, E, T5>> p5,
-      Function<T5, Program<S, E, T6>> p6,
-      Function<T6, Program<S, E, T7>> p7,
-      Function<T7, Program<S, E, T8>> p8) {
+      Function<? super T0, ? extends Program<S, E, T1>> p1,
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3,
+      Function<? super T3, ? extends Program<S, E, T4>> p4,
+      Function<? super T4, ? extends Program<S, E, T5>> p5,
+      Function<? super T5, ? extends Program<S, E, T6>> p6,
+      Function<? super T6, ? extends Program<S, E, T7>> p7,
+      Function<? super T7, ? extends Program<S, E, T8>> p8) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7).flatMap(p8);
   }
 
   static <S, E, T0, T1> Program<S, E, T1> chain(
       Program<S, E, T0> p0,
-      Function<T0, T1> p1) {
-      return p0.map(p1);
+      Function<? super T0, ? extends T1> p1) {
+    return p0.map(p1);
   }
 
   static <S, E, T0, T1, T2> Program<S, E, T2> chain(
       Program<S, E, T0> p0,
-      Function<T0, T1> p1,
-      Function<T1, T2> p2) {
+      Function<? super T0, ? extends T1> p1,
+      Function<? super T1, ? extends T2> p2) {
     return p0.map(p1).map(p2);
   }
 
   static <S, E, T0, T1, T2, T3> Program<S, E, T3> chain(
       Program<S, E, T0> p0,
-      Function<T0, T1> p1,
-      Function<T1, T2> p2,
-      Function<T2, T3> p3) {
+      Function<? super T0, ? extends T1> p1,
+      Function<? super T1, ? extends T2> p2,
+      Function<? super T2, ? extends T3> p3) {
     return p0.map(p1).map(p2).map(p3);
   }
 
   static <S, E, T0, T1, T2, T3, T4> Program<S, E, T4> chain(
       Program<S, E, T0> p0,
-      Function<T0, T1> p1,
-      Function<T1, T2> p2,
-      Function<T2, T3> p3,
-      Function<T3, T4> p4) {
+      Function<? super T0, ? extends T1> p1,
+      Function<? super T1, ? extends T2> p2,
+      Function<? super T2, ? extends T3> p3,
+      Function<? super T3, ? extends T4> p4) {
     return p0.map(p1).map(p2).map(p3).map(p4);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5> Program<S, E, T5> chain(
       Program<S, E, T0> p0,
-      Function<T0, T1> p1,
-      Function<T1, T2> p2,
-      Function<T2, T3> p3,
-      Function<T3, T4> p4,
-      Function<T4, T5> p5) {
+      Function<? super T0, ? extends T1> p1,
+      Function<? super T1, ? extends T2> p2,
+      Function<? super T2, ? extends T3> p3,
+      Function<? super T3, ? extends T4> p4,
+      Function<? super T4, ? extends T5> p5) {
     return p0.map(p1).map(p2).map(p3).map(p4).map(p5);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6> Program<S, E, T6> chain(
       Program<S, E, T0> p0,
-      Function<T0, T1> p1,
-      Function<T1, T2> p2,
-      Function<T2, T3> p3,
-      Function<T3, T4> p4,
-      Function<T4, T5> p5,
-      Function<T5, T6> p6) {
+      Function<? super T0, ? extends T1> p1,
+      Function<? super T1, ? extends T2> p2,
+      Function<? super T2, ? extends T3> p3,
+      Function<? super T3, ? extends T4> p4,
+      Function<? super T4, ? extends T5> p5,
+      Function<? super T5, ? extends T6> p6) {
     return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7> Program<S, E, T7> chain(
       Program<S, E, T0> p0,
-      Function<T0, T1> p1,
-      Function<T1, T2> p2,
-      Function<T2, T3> p3,
-      Function<T3, T4> p4,
-      Function<T4, T5> p5,
-      Function<T5, T6> p6,
-      Function<T6, T7> p7) {
+      Function<? super T0, ? extends T1> p1,
+      Function<? super T1, ? extends T2> p2,
+      Function<? super T2, ? extends T3> p3,
+      Function<? super T3, ? extends T4> p4,
+      Function<? super T4, ? extends T5> p5,
+      Function<? super T5, ? extends T6> p6,
+      Function<? super T6, ? extends T7> p7) {
     return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6).map(p7);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8> Program<S, E, T8> chain(
       Program<S, E, T0> p0,
-      Function<T0, T1> p1,
-      Function<T1, T2> p2,
-      Function<T2, T3> p3,
-      Function<T3, T4> p4,
-      Function<T4, T5> p5,
-      Function<T5, T6> p6,
-      Function<T6, T7> p7,
-      Function<T7, T8> p8) {
+      Function<? super T0, ? extends T1> p1,
+      Function<? super T1, ? extends T2> p2,
+      Function<? super T2, ? extends T3> p3,
+      Function<? super T3, ? extends T4> p4,
+      Function<? super T4, ? extends T5> p5,
+      Function<? super T5, ? extends T6> p6,
+      Function<? super T6, ? extends T7> p7,
+      Function<? super T7, ? extends T8> p8) {
     return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6).map(p7).map(p8);
   }
+
   static <S, E, T0, T1, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
