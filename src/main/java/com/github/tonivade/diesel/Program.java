@@ -486,6 +486,19 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Maps the program to a new program using the provided mapper functions for success and failure.
+   *
+   * @param mapFailure the function used to map the program in case of failure
+   * @param mapSuccess the function used to map the program in case of success
+   * @param <F> the type of the new program in case of failure
+   * @param <R> the type of the new program in case of success
+   * @return a new program representing the mapped computation
+   */
+  default <R, F> Program<S, F, R> bimap(Function<? super E, ? extends F> mapFailure, Function<? super T, ? extends R> mapSuccess) {
+    return foldMap(mapFailure.andThen(Program::failure), mapSuccess.andThen(Program::success));
+  }
+
+  /**
    * Chains the program with the next program using the provided next program.
    *
    * @param next the next program to be executed
@@ -599,7 +612,19 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the computation with retries and delay
    */
   default Program<S, E, T> retry(int retries, Duration delay) {
-    return retry(retries, sleep(delay, ForkJoinPool.commonPool()));
+    return retry(retries, sleep(delay));
+  }
+
+  /**
+   * Retries the program a specified number of times with a delay using the provided executor in case of failure.
+   *
+   * @param retries the number of retries
+   * @param delay the delay between retries
+   * @param executor the executor used to execute the delay
+   * @return a new program representing the computation with retries and delay
+   */
+  default Program<S, E, T> retry(int retries, Duration delay, Executor executor) {
+    return retry(retries, sleep(delay, executor));
   }
 
   /**
@@ -636,7 +661,19 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the computation repeated with delay
    */
   default Program<S, E, T> repeat(int times, Duration delay) {
-    return repeat(times, sleep(delay, ForkJoinPool.commonPool()));
+    return repeat(times, sleep(delay));
+  }
+
+  /**
+   * Repeats the program a specified number of times with a delay using the provided executor.
+   *
+   * @param times the number of times to repeat
+   * @param delay the delay between repetitions
+   * @param executor the executor used to execute the delay
+   * @return a new program representing the computation repeated with delay
+   */
+  default Program<S, E, T> repeat(int times, Duration delay, Executor executor) {
+    return repeat(times, sleep(delay, executor));
   }
 
   /**
@@ -708,6 +745,18 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Creates a new program that represents a sleep for the given duration using the common fork-join pool.
+   *
+   * @param duration the duration of the sleep
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing a sleep
+   */
+  static <S, E> Program<S, E, Void> sleep(Duration duration) {
+    return sleep(duration, ForkJoinPool.commonPool());
+  }
+
+  /**
    * Creates a new program that represents a sleep for the given duration using the provided executor.
    *
    * @param duration the duration of the sleep
@@ -720,7 +769,7 @@ public sealed interface Program<S, E, T> {
     return async((_, callback) -> {
       var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
       var future = CompletableFuture.runAsync(() -> {}, delayed);
-      future.whenCompleteAsync((_, _) -> callback.accept(Result.success(null), null));
+      future.whenCompleteAsync((_, _) -> callback.accept(Result.unit(), null));
     });
   }
 
