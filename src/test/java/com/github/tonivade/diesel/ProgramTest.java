@@ -32,13 +32,12 @@ import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
 
 import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
-@ExtendWith(MockitoExtension.class)
+@MockitoSettings
 class ProgramTest {
 
   Executor executor = Executors.newVirtualThreadPerTaskExecutor();
@@ -229,6 +228,17 @@ class ProgramTest {
     var result = program.eval(null);
 
     assertThat(result).isEqualTo(Result.success(10));
+  }
+
+  @Test
+  void shouldCatchExceptionFromTask() {
+    var program = Program.task(() -> {
+      throw new UnsupportedOperationException();
+    }).catchAll(_ -> Program.unit());
+
+    var result = program.eval(null);
+
+    assertThat(result).isEqualTo(Result.unit());
   }
 
   @Test

@@ -4,15 +4,15 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Trampoline.done;
-import static com.github.tonivade.diesel.Trampoline.more;
 import static java.util.function.Function.identity;
 
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -111,12 +111,7 @@ public sealed interface Program<S, E, T> {
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
       Function<E, Program<S, F, R>> onFailure,
-      Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {
-    private Trampoline<Result<F, R>> foldEval(@Nullable S state) {
-      return current.step(state)
-          .flatMap(result -> result.fold(onFailure, onSuccess).step(state));
-    }
-  }
+      Function<T, Program<S, F, R>> onSuccess) implements Program<S, F, R> {}
 
   /**
    * Represents an asynchronous computation within the program.
@@ -424,39 +419,57 @@ public sealed interface Program<S, E, T> {
    * @param state the state used to evaluate the program
    * @return the result of the evaluation
    */
+  @SuppressWarnings("unchecked")
   default Result<E, T> eval(@Nullable S state) {
-    return safeEval(state).run();
-  }
+    Program<S, ?, ?> current = this;
+    Deque<Function<Object, Program<S, ?, ?>>> failureStack = new ArrayDeque<>();
+    Deque<Function<Object, Program<S, ?, ?>>> successStack = new ArrayDeque<>();
+    Deque<Function<Throwable, Program<S, ?, ?>>> catchStack = new ArrayDeque<>();
 
-  private Trampoline<Result<E, T>> step(@Nullable S state) {
-    return more(() -> safeEval(state));
-  }
-
-  private Trampoline<Result<E, T>> safeEval(@Nullable S state) {
-    return switch (this) {
-      case Pure<S, E, T>(var result) -> done(result);
-      case Raise<S, E, T, ?>(var throwable) -> sneakyThrow(throwable.get());
-      case Catch<S, E, T>(var current, var recover) -> {
-        try {
-          yield current.safeEval(state);
-        } catch (Throwable t) {
-          yield recover.apply(t).step(state);
-        }
-      }
-      case Async<S, E, T>(var callback) -> {
-        var future = new CompletableFuture<Result<E, T>>();
-        callback.accept(state, (result, error) -> {
-          if (error != null) {
-            future.completeExceptionally(error);
-          } else {
-            future.complete(result);
+    while (true) {
+      try {
+        if (current instanceof Pure(Result<?, ?> result)) {
+          if (successStack.isEmpty() && failureStack.isEmpty()) {
+            return (Result<E, T>) result;
           }
-        });
-        yield done(future.join());
+          current = result.fold(
+              failureStack.pop()::apply,
+              successStack.pop()::apply);
+        } else if (current instanceof Effect(var mapper)) {
+          current = mapper.apply(state);
+        } else if (current instanceof Async(
+            BiConsumer<S, ? extends BiConsumer<? extends Result<?, ?>, Throwable>> callback)) {
+          var future = new CompletableFuture<Result<?, ?>>();
+          ((BiConsumer<S, BiConsumer<Result<?, ?>, Throwable>>) callback).accept(state, (result, error) -> {
+            if (error != null) {
+              future.completeExceptionally(error);
+            } else {
+              future.complete(result);
+            }
+          });
+          current = from(future.join());
+        } else if (current instanceof FoldMap(
+            Program<S, ?, ?> source,
+            Function<?, ? extends Program<S, ?, ?>> onFailure,
+            Function<?, ? extends Program<S, ?, ?>> onSuccess)) {
+          successStack.push((Function<Object, Program<S, ? ,?>>) onSuccess);
+          failureStack.push((Function<Object, Program<S, ?, ?>>) onFailure);
+          current = source;
+        } else if (current instanceof Raise(var throwable)) {
+          return sneakyThrow(throwable.get());
+        } else if (current instanceof Catch(
+            Program<S, ?, ?> source,
+            Function<Throwable, ? extends Program<S, ?, ?>> recover)) {
+          catchStack.push((Function<Throwable, Program<S, ?, ?>>) recover);
+          current = source;
+        }
+      } catch (Throwable e) {
+        if (catchStack.isEmpty()) {
+          return sneakyThrow(e);
+        }
+        current = catchStack.pop().apply(e);
       }
-      case FoldMap<S, ?, E, ?, T> foldMap -> foldMap.foldEval(state);
-      case Effect<S, E, T>(var mapper) -> mapper.apply(state).step(state);
-    };
+    }
   }
 
   /**
@@ -685,9 +698,21 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the delayed computation
    */
   static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
+    return delay(duration, supply(supplier), executor);
+  }
+
+  /**
+   * Delays the execution of the program using the provided duration, next program, and executor.
+   *
+   * @param duration the duration of the delay
+   * @param andThen the next program to be executed after the delay
+   * @param executor the executor used to execute the delay
+   * @return a new program representing the delayed computation
+   */
+  static <S, E, T> Program<S, E, T> delay(Duration duration, Program<S, E, T> andThen, Executor executor) {
     return pipe(
         sleep(duration, executor),
-        success(_ -> supplier.get())
+        _ -> andThen
       );
   }
 

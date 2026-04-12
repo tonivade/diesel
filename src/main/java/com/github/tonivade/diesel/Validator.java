@@ -181,7 +181,7 @@ public interface Validator<S, E, T> {
    * @return A Validator that uses the given Program and identity mapper
    */
   static <S, E, T> Validator<S, E, T> fromFailure(Program<S, E, ?> program) {
-    return fromFailure(program, Function.identity());
+    return fromFailure(program, identity());
   }
 
   /**

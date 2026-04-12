@@ -104,6 +104,11 @@ public final class Fiber<E, T> {
     return new Fiber<>(flatMapped);
   }
 
+  @Override
+  public String toString() {
+    return "Fiber [future=" + future + "]";
+  }
+
   /**
    * Waits for all the fibers to complete, returning a new fiber that will complete
    * when all the fibers have completed.
