@@ -444,11 +444,9 @@ public sealed interface Program<S, E, T> {
    * Evaluates the program without any state and returns the result, throwing an exception mapped from the error if the program fails.
    *
    * @param mapper the function used to map the error to an exception
-   * @param <X> the type of the exception to be thrown
    * @return the result of evaluating the program
-   * @throws X if the program fails with an error that can be mapped to an exception
    */
-  default <X extends Throwable> T getOrElseThrow(Function<? super E, X> mapper) throws X {
+  default T getOrElseThrow(Function<? super E, ? extends Throwable> mapper) {
     return eval(null).getOrElseThrow(mapper);
   }
 

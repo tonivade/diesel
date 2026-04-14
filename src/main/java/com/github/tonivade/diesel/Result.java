@@ -335,11 +335,9 @@ public sealed interface Result<F, S> {
    * Returns the success value of this result, throwing an exception if this is a failure.
    *
    * @param mapper The function used to map the failure value to an exception.
-   * @param <X> The type of the exception.
    * @return The success value of this result.
-   * @throws X If this is a failure.
    */
-  default <X extends Throwable> S getOrElseThrow(Function<? super F, X> mapper) throws X {
+  default S getOrElseThrow(Function<? super F, ? extends Throwable> mapper) {
     return fold(error -> sneakyThrow(mapper.apply(error)), identity());
   }
 
