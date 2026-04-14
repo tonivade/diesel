@@ -693,6 +693,15 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Forks the program to be executed asynchronously using the common fork-join pool.
+   *
+   * @return a new program representing the forked computation
+   */
+  default Program<S, E, Fiber<E, T>> fork() {
+    return fork(ForkJoinPool.commonPool());
+  }
+
+  /**
    * Forks the program to be executed asynchronously using the provided executor.
    *
    * @param executor the executor used to execute the program asynchronously
@@ -706,6 +715,16 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Adds a timeout to the program using the provided duration and the common fork-join pool.
+   *
+   * @param duration the duration of the timeout
+   * @return a new program representing the computation with timeout
+   */
+  default Program<S, E, T> timeout(Duration duration) {
+    return timeout(duration, ForkJoinPool.commonPool());
+  }
+
+  /**
    * Adds a timeout to the program using the provided duration and executor.
    *
    * @param duration the duration of the timeout
@@ -715,6 +734,37 @@ public sealed interface Program<S, E, T> {
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
     return either(sleep(duration, executor), this, executor)
       .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
+  }
+
+  /**
+   * Ensures that the finalizer program is executed after the current program, regardless of success or failure.
+   *
+   * @param finalizer the program to be executed as a finalizer
+   * @return a new program representing the computation with the finalizer
+   */
+  default Program<S, E, T> ensuring(Program<S, E, ?> finalizer) {
+    return foldMap(f -> finalizer.andThen(failure(f)), s -> finalizer.andThen(success(s)));
+  }
+
+  /**
+   * Delays the execution of the program using the provided duration and supplier, and the common fork-join pool.
+   *
+   * @param duration the duration of the delay
+   * @param supplier the supplier of the value to be returned after the delay
+   * @return a new program representing the delayed computation
+   */
+  static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier) {
+    return delay(duration, supply(supplier));
+  }
+
+  /**
+   * Delays the execution of the program using the provided duration and the common fork-join pool.
+   *
+   * @param duration the duration of the delay
+   * @return a new program representing the delayed computation
+   */
+  static <S, E, T> Program<S, E, T> delay(Duration duration, Program<S, E, T> program) {
+    return delay(duration, program, ForkJoinPool.commonPool());
   }
 
   /**
@@ -733,14 +783,14 @@ public sealed interface Program<S, E, T> {
    * Delays the execution of the program using the provided duration, next program, and executor.
    *
    * @param duration the duration of the delay
-   * @param andThen the next program to be executed after the delay
+   * @param program the next program to be executed after the delay
    * @param executor the executor used to execute the delay
    * @return a new program representing the delayed computation
    */
-  static <S, E, T> Program<S, E, T> delay(Duration duration, Program<S, E, T> andThen, Executor executor) {
+  static <S, E, T> Program<S, E, T> delay(Duration duration, Program<S, E, T> program, Executor executor) {
     return pipe(
         sleep(duration, executor),
-        _ -> andThen
+        _ -> program
       );
   }
 
@@ -774,7 +824,7 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
-   * Chains all the given programs sequentially.
+   * Chains all the given programs sequentially ignoring all their results.
    *
    * @param programs the programs to be chained
    * @param <S> the type of the state
@@ -787,6 +837,20 @@ public sealed interface Program<S, E, T> {
       return unit();
     }
     return programs[0].andThen(chainAll(Arrays.copyOfRange(programs, 1, programs.length)));
+  }
+
+  /**
+   * Executes all the given programs in parallel using the common fork-join pool and ignores all their results.
+   *
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the parallel computation
+   */
+  @SafeVarargs
+  static <S, E, T> Program<S, E, Void> parAll(Program<S, E, T>... programs) {
+    return parAll(ForkJoinPool.commonPool(), programs);
   }
 
   /**
@@ -833,6 +897,33 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Sequences a collection of programs into a single program containing a collection of success values.
+   *
+   * @param programs the programs to be forked
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a collection of forked programs
+   */
+  static <S, E, T> Program<S, E, Collection<T>> sequence(Collection<Program<S, E, T>> programs) {
+    return traverse(identity(), programs);
+  }
+  /**
+   * Executes a collection of programs in parallel using the common fork-join pool and sequences
+   * their results into a single program containing a collection of success values.
+   *
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the parallel computation with sequenced results
+   */
+  @SafeVarargs
+  static <S, E, T> Program<S, E, Collection<T>> parSequence(Program<S, E, T>... programs) {
+    return parSequence(ForkJoinPool.commonPool(), programs);
+  }
+
+  /**
    * Executes a collection of programs in parallel using the provided executor
    * and sequences their results into a single program containing a collection of success values.
    *
@@ -861,19 +952,6 @@ public sealed interface Program<S, E, T> {
           }
         })
         .flatMap(Fiber::join);
-  }
-
-  /**
-   * Sequences a collection of programs into a single program containing a collection of success values.
-   *
-   * @param programs the programs to be forked
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a collection of forked programs
-   */
-  static <S, E, T> Program<S, E, Collection<T>> sequence(Collection<Program<S, E, T>> programs) {
-    return traverse(identity(), programs);
   }
 
   /**
@@ -913,10 +991,6 @@ public sealed interface Program<S, E, T> {
         (_, _) -> {
           throw new UnsupportedOperationException("Parallel stream not supported");
         });
-  }
-
-  private static <S, E, R> Program<S, E, Collection<R>> append(Program<S, E, Collection<R>> acc, Program<S, E, R> value) {
-    return zip(acc, value, Program::append);
   }
 
   /**
@@ -960,7 +1034,8 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a new program representing the computation with error handling
    */
-  static <S, E, F, T> Program<S, F, T> recover(Program<S, E, T> program, Function<? super E, ? extends Program<S, F, T>> recover) {
+  static <S, E, F, T> Program<S, F, T> recover(Program<S, E, T> program,
+      Function<? super E, ? extends Program<S, F, T>> recover) {
     return program.flatMapError(recover);
   }
 
@@ -975,7 +1050,8 @@ public sealed interface Program<S, E, T> {
    * @param <R> the type of the result
    * @return a function that branches the program based on a condition
    */
-  static <S, E, T, R> Function<T, Program<S, E, R>> branch(Predicate<? super T> condition, Supplier<? extends Program<S, E, R>> onTrue, Supplier<? extends Program<S, E, R>> otherwise) {
+  static <S, E, T, R> Function<T, Program<S, E, R>> branch(
+      Predicate<? super T> condition, Supplier<? extends Program<S, E, R>> onTrue, Supplier<? extends Program<S, E, R>> otherwise) {
     return branch(onTrue, otherwise).compose(condition::test);
   }
 
@@ -988,7 +1064,8 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    * @return a function that branches the program based on a boolean condition
    */
-  static <S, E, T> Function<Boolean, Program<S, E, T>> branch(Supplier<? extends Program<S, E, T>> onTrue, Supplier<? extends Program<S, E, T>> otherwise) {
+  static <S, E, T> Function<Boolean, Program<S, E, T>> branch(
+      Supplier<? extends Program<S, E, T>> onTrue, Supplier<? extends Program<S, E, T>> otherwise) {
     return result -> {
       if (result) {
         return onTrue.get();
@@ -1483,6 +1560,90 @@ public sealed interface Program<S, E, T> {
         .flatMap(Fiber::join);
   }
 
+  static <S, E, T0, T1, R> Program<S, E, R> parZip(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Finisher2<T0, T1, R> finisher) {
+    return parZip(p0, p1, finisher, ForkJoinPool.commonPool());
+  }
+
+  static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Finisher3<T0, T1, T2, R> finisher) {
+    return parZip(p0, p1, p2, finisher, ForkJoinPool.commonPool());
+  }
+
+  static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Finisher4<T0, T1, T2, T3, R> finisher) {
+    return parZip(p0, p1, p2, p3, finisher, ForkJoinPool.commonPool());
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Finisher5<T0, T1, T2, T3, T4, R> finisher) {
+    return parZip(p0, p1, p2, p3, p4, finisher, ForkJoinPool.commonPool());
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Finisher6<T0, T1, T2, T3, T4, T5, R> finisher) {
+    return parZip(p0, p1, p2, p3, p4, p5, finisher, ForkJoinPool.commonPool());
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher) {
+    return parZip(p0, p1, p2, p3, p4, p5, p6, finisher, ForkJoinPool.commonPool());
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher) {
+    return parZip(p0, p1, p2, p3, p4, p5, p6, p7, finisher, ForkJoinPool.commonPool());
+  }
+
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Program<S, E, T8> p8,
+      Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher) {
+    return parZip(p0, p1, p2, p3, p4, p5, p6, p7, p8, finisher, ForkJoinPool.commonPool());
+  }
+
   // end generated code
 
   record ElapsedTime<T>(Duration duration, T value) {}
@@ -1507,6 +1668,10 @@ public sealed interface Program<S, E, T> {
   @SuppressWarnings("unchecked")
   private static <S, E, T> Program<S, E, T> narrow(Program<S, E, ? extends T> program) {
     return (Program<S, E, T>) program;
+  }
+
+  private static <S, E, R> Program<S, E, Collection<R>> append(Program<S, E, Collection<R>> acc, Program<S, E, R> value) {
+    return zip(acc, value, Program::append);
   }
 
   private static <T> Collection<T> append(Collection<T> list, T value) {

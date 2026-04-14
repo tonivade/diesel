@@ -73,6 +73,14 @@ static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, 
 }
 """)
 
+program_parzip_forkjoin_template = environment.from_string("""
+static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> parZip(
+  {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
+  {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher) {
+    return parZip({% for i in range(value) %}p{{ i }}, {% endfor %}finisher, ForkJoinPool.commonPool());
+}
+""")
+
 program_pipe_template = environment.from_string("""
 static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Program<S, E, T{{ value - 1}}> pipe(
   Program<S, E, T0> p0,
@@ -110,6 +118,10 @@ for i in range(2, 10):
 print(">>>> program parzip")
 for i in range(2, 10):
   print(program_parzip_template.render(value=i))
+
+print(">>>> program parzip fork join")
+for i in range(2, 10):
+  print(program_parzip_forkjoin_template.render(value=i))
 
 print(">>>> program pipe")
 for i in range(2, 10):
