@@ -72,10 +72,10 @@ class ProgramTest {
   }
 
   @Test
-  void shouldBeStackSafety(@Mock TestDsl.Service service) {
+  void shouldBeStackSafety() {
     var sum = safeSum(100000, 0);
 
-    var result = sum.eval(service);
+    var result = sum.eval(null);
 
     assertThat(result).isEqualTo(success(705082704));
   }
@@ -317,7 +317,7 @@ class ProgramTest {
     return unsafeSum(n - 1, n + sum);
   }
 
-  static Program<TestDsl.Service, TestDsl.Error, Integer> safeSum(Integer n, Integer sum) {
+  static Program<?, ?, Integer> safeSum(Integer n, Integer sum) {
     if (n == 0) {
       return Program.success(sum);
     }
