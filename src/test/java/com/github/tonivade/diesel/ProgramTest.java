@@ -6,13 +6,17 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.chainAll;
 import static com.github.tonivade.diesel.Program.delay;
+import static com.github.tonivade.diesel.Program.either;
 import static com.github.tonivade.diesel.Program.parAll;
 import static com.github.tonivade.diesel.Program.parSequence;
+import static com.github.tonivade.diesel.Program.parZip;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.sequence;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.supply;
+import static com.github.tonivade.diesel.Program.task;
+import static com.github.tonivade.diesel.Program.zip;
 import static com.github.tonivade.diesel.Result.failure;
 import static com.github.tonivade.diesel.Result.success;
 import static java.util.function.Predicate.not;
@@ -25,8 +29,6 @@ import static org.mockito.Mockito.when;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
@@ -39,8 +41,6 @@ import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 @MockitoSettings
 class ProgramTest {
-
-  Executor executor = Executors.newVirtualThreadPerTaskExecutor();
 
   @Test
   void shouldRepeat(@Mock TestDsl.Service service) {
@@ -75,9 +75,9 @@ class ProgramTest {
   void shouldBeStackSafety() {
     var sum = safeSum(100000, 0);
 
-    var result = sum.eval(null);
+    var result = sum.getOrElseThrow();
 
-    assertThat(result).isEqualTo(success(705082704));
+    assertThat(result).isEqualTo(705082704);
   }
 
   @Test
@@ -89,9 +89,9 @@ class ProgramTest {
   void shouldSleep() {
     var duration = Duration.ofSeconds(2);
 
-    var result = sleep(duration, executor).timed().eval(null);
+    var result = sleep(duration).timed().getOrElseThrow();
 
-    assertThat(result.getOrElseThrow().duration())
+    assertThat(result.duration())
       .isCloseTo(duration, Duration.ofMillis(100));
   }
 
@@ -99,77 +99,77 @@ class ProgramTest {
   void shouldDelay() {
     var duration = Duration.ofSeconds(2);
 
-    var result = delay(duration, () -> 10, executor).timed().eval(null);
+    var result = delay(duration, () -> 10).timed().getOrElseThrow();
 
-    assertThat(result.getOrElseThrow().duration())
+    assertThat(result.duration())
       .isCloseTo(duration, Duration.ofMillis(100));
-    assertThat(result.getOrElseThrow().value())
+    assertThat(result.value())
       .isEqualTo(10);
   }
 
   @Test
   void shouldSerialize() {
-    var p1 = delay(Duration.ofSeconds(2), () -> 10, executor);
-    var p2 = delay(Duration.ofSeconds(2), () -> "hello", executor);
+    var p1 = delay(Duration.ofSeconds(2), () -> 10);
+    var p2 = delay(Duration.ofSeconds(2), () -> "hello");
 
-    var result = Program.zip(p1, p2, Tuple::new).timed().eval(null);
+    var result = zip(p1, p2, Tuple::new).timed().getOrElseThrow();
 
-    assertThat(result.getOrElseThrow().duration())
+    assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(4), Duration.ofMillis(100));
-    assertThat(result.getOrElseThrow().value())
+    assertThat(result.value())
       .isEqualTo(new Tuple<>(10, "hello"));
   }
 
   @Test
   void shouldParallelize() {
-    var p1 = delay(Duration.ofSeconds(2), () -> 10, executor);
-    var p2 = delay(Duration.ofSeconds(2), () -> "hello", executor);
+    var p1 = delay(Duration.ofSeconds(2), () -> 10);
+    var p2 = delay(Duration.ofSeconds(2), () -> "hello");
 
-    var result = Program.parZip(p1, p2, Tuple::new, executor).timed().eval(null);
+    var result = parZip(p1, p2, Tuple::new).timed().getOrElseThrow();
 
-    assertThat(result.getOrElseThrow().duration())
+    assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
-    assertThat(result.getOrElseThrow().value())
+    assertThat(result.value())
       .isEqualTo(new Tuple<>(10, "hello"));
   }
 
   @Test
   void shouldRace() {
-    var p1 = delay(Duration.ofSeconds(20), () -> 10, executor);
-    var p2 = delay(Duration.ofSeconds(2), () -> "hello", executor);
+    var p1 = delay(Duration.ofSeconds(20), () -> 10);
+    var p2 = delay(Duration.ofSeconds(2), () -> "hello");
 
-    var result = Program.either(p1, p2, executor).timed().eval(null);
+    var result = either(p1, p2).timed().getOrElseThrow();
 
-    assertThat(result.getOrElseThrow().duration())
+    assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
-    assertThat(result.getOrElseThrow().value())
+    assertThat(result.value())
       .isEqualTo(Either.right("hello"));
   }
 
   @Test
   void shouldTimeout() {
-    var p1 = delay(Duration.ofSeconds(20), () -> 10, executor);
-    var p2 = p1.timeout(Duration.ofSeconds(1), executor);
+    var p1 = delay(Duration.ofSeconds(20), () -> 10);
+    var p2 = p1.timeout(Duration.ofSeconds(1));
 
-    assertThatThrownBy(() -> p2.eval(null))
+    assertThatThrownBy(() -> p2.getOrElseThrow())
       .isInstanceOf(TimeoutException.class);
   }
 
   @Test
   void shouldNotTimeout() {
-    var p1 = delay(Duration.ofSeconds(2), () -> 10, executor);
-    var p2 = p1.timeout(Duration.ofSeconds(10), executor);
+    var p1 = delay(Duration.ofSeconds(2), () -> 10);
+    var p2 = p1.timeout(Duration.ofSeconds(10));
 
-    var result = p2.eval(null);
+    var result = p2.getOrElseThrow();
 
-    assertThat(result).isEqualTo(Result.success(10));
+    assertThat(result).isEqualTo(10);
   }
 
   @Test
   void shouldRaiseException() {
     var program = raise(UnsupportedOperationException::new);
 
-    assertThatThrownBy(() -> program.eval(null))
+    assertThatThrownBy(() -> program.getOrElseThrow())
       .isInstanceOf(UnsupportedOperationException.class);
   }
 
@@ -177,7 +177,7 @@ class ProgramTest {
   void shouldExecuteAllPrograms(@Mock Supplier<String> supplier) {
     when(supplier.get()).thenReturn("hi!");
 
-    chainAll(supply(supplier), supply(supplier), supply(supplier)).eval(null);
+    chainAll(supply(supplier), supply(supplier), supply(supplier)).getOrElseThrow();
 
     verify(supplier, times(3)).get();
   }
@@ -186,9 +186,9 @@ class ProgramTest {
   void shouldExecuteAllProgramsAndCollectsResult(@Mock Supplier<String> supplier) {
     when(supplier.get()).thenReturn("1", "2", "3");
 
-    var result = sequence(supply(supplier), supply(supplier), supply(supplier)).eval(null);
+    var result = sequence(supply(supplier), supply(supplier), supply(supplier)).getOrElseThrow();
 
-    assertThat(result).isEqualTo(Result.success(List.of("1", "2", "3")));
+    assertThat(result).isEqualTo(List.of("1", "2", "3"));
     verify(supplier, times(3)).get();
   }
 
@@ -196,12 +196,12 @@ class ProgramTest {
   void shouldExecuteAllProgramsInParallel(@Mock Supplier<String> supplier) {
     when(supplier.get()).thenReturn("hi!");
 
-    var result = parAll(executor,
-        delay(Duration.ofSeconds(1), supplier, executor),
-        delay(Duration.ofSeconds(2), supplier, executor),
-        delay(Duration.ofSeconds(3), supplier, executor)).timed().eval(null);
+    var result = parAll(
+        delay(Duration.ofSeconds(1), supplier),
+        delay(Duration.ofSeconds(2), supplier),
+        delay(Duration.ofSeconds(3), supplier)).timed().getOrElseThrow();
 
-    assertThat(result.getOrElseThrow().duration())
+    assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
     verify(supplier, times(3)).get();
   }
@@ -210,14 +210,14 @@ class ProgramTest {
   void shouldExecuteAllProgramsInParallelAndCollectsResult(@Mock Supplier<String> supplier) {
     when(supplier.get()).thenReturn("1", "2", "3");
 
-    var result = parSequence(executor,
-        delay(Duration.ofSeconds(1), supplier, executor),
-        delay(Duration.ofSeconds(2), supplier, executor),
-        delay(Duration.ofSeconds(3), supplier, executor)).timed().eval(null);
+    var result = parSequence(
+        delay(Duration.ofSeconds(1), supplier),
+        delay(Duration.ofSeconds(2), supplier),
+        delay(Duration.ofSeconds(3), supplier)).timed().getOrElseThrow();
 
-    assertThat(result.getOrElseThrow().duration())
+    assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
-    assertThat(result.getOrElseThrow().value()).isEqualTo(List.of("1", "2", "3"));
+    assertThat(result.value()).isEqualTo(List.of("1", "2", "3"));
     verify(supplier, times(3)).get();
   }
 
@@ -225,20 +225,20 @@ class ProgramTest {
   void shouldCatchException() {
     var program = raise(UnsupportedOperationException::new).catchAll(_ -> Program.success(10));
 
-    var result = program.eval(null);
+    var result = program.getOrElseThrow();
 
-    assertThat(result).isEqualTo(Result.success(10));
+    assertThat(result).isEqualTo(10);
   }
 
   @Test
   void shouldCatchExceptionFromTask() {
-    var program = Program.task(() -> {
-      throw new UnsupportedOperationException();
-    }).catchAll(_ -> Program.unit());
+    var program = task(() -> {
+        throw new UnsupportedOperationException();
+      }).catchAll(_ -> Program.unit());
 
-    var result = program.eval(null);
+    var result = program.getOrElseThrow();
 
-    assertThat(result).isEqualTo(Result.unit());
+    assertThat(result).isNull();
   }
 
   @Test
@@ -262,9 +262,9 @@ class ProgramTest {
   void shouldReleaseResource(@Mock AutoCloseable resource) throws Exception {
     var program = Program.bracket(() -> resource, Program::success);
 
-    var result = program.eval(null);
+    var result = program.getOrElseThrow();
 
-    assertThat(result).isEqualTo(Result.success(resource));
+    assertThat(result).isEqualTo(resource);
     verify(resource).close();
   }
 

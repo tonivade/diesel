@@ -339,7 +339,7 @@ public sealed interface Result<F, S> {
    * @return The success value of this result.
    * @throws X If this is a failure.
    */
-  default <X extends Throwable> S getOrElseThrow(Function<F, X> mapper) throws X {
+  default <X extends Throwable> S getOrElseThrow(Function<? super F, X> mapper) throws X {
     return fold(error -> sneakyThrow(mapper.apply(error)), identity());
   }
 

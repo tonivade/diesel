@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -380,6 +381,21 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
+   * Creates a new program that represents an either of two programs executed in parallel using the common fork-join pool.
+   *
+   * @param p1 the first program
+   * @param p2 the second program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result of the first program
+   * @param <U> the type of the result of the second program
+   * @return a new program representing an either of the two programs
+   */
+  static <S, E, T, U> Program<S, E, Either<T, U>> either(Program<S, E, T> p1, Program<S, E, U> p2) {
+    return either(p1, p2, ForkJoinPool.commonPool());
+  }
+
+  /**
    * Creates a new program that represents an either of two programs executed in parallel using the provided executor.
    *
    * @param p1 the first program
@@ -392,9 +408,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing an either of the two programs
    */
   static <S, E, T, U> Program<S, E, Either<T, U>> either(
-      Program<S, E, T> p1,
-      Program<S, E, U> p2,
-      Executor executor) {
+      Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
     return zip(p1.fork(executor), p2.fork(executor), Fiber::either).flatMap(Fiber::join);
   }
 
@@ -410,6 +424,32 @@ public sealed interface Program<S, E, T> {
    */
   static <S, E, T> Result<E, Collection<T>> evalAll(@Nullable S state, Collection<Program<S, E, T>> programs) {
     return Result.traverse(programs, p -> p.eval(state));
+  }
+
+  /**
+   * Evaluates the program without any state and returns the result, throwing an exception if the program fails.
+   *
+   * @return the result of evaluating thr program
+   */
+  default T getOrElseThrow() {
+    return getOrElseThrow(e -> {
+      if (e instanceof Throwable throwable) {
+        return sneakyThrow(throwable);
+      }
+      return sneakyThrow(new NoSuchElementException());
+    });
+  }
+
+  /**
+   * Evaluates the program without any state and returns the result, throwing an exception mapped from the error if the program fails.
+   *
+   * @param mapper the function used to map the error to an exception
+   * @param <X> the type of the exception to be thrown
+   * @return the result of evaluating the program
+   * @throws X if the program fails with an error that can be mapped to an exception
+   */
+  default <X extends Throwable> T getOrElseThrow(Function<? super E, X> mapper) throws X {
+    return eval(null).getOrElseThrow(mapper);
   }
 
   /**
