@@ -310,14 +310,14 @@ class ProgramTest {
     }
   }
 
-  static Integer unsafeSum(Integer n, Integer sum) {
+  static Integer unsafeSum(int n, int sum) {
     if (n == 0) {
       return sum;
     }
     return unsafeSum(n - 1, n + sum);
   }
 
-  static Program<?, ?, Integer> safeSum(Integer n, Integer sum) {
+  static Program<?, ?, Integer> safeSum(int n, int sum) {
     if (n == 0) {
       return Program.success(sum);
     }
