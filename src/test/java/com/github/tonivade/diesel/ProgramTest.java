@@ -4,9 +4,12 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Program.bracket;
 import static com.github.tonivade.diesel.Program.chainAll;
 import static com.github.tonivade.diesel.Program.delay;
+import static com.github.tonivade.diesel.Program.effectR;
 import static com.github.tonivade.diesel.Program.either;
+import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.parAll;
 import static com.github.tonivade.diesel.Program.parSequence;
 import static com.github.tonivade.diesel.Program.parZip;
@@ -14,11 +17,12 @@ import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.sequence;
 import static com.github.tonivade.diesel.Program.sleep;
+import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
+import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
+import static com.github.tonivade.diesel.Program.unit;
 import static com.github.tonivade.diesel.Program.zip;
-import static com.github.tonivade.diesel.Result.failure;
-import static com.github.tonivade.diesel.Result.success;
 import static java.util.function.Predicate.not;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,7 +48,7 @@ class ProgramTest {
 
   @Test
   void shouldRepeat(@Mock TestDsl.Service service) {
-    when(service.operation()).thenReturn(success(1));
+    when(service.operation()).thenReturn(Result.success(1));
 
     newOperation().repeat(3).eval(service);
 
@@ -53,7 +57,7 @@ class ProgramTest {
 
   @Test
   void shouldRetry(@Mock TestDsl.Service service) {
-    when(service.operation()).thenReturn(failure(newUnknownError()));
+    when(service.operation()).thenReturn(Result.failure(newUnknownError()));
 
     newOperation().retry(3).eval(service);
 
@@ -63,8 +67,8 @@ class ProgramTest {
   @Test
   void shouldRetryOnlyIfFails(@Mock TestDsl.Service service) {
     when(service.operation())
-      .thenReturn(failure(newUnknownError()))
-      .thenReturn(success(1));
+      .thenReturn(Result.failure(newUnknownError()))
+      .thenReturn(Result.success(1));
 
     newOperation().retry(3).eval(service);
 
@@ -223,7 +227,7 @@ class ProgramTest {
 
   @Test
   void shouldCatchException() {
-    var program = raise(UnsupportedOperationException::new).catchAll(_ -> Program.success(10));
+    var program = raise(UnsupportedOperationException::new).catchAll(_ -> success(10));
 
     var result = program.getOrElseThrow();
 
@@ -234,7 +238,7 @@ class ProgramTest {
   void shouldCatchExceptionFromTask() {
     var program = task(() -> {
         throw new UnsupportedOperationException();
-      }).catchAll(_ -> Program.unit());
+      }).catchAll(_ -> unit());
 
     var result = program.getOrElseThrow();
 
@@ -260,7 +264,7 @@ class ProgramTest {
 
   @Test
   void shouldReleaseResource(@Mock AutoCloseable resource) throws Exception {
-    var program = Program.bracket(() -> resource, Program::success);
+    var program = bracket(() -> resource, Program::success);
 
     var result = program.getOrElseThrow();
 
@@ -270,7 +274,7 @@ class ProgramTest {
 
   @Test
   void shouldReleaseResourceOnFailure(@Mock AutoCloseable resource) throws Exception {
-    var program = Program.bracket(() -> resource, _ -> Program.failure(new UnsupportedOperationException()));
+    var program = bracket(() -> resource, _ -> failure(new UnsupportedOperationException()));
 
     var result = program.eval(null);
 
@@ -281,19 +285,19 @@ class ProgramTest {
   @Test
   void shouldRecoverFromError(@Mock TestDsl.Service service) {
     when(service.operation())
-      .thenReturn(failure(newUnknownError()));
+      .thenReturn(Result.failure(newUnknownError()));
 
-    var program = recover(newOperation(), _ -> Program.success(1));
+    var program = recover(newOperation(), _ -> success(1));
 
     var result = program.eval(service);
 
-    assertThat(result).isEqualTo(success(1));
+    assertThat(result).isEqualTo(Result.success(1));
   }
 
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
   static Program<TestDsl.Service, TestDsl.Error, Integer> newOperation() {
-    return Program.effectR(TestDsl.Service::operation);
+    return effectR(TestDsl.Service::operation);
   }
 
   static UnknownError newUnknownError() {
@@ -319,8 +323,8 @@ class ProgramTest {
 
   static Program<?, ?, Integer> safeSum(int n, int sum) {
     if (n == 0) {
-      return Program.success(sum);
+      return success(sum);
     }
-    return Program.suspend(() -> safeSum(n - 1, n + sum));
+    return suspend(() -> safeSum(n - 1, n + sum));
   }
 }

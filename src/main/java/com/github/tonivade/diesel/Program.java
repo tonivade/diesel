@@ -1152,11 +1152,11 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T> acquire,
       Function<? super T, ? extends Program<S, E, R>> use,
       Function<? super T, ? extends Program<S, E, Void>> release) {
-    return acquire.flatMap(resource ->
-        use.apply(resource).flatMap(result ->
-            release.apply(resource).andThen(success(result))
-        ).flatMapError(e -> release.apply(resource).andThen(failure(e))
-        )
+    return pipe(
+        acquire,
+        resource -> use.apply(resource).foldMap(
+            e -> release.apply(resource).andThen(failure(e)),
+            t -> release.apply(resource).andThen(success(t)))
     );
   }
 
