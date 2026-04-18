@@ -184,7 +184,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a successful computation
    */
   static <S, E, T> Program<S, E, T> success(@Nullable T value) {
-    return new Pure<>(Result.success(value));
+    return from(Result.success(value));
   }
 
   /**
@@ -197,7 +197,7 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing a failed computation
    */
   static <S, E, T> Program<S, E, T> failure(E error) {
-    return new Pure<>(Result.failure(error));
+    return from(Result.failure(error));
   }
 
   /**
@@ -1021,7 +1021,8 @@ public sealed interface Program<S, E, T> {
    * @param <R> the type of the result
    * @return a new program representing the traversed computation with sequenced results
    */
-  static <S, E, T, R> Program<S, E, Collection<R>> traverse(Function<? super T, ? extends Program<S, E, R>> function, Collection<T> values) {
+  static <S, E, T, R> Program<S, E, Collection<R>> traverse(
+      Function<? super T, ? extends Program<S, E, R>> function, Collection<T> values) {
     Program<S, E, Collection<R>> initial = success(new ArrayList<>());
     return values.stream().reduce(
         initial,
