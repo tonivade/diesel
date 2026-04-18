@@ -85,6 +85,15 @@ class ProgramTest {
   }
 
   @Test
+  void shouldGenerateFibSequence() {
+    var fib10 = fib(10);
+
+    var result = fib10.getOrElseThrow();
+
+    assertThat(result).isEqualTo(89);
+  }
+
+  @Test
   void testUnsafe() {
     assertThatThrownBy(() -> unsafeSum(100000, 0)).isInstanceOf(StackOverflowError.class);
   }
@@ -314,17 +323,29 @@ class ProgramTest {
     }
   }
 
-  static Integer unsafeSum(int n, int sum) {
+  static int unsafeSum(int n, int sum) {
     if (n == 0) {
       return sum;
     }
     return unsafeSum(n - 1, n + sum);
   }
 
-  static Program<?, ?, Integer> safeSum(int n, int sum) {
+  static Program<Void, Void, Integer> safeSum(int n, int sum) {
     if (n == 0) {
       return success(sum);
     }
     return suspend(() -> safeSum(n - 1, n + sum));
+  }
+
+  static Program<Void, Void, Integer> fib(int n) {
+    if (n == 0) {
+      return success(1);
+    }
+    if (n == 1) {
+      return success(1);
+    }
+    var fib2 = suspend(() -> fib(n - 2));
+    var fib1 = suspend(() -> fib(n - 1));
+    return zip(fib1, fib2, Integer::sum);
   }
 }
