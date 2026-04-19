@@ -376,12 +376,12 @@ class ProgramTest {
   }
 
   Function<Integer, Program<Void, Void, Integer>> fibMemoized =
-    memoizeRecursive(self -> n -> {
-      if (n == 0 || n == 1) {
-        return success(1);
-      }
-    var fib2 = suspend(() -> self.apply(n - 2));
-    var fib1 = suspend(() -> self.apply(n - 1));
-    return zip(fib2, fib1, Integer::sum);
-    });
+      memoizeRecursive(self -> n -> {
+        if (n == 0 || n == 1) {
+          return success(1);
+        }
+        var fib2 = suspend(() -> self.apply(n - 2));
+        var fib1 = suspend(() -> self.apply(n - 1));
+        return zip(fib2, fib1, Integer::sum);
+      });
 }
