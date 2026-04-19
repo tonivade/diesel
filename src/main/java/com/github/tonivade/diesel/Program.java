@@ -241,7 +241,8 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
-   * Creates a new program that represents a computation that attempts to execute the given supplier and maps any exceptions to errors using the provided function.
+   * Creates a new program that represents a computation that attempts to execute the given supplier and maps any
+   * exceptions to errors using the provided function.
    *
    * @param supplier the supplier of the value
    * @param mapError the function used to map exceptions to errors
@@ -441,7 +442,8 @@ public sealed interface Program<S, E, T> {
   }
 
   /**
-   * Evaluates the program without any state and returns the result, throwing an exception mapped from the error if the program fails.
+   * Evaluates the program without any state and returns the result, throwing an exception mapped from the error if
+   * the program fails.
    *
    * @param mapper the function used to map the error to an exception
    * @return the result of evaluating the program
@@ -532,8 +534,11 @@ public sealed interface Program<S, E, T> {
    * @param <R> the type of the new program in case of success
    * @return a new program representing the mapped computation
    */
-  default <R, F> Program<S, F, R> bimap(Function<? super E, ? extends F> mapFailure, Function<? super T, ? extends R> mapSuccess) {
-    return foldMap(mapFailure.andThen(Program::failure), mapSuccess.andThen(Program::success));
+  default <R, F> Program<S, F, R> bimap(
+      Function<? super E, ? extends F> mapFailure, Function<? super T, ? extends R> mapSuccess) {
+    return foldMap(
+        mapFailure.andThen(Program::failure),
+        mapSuccess.andThen(Program::success));
   }
 
   /**
@@ -781,7 +786,9 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the computation with the finalizer
    */
   default Program<S, E, T> ensuring(Program<S, E, ?> finalizer) {
-    return foldMap(f -> finalizer.andThen(failure(f)), s -> finalizer.andThen(success(s)));
+    return foldMap(
+        f -> finalizer.andThen(failure(f)),
+        s -> finalizer.andThen(success(s)));
   }
 
   /**
@@ -1005,7 +1012,8 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the traversed computation with sequenced results
    */
   @SafeVarargs
-  static <S, E, T, R> Program<S, E, Collection<R>> traverse(Function<? super T, ? extends Program<S, E, R>> function, T... values) {
+  static <S, E, T, R> Program<S, E, Collection<R>> traverse(
+      Function<? super T, ? extends Program<S, E, R>> function, T... values) {
     return traverse(function, List.of(values));
   }
 
@@ -1059,7 +1067,9 @@ public sealed interface Program<S, E, T> {
   @SafeVarargs
   static <S, E, T> Program<S, Collection<E>, T> validate(T value, Validator<S, E, T>... validators) {
     return traverse(v -> v.apply(value), validators)
-        .foldMap(_ -> success(value), result -> Validation.combine(result).fold(() -> success(value), Program::failure));
+        .foldMap(
+            _ -> success(value),
+            result -> Validation.combine(result).fold(() -> success(value), Program::failure));
   }
 
   /**
