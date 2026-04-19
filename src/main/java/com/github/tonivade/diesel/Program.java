@@ -6,29 +6,6 @@ package com.github.tonivade.diesel;
 
 import static java.util.function.Function.identity;
 
-import java.lang.reflect.UndeclaredThrowableException;
-import java.time.Duration;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Deque;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
-
-import org.jspecify.annotations.Nullable;
-
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
 import com.github.tonivade.diesel.function.Finisher4;
@@ -37,6 +14,32 @@ import com.github.tonivade.diesel.function.Finisher6;
 import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
+
+import java.lang.reflect.UndeclaredThrowableException;
+import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import org.jspecify.annotations.Nullable;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
@@ -134,6 +137,24 @@ public sealed interface Program<S, E, T> {
    * @param <T> the type of the result
    */
   record Effect<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {}
+
+  final class Memoized<S, E, T> implements Program<S, E, T> {
+
+    private final Program<S, E, T> current;
+    private final AtomicReference<Result<E, T>> cache = new AtomicReference<>();
+
+    public Memoized(Program<S, E, T> current) {
+      this.current = current;
+    }
+
+    public Result<E, T> get() {
+      return cache.get();
+    }
+
+    public void set(Result<E, T> result) {
+      cache.set(result);
+    }
+  }
 
   /**
    * Creates a new program that represents a computation that can be executed in a specific context.
@@ -493,6 +514,21 @@ public sealed interface Program<S, E, T> {
         } else if (current instanceof Catch(var source, var recover)) {
           catchStack.push((Function<Throwable, Program<S, ?, ?>>) recover);
           current = source;
+        } else if (current instanceof Memoized memoized) {
+          var result = memoized.get();
+          if (result != null) {
+            current = Program.from(result);
+          } else {
+            successStack.push(value -> {
+              memoized.set(Result.success(value));
+              return Program.success(value);
+            });
+            failureStack.push(error -> {
+              memoized.set(Result.failure(error));
+              return Program.failure(error);
+            });
+            current = memoized.current;
+          }
         }
       } catch (Throwable e) {
         if (catchStack.isEmpty()) {
@@ -789,6 +825,15 @@ public sealed interface Program<S, E, T> {
     return foldMap(
         f -> finalizer.andThen(failure(f)),
         s -> finalizer.andThen(success(s)));
+  }
+
+  default Program<S, E, T> memoized() {
+    return new Memoized<>(this);
+  }
+
+  static <S, E, T, R> Function<T, Program<S, E, R>> memoize(Function<T, Program<S, E, R>> function) {
+    final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
+    return input -> cache.computeIfAbsent(input, function.andThen(Program::memoized));
   }
 
   /**

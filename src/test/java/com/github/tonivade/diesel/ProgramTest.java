@@ -10,6 +10,7 @@ import static com.github.tonivade.diesel.Program.delay;
 import static com.github.tonivade.diesel.Program.effectR;
 import static com.github.tonivade.diesel.Program.either;
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.memoize;
 import static com.github.tonivade.diesel.Program.parAll;
 import static com.github.tonivade.diesel.Program.parSequence;
 import static com.github.tonivade.diesel.Program.parZip;
@@ -34,6 +35,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
@@ -89,6 +91,15 @@ class ProgramTest {
     var fib10 = fib(10);
 
     var result = fib10.getOrElseThrow();
+
+    assertThat(result).isEqualTo(89);
+  }
+
+  @Test
+  void shouldGenerateFibSequenceWithMemoization() {
+    var memoized = fibMemoized.apply(10);
+
+    var result = memoized.getOrElseThrow();
 
     assertThat(result).isEqualTo(89);
   }
@@ -346,6 +357,29 @@ class ProgramTest {
     }
     var fib2 = suspend(() -> fib(n - 2));
     var fib1 = suspend(() -> fib(n - 1));
-    return zip(fib1, fib2, Integer::sum);
+    return zip(fib1, fib2, (i, j) ->{
+      IO.println(n);
+      return i + j;
+    });
   }
+
+  static <T, R> Function<T, R> recursive(Function<Function<T, R>, Function<T, R>> f) {
+    return t -> f.apply(recursive(f)).apply(t);
+  }
+
+  Function<Integer, Program<Void, Void, Integer>> fibMemoized = recursive(self -> memoize(n -> {
+      if (n == 0) {
+        return success(1);
+      }
+      if (n == 1) {
+        return success(1);
+      }
+      var fib2 = suspend(() -> self.apply(n - 2));
+      var fib1 = suspend(() -> self.apply(n - 1));
+      return zip(fib1, fib2, (i, j) -> {
+        IO.println(n);
+        return i + j;
+      });
+    })
+  );
 }
