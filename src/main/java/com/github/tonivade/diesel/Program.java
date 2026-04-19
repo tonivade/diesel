@@ -6,15 +6,6 @@ package com.github.tonivade.diesel;
 
 import static java.util.function.Function.identity;
 
-import com.github.tonivade.diesel.function.Finisher2;
-import com.github.tonivade.diesel.function.Finisher3;
-import com.github.tonivade.diesel.function.Finisher4;
-import com.github.tonivade.diesel.function.Finisher5;
-import com.github.tonivade.diesel.function.Finisher6;
-import com.github.tonivade.diesel.function.Finisher7;
-import com.github.tonivade.diesel.function.Finisher8;
-import com.github.tonivade.diesel.function.Finisher9;
-
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -40,6 +31,15 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
+
+import com.github.tonivade.diesel.function.Finisher2;
+import com.github.tonivade.diesel.function.Finisher3;
+import com.github.tonivade.diesel.function.Finisher4;
+import com.github.tonivade.diesel.function.Finisher5;
+import com.github.tonivade.diesel.function.Finisher6;
+import com.github.tonivade.diesel.function.Finisher7;
+import com.github.tonivade.diesel.function.Finisher8;
+import com.github.tonivade.diesel.function.Finisher9;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
