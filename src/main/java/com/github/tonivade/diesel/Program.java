@@ -141,7 +141,6 @@ public sealed interface Program<S, E, T> {
   /**
    * Represents a memoized computation that caches the result of the program.
    *
-   * @param current the current program
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
@@ -155,6 +154,7 @@ public sealed interface Program<S, E, T> {
       this.current = current;
     }
 
+    @Nullable
     public Result<E, T> get() {
       return cache.get();
     }
@@ -1812,7 +1812,8 @@ public sealed interface Program<S, E, T> {
     return list;
   }
 
-  private static <T, R> Function<T, R> recursive(Function<Function<? super T, ? extends R>, Function<? super T, ? extends R>> function) {
+  private static <T, R> Function<T, R> recursive(
+      Function<Function<? super T, ? extends R>, Function<? super T, ? extends R>> function) {
     return t -> function.apply(recursive(function)).apply(t);
   }
 
