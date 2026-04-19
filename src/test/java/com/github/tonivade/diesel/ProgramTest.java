@@ -10,7 +10,7 @@ import static com.github.tonivade.diesel.Program.delay;
 import static com.github.tonivade.diesel.Program.effectR;
 import static com.github.tonivade.diesel.Program.either;
 import static com.github.tonivade.diesel.Program.failure;
-import static com.github.tonivade.diesel.Program.memoize;
+import static com.github.tonivade.diesel.Program.memoizeRecursive;
 import static com.github.tonivade.diesel.Program.parAll;
 import static com.github.tonivade.diesel.Program.parSequence;
 import static com.github.tonivade.diesel.Program.parZip;
@@ -88,20 +88,38 @@ class ProgramTest {
 
   @Test
   void shouldGenerateFibSequence() {
-    var fib10 = fib(10);
-
-    var result = fib10.getOrElseThrow();
-
-    assertThat(result).isEqualTo(89);
+    assertThat(fib(0).getOrElseThrow()).isEqualTo(1);
+    assertThat(fib(1).getOrElseThrow()).isEqualTo(1);
+    assertThat(fib(2).getOrElseThrow()).isEqualTo(2);
+    assertThat(fib(3).getOrElseThrow()).isEqualTo(3);
+    assertThat(fib(4).getOrElseThrow()).isEqualTo(5);
+    assertThat(fib(5).getOrElseThrow()).isEqualTo(8);
+    assertThat(fib(6).getOrElseThrow()).isEqualTo(13);
+    assertThat(fib(7).getOrElseThrow()).isEqualTo(21);
+    assertThat(fib(8).getOrElseThrow()).isEqualTo(34);
+    assertThat(fib(9).getOrElseThrow()).isEqualTo(55);
+    assertThat(fib(10).getOrElseThrow()).isEqualTo(89);
+    assertThat(fib(20).getOrElseThrow()).isEqualTo(10946);
+    assertThat(fib(21).getOrElseThrow()).isEqualTo(17711);
+    assertThat(fib(22).getOrElseThrow()).isEqualTo(28657);
   }
 
   @Test
   void shouldGenerateFibSequenceWithMemoization() {
-    var memoized = fibMemoized.apply(10);
-
-    var result = memoized.getOrElseThrow();
-
-    assertThat(result).isEqualTo(89);
+    assertThat(fibMemoized.apply(0).getOrElseThrow()).isEqualTo(1);
+    assertThat(fibMemoized.apply(1).getOrElseThrow()).isEqualTo(1);
+    assertThat(fibMemoized.apply(2).getOrElseThrow()).isEqualTo(2);
+    assertThat(fibMemoized.apply(3).getOrElseThrow()).isEqualTo(3);
+    assertThat(fibMemoized.apply(4).getOrElseThrow()).isEqualTo(5);
+    assertThat(fibMemoized.apply(5).getOrElseThrow()).isEqualTo(8);
+    assertThat(fibMemoized.apply(6).getOrElseThrow()).isEqualTo(13);
+    assertThat(fibMemoized.apply(7).getOrElseThrow()).isEqualTo(21);
+    assertThat(fibMemoized.apply(8).getOrElseThrow()).isEqualTo(34);
+    assertThat(fibMemoized.apply(9).getOrElseThrow()).isEqualTo(55);
+    assertThat(fibMemoized.apply(10).getOrElseThrow()).isEqualTo(89);
+    assertThat(fibMemoized.apply(20).getOrElseThrow()).isEqualTo(10946);
+    assertThat(fibMemoized.apply(21).getOrElseThrow()).isEqualTo(17711);
+    assertThat(fibMemoized.apply(22).getOrElseThrow()).isEqualTo(28657);
   }
 
   @Test
@@ -349,37 +367,21 @@ class ProgramTest {
   }
 
   static Program<Void, Void, Integer> fib(int n) {
-    if (n == 0) {
-      return success(1);
-    }
-    if (n == 1) {
+    if (n == 0 || n == 1) {
       return success(1);
     }
     var fib2 = suspend(() -> fib(n - 2));
     var fib1 = suspend(() -> fib(n - 1));
-    return zip(fib1, fib2, (i, j) ->{
-      IO.println(n);
-      return i + j;
+    return zip(fib2, fib1, Integer::sum);
+  }
+
+  Function<Integer, Program<Void, Void, Integer>> fibMemoized =
+    memoizeRecursive(self -> n -> {
+      if (n == 0 || n == 1) {
+        return success(1);
+      }
+    var fib2 = suspend(() -> self.apply(n - 2));
+    var fib1 = suspend(() -> self.apply(n - 1));
+    return zip(fib2, fib1, Integer::sum);
     });
-  }
-
-  static <T, R> Function<T, R> recursive(Function<Function<T, R>, Function<T, R>> f) {
-    return t -> f.apply(recursive(f)).apply(t);
-  }
-
-  Function<Integer, Program<Void, Void, Integer>> fibMemoized = recursive(self -> memoize(n -> {
-      if (n == 0) {
-        return success(1);
-      }
-      if (n == 1) {
-        return success(1);
-      }
-      var fib2 = suspend(() -> self.apply(n - 2));
-      var fib1 = suspend(() -> self.apply(n - 1));
-      return zip(fib1, fib2, (i, j) -> {
-        IO.println(n);
-        return i + j;
-      });
-    })
-  );
 }

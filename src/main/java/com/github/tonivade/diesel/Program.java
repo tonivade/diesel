@@ -138,6 +138,14 @@ public sealed interface Program<S, E, T> {
    */
   record Effect<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {}
 
+  /**
+   * Represents a memoized computation that caches the result of the program.
+   *
+   * @param current the current program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
   final class Memoized<S, E, T> implements Program<S, E, T> {
 
     private final Program<S, E, T> current;
@@ -152,7 +160,7 @@ public sealed interface Program<S, E, T> {
     }
 
     public void set(Result<E, T> result) {
-      cache.set(result);
+      cache.compareAndSet(null, result);
     }
   }
 
@@ -827,13 +835,44 @@ public sealed interface Program<S, E, T> {
         s -> finalizer.andThen(success(s)));
   }
 
+  /**
+   * Creates a new program that memoizes the result of the current program, caching it for future evaluations.
+   *
+   * @return a new program representing the memoized computation
+   */
   default Program<S, E, T> memoized() {
     return new Memoized<>(this);
   }
 
-  static <S, E, T, R> Function<T, Program<S, E, R>> memoize(Function<T, Program<S, E, R>> function) {
+  /**
+   * Creates a function that maps a value to a memoized program using the provided function.
+   *
+   * @param function the function used to map the value to a program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input value
+   * @param <R> the type of the result
+   * @return a function that maps a value to a memoized program
+   */
+  static <S, E, T, R> Function<T, Program<S, E, R>> memoize(Function<? super T, ? extends Program<S, E, R>> function) {
     final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
     return input -> cache.computeIfAbsent(input, function.andThen(Program::memoized));
+  }
+
+  /**
+   * Creates a function that maps a value to a memoized program using the provided function that takes a recursive reference.
+   *
+   * @param function the function used to map the value to a program, which takes a recursive reference to itself
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input value
+   * @param <R> the type of the result
+   * @return a function that maps a value to a memoized program using a recursive reference
+   */
+  static <S, E, T, R> Function<T, Program<S, E, R>> memoizeRecursive(
+      Function<Function<? super T, ? extends Program<S, E, R>>, Function<? super T, ? extends Program<S, E, R>>> function) {
+    final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
+    return recursive(self -> input -> cache.computeIfAbsent(input, _ -> function.apply(self).apply(input).memoized()));
   }
 
   /**
@@ -1771,6 +1810,10 @@ public sealed interface Program<S, E, T> {
   private static <T> Collection<T> append(Collection<T> list, T value) {
     list.add(value);
     return list;
+  }
+
+  private static <T, R> Function<T, R> recursive(Function<Function<? super T, ? extends R>, Function<? super T, ? extends R>> function) {
+    return t -> function.apply(recursive(function)).apply(t);
   }
 
   // XXX: https://www.baeldung.com/java-sneaky-throws
