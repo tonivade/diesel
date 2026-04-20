@@ -2,6 +2,8 @@
 
 Generate DSLs in Java using an annotation processor and combine them all together.
 
+[![Sonatype Central](https://maven-badges.sml.io/sonatype-central/com.github.tonivade/diesel/badge.svg)](https://maven-badges.sml.io/sonatype-central/com.github.tonivade/diesel/)
+
 ## Name
 
 The name of the project is the literal spelling of DSL acronym.
@@ -21,8 +23,8 @@ For use in a gradle build you will need to add it as a dependency, and activate 
 For example:
 
 ```kotlin
-    implementation("com.github.tonivade:diesel:0.6")
-    annotationProcessor("com.github.tonivade:diesel:0.6")
+    implementation("com.github.tonivade:diesel:0.8")
+    annotationProcessor("com.github.tonivade:diesel:0.8")
 ```
 
 If you want to work with snapshots you will need to add this repository in your gradle configuration:
@@ -41,7 +43,7 @@ In the case of maven:
 <dependency>
     <groupId>com.github.tonivade</groupId>
     <artifactId>diesel</artifactId>
-    <version>0.7</version>
+    <version>0.8</version>
 </dependency>
 ```
 
@@ -57,7 +59,7 @@ For the annotation processor:
       <path>
         <groupId>com.github.tonivade</groupId>
         <artifactId>diesel</artifactId>
-        <version>0.7</version>
+        <version>0.8</version>
       </path>
     </annotationProcessorPaths>
   </configuration>
