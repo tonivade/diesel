@@ -154,11 +154,21 @@ public sealed interface Program<S, E, T> {
       this.current = current;
     }
 
+    /**
+     * Returns the cached result of the computation if it is available, or {@code null} if the computation has not been executed yet.
+     *
+     * @return the cached result or {@code null} if not available
+     */
     @Nullable
     public Result<E, T> get() {
       return cache.get();
     }
 
+    /**
+     * Sets the result of the computation in the cache if it is not already set.
+     *
+     * @param result the result to be set in the cache
+     */
     public void set(Result<E, T> result) {
       cache.compareAndSet(null, result);
     }
@@ -841,6 +851,9 @@ public sealed interface Program<S, E, T> {
    * @return a new program representing the memoized computation
    */
   default Program<S, E, T> memoized() {
+    if (this instanceof Memoized) {
+      return this;
+    }
     return new Memoized<>(this);
   }
 
