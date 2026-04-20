@@ -856,10 +856,7 @@ public sealed interface Program<S, E, T> {
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> memoize(Function<? super T, ? extends Program<S, E, R>> function) {
     final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
-    return input -> cache.computeIfAbsent(input, _ -> {
-      IO.println(input);
-      return function.apply(input);
-    });
+    return input -> cache.computeIfAbsent(input, function.andThen(Program::memoized));
   }
 
   /**

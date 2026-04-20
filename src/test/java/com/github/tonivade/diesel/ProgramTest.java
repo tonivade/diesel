@@ -120,7 +120,6 @@ class ProgramTest {
     assertThat(fibMemoized.apply(20).getOrElseThrow()).isEqualTo(10946);
     assertThat(fibMemoized.apply(21).getOrElseThrow()).isEqualTo(17711);
     assertThat(fibMemoized.apply(22).getOrElseThrow()).isEqualTo(28657);
-//    assertThat(fibMemoized.apply(1000).getOrElseThrow()).isEqualTo(28657);
   }
 
   @Test
