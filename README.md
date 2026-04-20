@@ -41,7 +41,7 @@ In the case of maven:
 <dependency>
     <groupId>com.github.tonivade</groupId>
     <artifactId>diesel</artifactId>
-    <version>0.6</version>
+    <version>0.7</version>
 </dependency>
 ```
 
@@ -57,7 +57,7 @@ For the annotation processor:
       <path>
         <groupId>com.github.tonivade</groupId>
         <artifactId>diesel</artifactId>
-        <version>0.6</version>
+        <version>0.7</version>
       </path>
     </annotationProcessorPaths>
   </configuration>
