@@ -51,13 +51,10 @@ program_zip_template = environment.from_string("""
 static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> zip(
   {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
   {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher) {
-    return async((state, callback) -> {
-      try {
-        callback.accept(Result.zip({% for i in range(value) %}p{{ i }}.eval(state), {% endfor %}finisher), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
+  return {% for i in range(value - 1) %}p{{ i }}.flatMap(_{{ i }} -> 
+    {% endfor %}
+    p{{ value - 1 }}.map(_{{ value - 1 }} -> finisher.apply({% for i in range(value) %}_{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}))
+    {% for i in range(value - 1) %}){% endfor %};
 }
 """)
 

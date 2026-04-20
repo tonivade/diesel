@@ -10,7 +10,7 @@ import static com.github.tonivade.diesel.Program.delay;
 import static com.github.tonivade.diesel.Program.effectR;
 import static com.github.tonivade.diesel.Program.either;
 import static com.github.tonivade.diesel.Program.failure;
-import static com.github.tonivade.diesel.Program.memoizeRecursive;
+import static com.github.tonivade.diesel.Program.memoize;
 import static com.github.tonivade.diesel.Program.parAll;
 import static com.github.tonivade.diesel.Program.parSequence;
 import static com.github.tonivade.diesel.Program.parZip;
@@ -120,6 +120,7 @@ class ProgramTest {
     assertThat(fibMemoized.apply(20).getOrElseThrow()).isEqualTo(10946);
     assertThat(fibMemoized.apply(21).getOrElseThrow()).isEqualTo(17711);
     assertThat(fibMemoized.apply(22).getOrElseThrow()).isEqualTo(28657);
+//    assertThat(fibMemoized.apply(1000).getOrElseThrow()).isEqualTo(28657);
   }
 
   @Test
@@ -375,13 +376,14 @@ class ProgramTest {
     return zip(fib2, fib1, Integer::sum);
   }
 
-  Function<Integer, Program<Void, Void, Integer>> fibMemoized =
-      memoizeRecursive(self -> n -> {
-        if (n == 0 || n == 1) {
-          return success(1);
-        }
-        var fib2 = suspend(() -> self.apply(n - 2));
-        var fib1 = suspend(() -> self.apply(n - 1));
-        return zip(fib2, fib1, Integer::sum);
-      });
+  Function<Integer, Program<Void, Void, Integer>> fibMemoized = memoize(new Function<>() {
+    public Program<Void, Void, Integer> apply(Integer n) {
+      if (n == 0 || n == 1) {
+        return success(1);
+      }
+      var fib2 = suspend(() -> fibMemoized.apply(n - 2));
+      var fib1 = suspend(() -> fibMemoized.apply(n - 1));
+      return zip(fib2, fib1, Integer::sum);
+    }
+  });
 }

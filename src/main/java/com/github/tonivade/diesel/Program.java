@@ -856,23 +856,10 @@ public sealed interface Program<S, E, T> {
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> memoize(Function<? super T, ? extends Program<S, E, R>> function) {
     final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
-    return input -> cache.computeIfAbsent(input, function.andThen(Program::memoized));
-  }
-
-  /**
-   * Creates a function that maps a value to a memoized program using the provided function that takes a recursive reference.
-   *
-   * @param function the function used to map the value to a program, which takes a recursive reference to itself
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the input value
-   * @param <R> the type of the result
-   * @return a function that maps a value to a memoized program using a recursive reference
-   */
-  static <S, E, T, R> Function<T, Program<S, E, R>> memoizeRecursive(
-      Function<Function<? super T, ? extends Program<S, E, R>>, Function<? super T, ? extends Program<S, E, R>>> function) {
-    final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
-    return recursive(self -> input -> cache.computeIfAbsent(input, _ -> function.apply(self).apply(input).memoized()));
+    return input -> cache.computeIfAbsent(input, _ -> {
+      IO.println(input);
+      return function.apply(input);
+    });
   }
 
   /**
@@ -1413,61 +1400,51 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Finisher2<T0, T1, R> finisher) {
-    return async((state, callback) -> {
-      try {
-        callback.accept(Result.zip(p0.eval(state), p1.eval(state), finisher), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
+     return p0.flatMap(_0 ->
+       p1.map(_1 -> finisher.apply(_0, _1))
+       );
+   }
 
-  static <S, E, T0, T1, T2, R> Program<S, E, R> zip(
+   static <S, E, T0, T1, T2, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
       Finisher3<T0, T1, T2, R> finisher) {
-    return async((state, callback) -> {
-      try {
-        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), finisher), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
+     return p0.flatMap(_0 ->
+       p1.flatMap(_1 ->
+       p2.map(_2 -> finisher.apply(_0, _1, _2))
+       ));
+   }
 
-  static <S, E, T0, T1, T2, T3, R> Program<S, E, R> zip(
+   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
       Program<S, E, T3> p3,
       Finisher4<T0, T1, T2, T3, R> finisher) {
-    return async((state, callback) -> {
-      try {
-        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), finisher), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
+     return p0.flatMap(_0 ->
+       p1.flatMap(_1 ->
+       p2.flatMap(_2 ->
+       p3.map(_3 -> finisher.apply(_0, _1, _2, _3))
+       )));
+   }
 
-  static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> zip(
+   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
       Program<S, E, T3> p3,
       Program<S, E, T4> p4,
       Finisher5<T0, T1, T2, T3, T4, R> finisher) {
-    return async((state, callback) -> {
-      try {
-        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), finisher), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
+     return p0.flatMap(_0 ->
+       p1.flatMap(_1 ->
+       p2.flatMap(_2 ->
+       p3.flatMap(_3 ->
+       p4.map(_4 -> finisher.apply(_0, _1, _2, _3, _4))
+       ))));
+   }
 
-  static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> zip(
+   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1475,16 +1452,16 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T4> p4,
       Program<S, E, T5> p5,
       Finisher6<T0, T1, T2, T3, T4, T5, R> finisher) {
-    return async((state, callback) -> {
-      try {
-        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), finisher), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
+     return p0.flatMap(_0 ->
+       p1.flatMap(_1 ->
+       p2.flatMap(_2 ->
+       p3.flatMap(_3 ->
+       p4.flatMap(_4 ->
+       p5.map(_5 -> finisher.apply(_0, _1, _2, _3, _4, _5))
+       )))));
+   }
 
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> zip(
+   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1493,16 +1470,17 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T5> p5,
       Program<S, E, T6> p6,
       Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher) {
-    return async((state, callback) -> {
-      try {
-        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), finisher), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
+     return p0.flatMap(_0 ->
+       p1.flatMap(_1 ->
+       p2.flatMap(_2 ->
+       p3.flatMap(_3 ->
+       p4.flatMap(_4 ->
+       p5.flatMap(_5 ->
+       p6.map(_6 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6))
+       ))))));
+   }
 
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> zip(
+   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1512,16 +1490,18 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T6> p6,
       Program<S, E, T7> p7,
       Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher) {
-    return async((state, callback) -> {
-      try {
-        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), p7.eval(state), finisher), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
+     return p0.flatMap(_0 ->
+       p1.flatMap(_1 ->
+       p2.flatMap(_2 ->
+       p3.flatMap(_3 ->
+       p4.flatMap(_4 ->
+       p5.flatMap(_5 ->
+       p6.flatMap(_6 ->
+       p7.map(_7 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7))
+       )))))));
+   }
 
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> zip(
+   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1532,14 +1512,17 @@ public sealed interface Program<S, E, T> {
       Program<S, E, T7> p7,
       Program<S, E, T8> p8,
       Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher) {
-    return async((state, callback) -> {
-      try {
-        callback.accept(Result.zip(p0.eval(state), p1.eval(state), p2.eval(state), p3.eval(state), p4.eval(state), p5.eval(state), p6.eval(state), p7.eval(state), p8.eval(state), finisher), null);
-      } catch (RuntimeException e) {
-        callback.accept(null, e);
-      }
-    });
-  }
+     return p0.flatMap(_0 ->
+       p1.flatMap(_1 ->
+       p2.flatMap(_2 ->
+       p3.flatMap(_3 ->
+       p4.flatMap(_4 ->
+       p5.flatMap(_5 ->
+       p6.flatMap(_6 ->
+       p7.flatMap(_7 ->
+       p8.map(_8 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7, _8))
+       ))))))));
+   }
 
   static <S, E, T0, T1, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
@@ -1810,11 +1793,6 @@ public sealed interface Program<S, E, T> {
   private static <T> Collection<T> append(Collection<T> list, T value) {
     list.add(value);
     return list;
-  }
-
-  private static <T, R> Function<T, R> recursive(
-      Function<Function<? super T, ? extends R>, Function<? super T, ? extends R>> function) {
-    return t -> function.apply(recursive(function)).apply(t);
   }
 
   // XXX: https://www.baeldung.com/java-sneaky-throws
