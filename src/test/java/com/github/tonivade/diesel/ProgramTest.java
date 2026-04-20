@@ -31,6 +31,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -106,20 +107,26 @@ class ProgramTest {
 
   @Test
   void shouldGenerateFibSequenceWithMemoization() {
-    assertThat(fibMemoized.apply(0).getOrElseThrow()).isEqualTo(1);
-    assertThat(fibMemoized.apply(1).getOrElseThrow()).isEqualTo(1);
-    assertThat(fibMemoized.apply(2).getOrElseThrow()).isEqualTo(2);
-    assertThat(fibMemoized.apply(3).getOrElseThrow()).isEqualTo(3);
-    assertThat(fibMemoized.apply(4).getOrElseThrow()).isEqualTo(5);
-    assertThat(fibMemoized.apply(5).getOrElseThrow()).isEqualTo(8);
-    assertThat(fibMemoized.apply(6).getOrElseThrow()).isEqualTo(13);
-    assertThat(fibMemoized.apply(7).getOrElseThrow()).isEqualTo(21);
-    assertThat(fibMemoized.apply(8).getOrElseThrow()).isEqualTo(34);
-    assertThat(fibMemoized.apply(9).getOrElseThrow()).isEqualTo(55);
-    assertThat(fibMemoized.apply(10).getOrElseThrow()).isEqualTo(89);
-    assertThat(fibMemoized.apply(20).getOrElseThrow()).isEqualTo(10946);
-    assertThat(fibMemoized.apply(21).getOrElseThrow()).isEqualTo(17711);
-    assertThat(fibMemoized.apply(22).getOrElseThrow()).isEqualTo(28657);
+    assertThat(fibMemoized.apply(BigInteger.ZERO).getOrElseThrow()).isEqualTo(BigInteger.ONE);
+    assertThat(fibMemoized.apply(BigInteger.ONE).getOrElseThrow()).isEqualTo(BigInteger.ONE);
+    assertThat(fibMemoized.apply(BigInteger.valueOf(2)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(2));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(3)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(3));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(4)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(5));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(5)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(8));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(6)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(13));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(7)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(21));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(8)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(34));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(9)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(55));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(10)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(89));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(20)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(10946));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(21)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(17711));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(22)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(28657));
+  }
+
+  @Test
+  void shouldGenerateBigFibSequenceWithMemoization() {
+    assertThat(fibMemoized.apply(BigInteger.valueOf(9999)).getOrElseThrow().toString())
+      .hasSize(2090);
   }
 
   @Test
@@ -375,14 +382,14 @@ class ProgramTest {
     return zip(fib2, fib1, Integer::sum);
   }
 
-  Function<Integer, Program<Void, Void, Integer>> fibMemoized = memoize(new Function<>() {
-    public Program<Void, Void, Integer> apply(Integer n) {
-      if (n == 0 || n == 1) {
-        return success(1);
+  Function<BigInteger, Program<Void, Void, BigInteger>> fibMemoized = memoize(new Function<>() {
+    public Program<Void, Void, BigInteger> apply(BigInteger n) {
+      if (n.equals(BigInteger.ZERO) || n.equals(BigInteger.ONE)) {
+        return success(BigInteger.ONE);
       }
-      var fib2 = suspend(() -> fibMemoized.apply(n - 2));
-      var fib1 = suspend(() -> fibMemoized.apply(n - 1));
-      return zip(fib2, fib1, Integer::sum);
+      var fib2 = suspend(() -> fibMemoized.apply(n.subtract(BigInteger.valueOf(2))));
+      var fib1 = suspend(() -> fibMemoized.apply(n.subtract(BigInteger.ONE)));
+      return zip(fib2, fib1, BigInteger::add);
     }
   });
 }
