@@ -40,6 +40,7 @@ import com.github.tonivade.diesel.function.Finisher6;
 import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
+import com.github.tonivade.purefun.Kind;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
@@ -50,9 +51,15 @@ import com.github.tonivade.diesel.function.Finisher9;
  * @param <E> the type of the error
  * @param <T> the type of the result
  */
-public sealed interface Program<S, E, T> {
+public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   Program<?, ?, Void> UNIT = from(Result.UNIT);
+
+
+  @SuppressWarnings("unchecked")
+  public static <S, E, T> Program<S, E, T> toProgram(Kind<Program<S, E, ?>, ? extends T> value) {
+    return (Program<S, E, T>) value;
+  }
 
   /**
    * Returns a program that represents a computation that yields no result.
