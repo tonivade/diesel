@@ -9,6 +9,7 @@ errorproneVersion = "2.49.0"
 errorpronePluginVersion = "5.1.0"
 nullawayVersion = "0.13.4"
 compileTestingVersion = "0.23.0"
+purefunVersion = "5.2"
 
 [libraries]
 jspecify = { group = "org.jspecify", name = "jspecify", version.ref = "jspecifyVersion" }
@@ -22,6 +23,7 @@ assertj = { group = "org.assertj", name = "assertj-core", version.ref = "assertj
 compileTesting = { group = "com.google.testing.compile", name = "compile-testing", version.ref = "compileTestingVersion" }
 nullaway = { group = "com.uber.nullaway", name = "nullaway", version.ref = "nullawayVersion" }
 errorprone = { group = "com.google.errorprone", name = "error_prone_core", version.ref = "errorproneVersion" }
+purefunAnnotation = { group = "com.github.tonivade", name = "purefun-annotation", version.ref = "purefunVersion" }
 
 [plugins]
 errorprone = { id = "net.ltgt.errorprone", version.ref = "errorpronePluginVersion"}
