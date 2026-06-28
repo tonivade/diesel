@@ -539,8 +539,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           var future = new CompletableFuture<Result<?, ?>>();
           ((BiConsumer<S, CompletableFuture<?>>) callback).accept(state, future);
           current = from(future.join());
-        } else if (current instanceof Forked(var next, var executor)) {
-          var future = CompletableFuture.supplyAsync(() -> next.eval(state), executor);
+        } else if (current instanceof Forked forked) {
+          var future = CompletableFuture.supplyAsync(() -> forked.current.eval(state), forked.executor);
           current = success(future);
         } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
           successStack.push((Function<Object, Program<S, ? ,?>>) onSuccess);
