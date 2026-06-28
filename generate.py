@@ -35,18 +35,6 @@ static <F, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Result<F, R> zip(
 }
 """)
 
-fiber_zip_template = environment.from_string("""
-public static <E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Fiber<E, R> zip(
-  {% for i in range(value) %} Fiber<E, T{{ i }}> f{{ i }},
-  {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher) {
-  var result = {% for i in range(value - 1) %}f{{ i }}.future.thenComposeAsync(_{{ i }} -> 
-    {% endfor %}
-    f{{ value - 1 }}.future.thenApplyAsync(_{{ value -1 }} -> Result.zip({% for i in range(value) %}_{{ i }}, {% endfor %}finisher))
-    {% for i in range(value - 1) %}){% endfor %};
-  return new Fiber<>(result);
-}
-""")
-
 program_zip_template = environment.from_string("""
 static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> zip(
   {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
@@ -65,8 +53,8 @@ static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, 
   Executor executor) {
     return zip(
       {% for i in range(value) %} p{{ i }}.fork(executor), 
-      {% endfor %} ({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}) -> Fiber.zip({% for i in range(value) %}f{{ i }}, {% endfor %}finisher))
-      .flatMap(Fiber::join);
+      {% endfor %} ({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}) -> Result.zip({% for i in range(value) %}f{{ i }}.join(), {% endfor %}finisher))
+      .flatMap(Program::from);
 }
 """)
 
@@ -103,10 +91,6 @@ for i in range(2, 10):
 print(">>>> result zip")
 for i in range(2, 10):
   print(result_zip_template.render(value=i))
-
-print(">>>> fiber zip")
-for i in range(2, 10):
-  print(fiber_zip_template.render(value=i))
 
 print(">>>> program zip")
 for i in range(2, 10):
