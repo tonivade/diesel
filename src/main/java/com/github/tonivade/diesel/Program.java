@@ -55,9 +55,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   Program<?, ?, Void> UNIT = from(Result.UNIT);
 
-
   @SuppressWarnings("unchecked")
-  public static <S, E, T> Program<S, E, T> toProgram(Kind<Program<S, E, ?>, ? extends T> value) {
+  static <S, E, T> Program<S, E, T> toProgram(Kind<Program<S, E, ?>, ? extends T> value) {
     return (Program<S, E, T>) value;
   }
 
@@ -132,8 +131,19 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record Async<S, E, T>(
-      BiConsumer<S, ? extends BiConsumer<? super Result<E, T>, ? super Throwable>> callback) implements Program<S, E, T> {
+      BiConsumer<? super S, ? super CompletableFuture<Result<E, T>>> callback) implements Program<S, E, T> {
   }
+
+  /**
+   * Represents a computation that forks the execution of the program using the provided executor.
+   *
+   * @param current the current program
+   * @param executor the executor used to execute the program in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Forked<S, E, T>(Program<S, E, T> current, Executor executor) implements Program<S, E, CompletableFuture<Result<E, T>>> {}
 
   /**
    * Represents an effectful computation that accesses a domain-specific language (DSL) using the provided function.
@@ -217,7 +227,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing an asynchronous computation
    */
   static <S, E, T> Program<S, E, T> from(CompletableFuture<? extends Result<E, T>> future) {
-    return async((_, callback) -> future.whenCompleteAsync(callback));
+    return async((_, callback) -> future.whenCompleteAsync((result, error) -> {
+      if (error != null) {
+        callback.completeExceptionally(error);
+      } else {
+        callback.complete(result);
+      }
+    }));
   }
 
   /**
@@ -365,8 +381,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing an asynchronous computation
    */
-  static <S, E, T> Program<S, E, T> async(
-      BiConsumer<S, ? extends BiConsumer<? super Result<E, T>, ? super Throwable>> callback) {
+  static <S, E, T> Program<S, E, T> async(BiConsumer<? super S, ? super CompletableFuture<Result<E, T>>> callback) {
     return new Async<>(callback);
   }
 
@@ -456,7 +471,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T, U> Program<S, E, Either<T, U>> either(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
-    return zip(p1.fork(executor), p2.fork(executor), Fiber::either).flatMap(Fiber::join);
+    return zip(p1.fork(executor), p2.fork(executor), Program::either).flatMap(Program::from);
   }
 
   /**
@@ -522,14 +537,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           current = mapper.apply(state);
         } else if (current instanceof Async(var callback)) {
           var future = new CompletableFuture<Result<?, ?>>();
-          ((BiConsumer<S, BiConsumer<Result<?, ?>, Throwable>>) callback).accept(state, (result, error) -> {
-            if (error != null) {
-              future.completeExceptionally(error);
-            } else {
-              future.complete(result);
-            }
-          });
+          ((BiConsumer<S, CompletableFuture<?>>) callback).accept(state, future);
           current = from(future.join());
+        } else if (current instanceof Forked(var next, var executor)) {
+          var future = CompletableFuture.supplyAsync(() -> next.eval(state), executor);
+          current = success(future);
         } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
           successStack.push((Function<Object, Program<S, ? ,?>>) onSuccess);
           failureStack.push((Function<Object, Program<S, ?, ?>>) onFailure);
@@ -801,7 +813,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * @return a new program representing the forked computation
    */
-  default Program<S, E, Fiber<E, T>> fork() {
+  default Program<S, E, CompletableFuture<Result<E, T>>> fork() {
     return fork(ForkJoinPool.commonPool());
   }
 
@@ -811,11 +823,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param executor the executor used to execute the program asynchronously
    * @return a new program representing the forked computation
    */
-  default Program<S, E, Fiber<E, T>> fork(Executor executor) {
-    return async((state, callback) -> {
-      var future = CompletableFuture.supplyAsync(() -> eval(state), executor);
-      callback.accept(Result.success(new Fiber<>(future)), null);
-    });
+  default Program<S, E, CompletableFuture<Result<E, T>>> fork(Executor executor) {
+    return new Forked<>(this, executor);
   }
 
   /**
@@ -949,10 +958,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a sleep
    */
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
+    var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
     return async((_, callback) -> {
-      var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
       var future = CompletableFuture.runAsync(() -> {}, delayed);
-      future.whenCompleteAsync((_, _) -> callback.accept(Result.unit(), null));
+      future.whenCompleteAsync((_, _) -> callback.complete(Result.unit()));
     });
   }
 
@@ -1003,16 +1012,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
     var forked = forkAll(executor, programs);
 
-    return Program.<S, E, Fiber<E, Void>>async(
-        (state, callback) -> {
+    return Program.<S, E, CompletableFuture<Result<E, Void>>>async(
+        (state, future) -> {
           try {
-            var result = evalAll(state, forked).map(Fiber::all);
-            callback.accept(result, null);
+            Result<E, CompletableFuture<Result<E, Void>>> result = evalAll(state, forked).map(Program::all);
+            future.complete(result);
           } catch (RuntimeException e) {
-            callback.accept(null, e);
+            future.completeExceptionally(e);
           }
         })
-        .flatMap(Fiber::join);
+        .flatMap(Program::from);
   }
 
   /**
@@ -1075,16 +1084,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
     var forked = forkAll(executor, programs);
 
-    return Program.<S, E, Fiber<E, Collection<T>>>async(
-        (state, callback) -> {
+    return Program.<S, E, CompletableFuture<Result<E, Collection<T>>>>async(
+        (state, future) -> {
           try {
-            var result = evalAll(state, forked).map(Fiber::sequence);
-            callback.accept(result, null);
+            var result = evalAll(state, forked).map(Program::parSequence);
+            future.complete(result);
           } catch (RuntimeException e) {
-            callback.accept(null, e);
+            future.completeExceptionally(e);
           }
         })
-        .flatMap(Fiber::join);
+        .flatMap(Program::from);
   }
 
   /**
@@ -1541,157 +1550,157 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
        ))))))));
    }
 
-  static <S, E, T0, T1, R> Program<S, E, R> parZip(
-      Program<S, E, T0> p0,
-      Program<S, E, T1> p1,
-      Finisher2<T0, T1, R> finisher,
-      Executor executor) {
-    return zip(
-        p0.fork(executor),
-        p1.fork(executor),
-        (f0, f1) -> Fiber.zip(f0, f1, finisher))
-        .flatMap(Fiber::join);
-  }
+   static <S, E, T0, T1, R> Program<S, E, R> parZip(
+       Program<S, E, T0> p0,
+       Program<S, E, T1> p1,
+       Finisher2<T0, T1, R> finisher,
+       Executor executor) {
+     return zip(
+         p0.fork(executor),
+         p1.fork(executor),
+         (f0, f1) -> Result.zip(f0.join(), f1.join(), finisher))
+         .flatMap(Program::from);
+   }
 
-  static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
-      Program<S, E, T0> p0,
-      Program<S, E, T1> p1,
-      Program<S, E, T2> p2,
-      Finisher3<T0, T1, T2, R> finisher,
-      Executor executor) {
-    return zip(
-        p0.fork(executor),
-        p1.fork(executor),
-        p2.fork(executor),
-        (f0, f1, f2) -> Fiber.zip(f0, f1, f2, finisher))
-        .flatMap(Fiber::join);
-  }
+   static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
+       Program<S, E, T0> p0,
+       Program<S, E, T1> p1,
+       Program<S, E, T2> p2,
+       Finisher3<T0, T1, T2, R> finisher,
+       Executor executor) {
+     return zip(
+         p0.fork(executor),
+         p1.fork(executor),
+         p2.fork(executor),
+         (f0, f1, f2) -> Result.zip(f0.join(), f1.join(), f2.join(), finisher))
+         .flatMap(Program::from);
+   }
 
-  static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
-      Program<S, E, T0> p0,
-      Program<S, E, T1> p1,
-      Program<S, E, T2> p2,
-      Program<S, E, T3> p3,
-      Finisher4<T0, T1, T2, T3, R> finisher,
-      Executor executor) {
-    return zip(
-        p0.fork(executor),
-        p1.fork(executor),
-        p2.fork(executor),
-        p3.fork(executor),
-        (f0, f1, f2, f3) -> Fiber.zip(f0, f1, f2, f3, finisher))
-        .flatMap(Fiber::join);
-  }
+   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
+       Program<S, E, T0> p0,
+       Program<S, E, T1> p1,
+       Program<S, E, T2> p2,
+       Program<S, E, T3> p3,
+       Finisher4<T0, T1, T2, T3, R> finisher,
+       Executor executor) {
+     return zip(
+         p0.fork(executor),
+         p1.fork(executor),
+         p2.fork(executor),
+         p3.fork(executor),
+         (f0, f1, f2, f3) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), finisher))
+         .flatMap(Program::from);
+   }
 
-  static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
-      Program<S, E, T0> p0,
-      Program<S, E, T1> p1,
-      Program<S, E, T2> p2,
-      Program<S, E, T3> p3,
-      Program<S, E, T4> p4,
-      Finisher5<T0, T1, T2, T3, T4, R> finisher,
-      Executor executor) {
-    return zip(
-        p0.fork(executor),
-        p1.fork(executor),
-        p2.fork(executor),
-        p3.fork(executor),
-        p4.fork(executor),
-        (f0, f1, f2, f3, f4) -> Fiber.zip(f0, f1, f2, f3, f4, finisher))
-        .flatMap(Fiber::join);
-  }
+   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
+       Program<S, E, T0> p0,
+       Program<S, E, T1> p1,
+       Program<S, E, T2> p2,
+       Program<S, E, T3> p3,
+       Program<S, E, T4> p4,
+       Finisher5<T0, T1, T2, T3, T4, R> finisher,
+       Executor executor) {
+     return zip(
+         p0.fork(executor),
+         p1.fork(executor),
+         p2.fork(executor),
+         p3.fork(executor),
+         p4.fork(executor),
+         (f0, f1, f2, f3, f4) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), finisher))
+         .flatMap(Program::from);
+   }
 
-  static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
-      Program<S, E, T0> p0,
-      Program<S, E, T1> p1,
-      Program<S, E, T2> p2,
-      Program<S, E, T3> p3,
-      Program<S, E, T4> p4,
-      Program<S, E, T5> p5,
-      Finisher6<T0, T1, T2, T3, T4, T5, R> finisher,
-      Executor executor) {
-    return zip(
-        p0.fork(executor),
-        p1.fork(executor),
-        p2.fork(executor),
-        p3.fork(executor),
-        p4.fork(executor),
-        p5.fork(executor),
-        (f0, f1, f2, f3, f4, f5) -> Fiber.zip(f0, f1, f2, f3, f4, f5, finisher))
-        .flatMap(Fiber::join);
-  }
+   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
+       Program<S, E, T0> p0,
+       Program<S, E, T1> p1,
+       Program<S, E, T2> p2,
+       Program<S, E, T3> p3,
+       Program<S, E, T4> p4,
+       Program<S, E, T5> p5,
+       Finisher6<T0, T1, T2, T3, T4, T5, R> finisher,
+       Executor executor) {
+     return zip(
+         p0.fork(executor),
+         p1.fork(executor),
+         p2.fork(executor),
+         p3.fork(executor),
+         p4.fork(executor),
+         p5.fork(executor),
+         (f0, f1, f2, f3, f4, f5) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), finisher))
+         .flatMap(Program::from);
+   }
 
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
-      Program<S, E, T0> p0,
-      Program<S, E, T1> p1,
-      Program<S, E, T2> p2,
-      Program<S, E, T3> p3,
-      Program<S, E, T4> p4,
-      Program<S, E, T5> p5,
-      Program<S, E, T6> p6,
-      Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher,
-      Executor executor) {
-    return zip(
-        p0.fork(executor),
-        p1.fork(executor),
-        p2.fork(executor),
-        p3.fork(executor),
-        p4.fork(executor),
-        p5.fork(executor),
-        p6.fork(executor),
-        (f0, f1, f2, f3, f4, f5, f6) -> Fiber.zip(f0, f1, f2, f3, f4, f5, f6, finisher))
-        .flatMap(Fiber::join);
-  }
+   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
+       Program<S, E, T0> p0,
+       Program<S, E, T1> p1,
+       Program<S, E, T2> p2,
+       Program<S, E, T3> p3,
+       Program<S, E, T4> p4,
+       Program<S, E, T5> p5,
+       Program<S, E, T6> p6,
+       Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher,
+       Executor executor) {
+     return zip(
+         p0.fork(executor),
+         p1.fork(executor),
+         p2.fork(executor),
+         p3.fork(executor),
+         p4.fork(executor),
+         p5.fork(executor),
+         p6.fork(executor),
+         (f0, f1, f2, f3, f4, f5, f6) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), finisher))
+         .flatMap(Program::from);
+   }
 
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
-      Program<S, E, T0> p0,
-      Program<S, E, T1> p1,
-      Program<S, E, T2> p2,
-      Program<S, E, T3> p3,
-      Program<S, E, T4> p4,
-      Program<S, E, T5> p5,
-      Program<S, E, T6> p6,
-      Program<S, E, T7> p7,
-      Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher,
-      Executor executor) {
-    return zip(
-        p0.fork(executor),
-        p1.fork(executor),
-        p2.fork(executor),
-        p3.fork(executor),
-        p4.fork(executor),
-        p5.fork(executor),
-        p6.fork(executor),
-        p7.fork(executor),
-        (f0, f1, f2, f3, f4, f5, f6, f7) -> Fiber.zip(f0, f1, f2, f3, f4, f5, f6, f7, finisher))
-        .flatMap(Fiber::join);
-  }
+   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
+       Program<S, E, T0> p0,
+       Program<S, E, T1> p1,
+       Program<S, E, T2> p2,
+       Program<S, E, T3> p3,
+       Program<S, E, T4> p4,
+       Program<S, E, T5> p5,
+       Program<S, E, T6> p6,
+       Program<S, E, T7> p7,
+       Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher,
+       Executor executor) {
+     return zip(
+         p0.fork(executor),
+         p1.fork(executor),
+         p2.fork(executor),
+         p3.fork(executor),
+         p4.fork(executor),
+         p5.fork(executor),
+         p6.fork(executor),
+         p7.fork(executor),
+         (f0, f1, f2, f3, f4, f5, f6, f7) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), f7.join(), finisher))
+         .flatMap(Program::from);
+   }
 
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
-      Program<S, E, T0> p0,
-      Program<S, E, T1> p1,
-      Program<S, E, T2> p2,
-      Program<S, E, T3> p3,
-      Program<S, E, T4> p4,
-      Program<S, E, T5> p5,
-      Program<S, E, T6> p6,
-      Program<S, E, T7> p7,
-      Program<S, E, T8> p8,
-      Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher,
-      Executor executor) {
-    return zip(
-        p0.fork(executor),
-        p1.fork(executor),
-        p2.fork(executor),
-        p3.fork(executor),
-        p4.fork(executor),
-        p5.fork(executor),
-        p6.fork(executor),
-        p7.fork(executor),
-        p8.fork(executor),
-        (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> Fiber.zip(f0, f1, f2, f3, f4, f5, f6, f7, f8, finisher))
-        .flatMap(Fiber::join);
-  }
+   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
+       Program<S, E, T0> p0,
+       Program<S, E, T1> p1,
+       Program<S, E, T2> p2,
+       Program<S, E, T3> p3,
+       Program<S, E, T4> p4,
+       Program<S, E, T5> p5,
+       Program<S, E, T6> p6,
+       Program<S, E, T7> p7,
+       Program<S, E, T8> p8,
+       Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher,
+       Executor executor) {
+     return zip(
+         p0.fork(executor),
+         p1.fork(executor),
+         p2.fork(executor),
+         p3.fork(executor),
+         p4.fork(executor),
+         p5.fork(executor),
+         p6.fork(executor),
+         p7.fork(executor),
+         p8.fork(executor),
+         (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), f7.join(), f8.join(), finisher))
+         .flatMap(Program::from);
+   }
 
   static <S, E, T0, T1, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
@@ -1790,7 +1799,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   @SafeVarargs
-  private static <S, E, T> Collection<Program<S, E, Fiber<E, T>>> forkAll(
+  private static <S, E, T> Collection<Program<S, E, CompletableFuture<Result<E, T>>>> forkAll(
       Executor executor, Program<S, E, ? extends T>... programs) {
     return Stream.of(programs)
         .map(Program::<S, E, T>narrow)
@@ -1812,9 +1821,43 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return list;
   }
 
+  private static <E, T> CompletableFuture<Result<E, Collection<T>>> parSequence(
+      Collection<? extends CompletableFuture<Result<E, T>>> futures) {
+    return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+        .thenApply(_ -> futures.stream().map(CompletableFuture::join).toList())
+        .thenApply(Result::sequence);
+  }
+
+  private static <E> CompletableFuture<Result<E, Void>> all(
+      Collection<? extends CompletableFuture<Result<E, Object>>> futures) {
+    return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+        .thenApply(Result::<E, Void>success);
+  }
+
+  private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
+      CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
+    return f1.thenApplyAsync(t -> t.map(Either::<T, U>left))
+        .applyToEitherAsync(f2.thenApplyAsync(u -> u.map(Either::<T, U>right)), result -> {
+          cancelBoth(f1, f2);
+          return result;
+        });
+  }
+
   // XXX: https://www.baeldung.com/java-sneaky-throws
   @SuppressWarnings("unchecked")
   private static <X extends Throwable, R> R sneakyThrow(Throwable t) throws X {
     throw (X) t;
+  }
+
+  private static void cancelBoth(CompletableFuture<?> f1, CompletableFuture<?> f2) {
+    try {
+      if (!f1.isDone()) {
+        f1.cancel(true);
+      }
+    } finally {
+      if (!f2.isDone()) {
+        f2.cancel(true);
+      }
+    }
   }
 }
