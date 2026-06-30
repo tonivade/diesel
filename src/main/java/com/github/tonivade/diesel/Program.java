@@ -895,8 +895,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param supplier the supplier of the value to be returned after the delay
    * @return a new program representing the delayed computation
    */
-  static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier) {
-    return delay(duration, supply(supplier));
+  static <S, E, T> Program<S, E, T> delayed(Duration duration, Supplier<T> supplier) {
+    return delayed(duration, supply(supplier));
   }
 
   /**
@@ -905,8 +905,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param duration the duration of the delay
    * @return a new program representing the delayed computation
    */
-  static <S, E, T> Program<S, E, T> delay(Duration duration, Program<S, E, T> program) {
-    return delay(duration, program, ForkJoinPool.commonPool());
+  static <S, E, T> Program<S, E, T> delayed(Duration duration, Program<S, E, T> program) {
+    return delayed(duration, program, ForkJoinPool.commonPool());
   }
 
   /**
@@ -917,8 +917,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param executor the executor used to execute the delay
    * @return a new program representing the delayed computation
    */
-  static <S, E, T> Program<S, E, T> delay(Duration duration, Supplier<T> supplier, Executor executor) {
-    return delay(duration, supply(supplier), executor);
+  static <S, E, T> Program<S, E, T> delayed(Duration duration, Supplier<T> supplier, Executor executor) {
+    return delayed(duration, supply(supplier), executor);
   }
 
   /**
@@ -929,7 +929,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param executor the executor used to execute the delay
    * @return a new program representing the delayed computation
    */
-  static <S, E, T> Program<S, E, T> delay(Duration duration, Program<S, E, T> program, Executor executor) {
+  static <S, E, T> Program<S, E, T> delayed(Duration duration, Program<S, E, T> program, Executor executor) {
     return pipe(
         sleep(duration, executor),
         _ -> program

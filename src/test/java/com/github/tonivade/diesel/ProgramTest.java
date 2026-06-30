@@ -6,7 +6,7 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.bracket;
 import static com.github.tonivade.diesel.Program.chainAll;
-import static com.github.tonivade.diesel.Program.delay;
+import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.effectR;
 import static com.github.tonivade.diesel.Program.either;
 import static com.github.tonivade.diesel.Program.failure;
@@ -148,7 +148,7 @@ class ProgramTest {
   void shouldDelay() {
     var duration = Duration.ofSeconds(2);
 
-    var result = delay(duration, () -> 10).timed().getOrElseThrow();
+    var result = delayed(duration, () -> 10).timed().getOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(duration, Duration.ofMillis(100));
@@ -158,8 +158,8 @@ class ProgramTest {
 
   @Test
   void shouldSerialize() {
-    var p1 = delay(Duration.ofSeconds(2), () -> 10);
-    var p2 = delay(Duration.ofSeconds(2), () -> "hello");
+    var p1 = delayed(Duration.ofSeconds(2), () -> 10);
+    var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
 
     var result = zip(p1, p2, Tuple::new).timed().getOrElseThrow();
 
@@ -171,8 +171,8 @@ class ProgramTest {
 
   @Test
   void shouldParallelize() {
-    var p1 = delay(Duration.ofSeconds(2), () -> 10);
-    var p2 = delay(Duration.ofSeconds(2), () -> "hello");
+    var p1 = delayed(Duration.ofSeconds(2), () -> 10);
+    var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
 
     var result = parZip(p1, p2, Tuple::new).timed().getOrElseThrow();
 
@@ -184,8 +184,8 @@ class ProgramTest {
 
   @Test
   void shouldRace() {
-    var p1 = delay(Duration.ofSeconds(20), () -> 10);
-    var p2 = delay(Duration.ofSeconds(2), () -> "hello");
+    var p1 = delayed(Duration.ofSeconds(20), () -> 10);
+    var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
 
     var result = either(p1, p2).timed().getOrElseThrow();
 
@@ -197,7 +197,7 @@ class ProgramTest {
 
   @Test
   void shouldTimeout() {
-    var p1 = delay(Duration.ofSeconds(20), () -> 10);
+    var p1 = delayed(Duration.ofSeconds(20), () -> 10);
     var p2 = p1.timeout(Duration.ofSeconds(1));
 
     assertThatThrownBy(() -> p2.getOrElseThrow())
@@ -206,7 +206,7 @@ class ProgramTest {
 
   @Test
   void shouldNotTimeout() {
-    var p1 = delay(Duration.ofSeconds(2), () -> 10);
+    var p1 = delayed(Duration.ofSeconds(2), () -> 10);
     var p2 = p1.timeout(Duration.ofSeconds(10));
 
     var result = p2.getOrElseThrow();
@@ -246,9 +246,9 @@ class ProgramTest {
     when(supplier.get()).thenReturn("hi!");
 
     var result = parAll(
-        delay(Duration.ofSeconds(1), supplier),
-        delay(Duration.ofSeconds(2), supplier),
-        delay(Duration.ofSeconds(3), supplier)).timed().getOrElseThrow();
+        delayed(Duration.ofSeconds(1), supplier),
+        delayed(Duration.ofSeconds(2), supplier),
+        delayed(Duration.ofSeconds(3), supplier)).timed().getOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
@@ -260,9 +260,9 @@ class ProgramTest {
     when(supplier.get()).thenReturn("1", "2", "3");
 
     var result = parSequence(
-        delay(Duration.ofSeconds(1), supplier),
-        delay(Duration.ofSeconds(2), supplier),
-        delay(Duration.ofSeconds(3), supplier)).timed().getOrElseThrow();
+        delayed(Duration.ofSeconds(1), supplier),
+        delayed(Duration.ofSeconds(2), supplier),
+        delayed(Duration.ofSeconds(3), supplier)).timed().getOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
