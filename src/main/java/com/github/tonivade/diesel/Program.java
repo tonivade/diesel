@@ -699,6 +699,20 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
+   * Maps the program to a new program using the provided functions for success and failure.
+   *
+   * @param onFailure the function used to map the program in case of failure
+   * @param onSuccess the function used to map the program in case of success
+   * @param <R> the type of the new program in case of success
+   * @return a new program representing the mapped computation
+   */
+  default <R> Program<S, Void, R> fold(
+      Function<? super E, ? extends R> onFailure,
+      Function<? super T, ? extends R> onSuccess) {
+    return foldMap(onFailure.andThen(Program::success), onSuccess.andThen(Program::success));
+  }
+
+  /**
    * Measures the time taken to execute the program and returns the elapsed time along with the result.
    *
    * @return a new program representing the computation with elapsed time measurement
