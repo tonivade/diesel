@@ -1029,7 +1029,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return Program.<S, E, CompletableFuture<Result<E, Void>>>async(
         (state, future) -> {
           try {
-            Result<E, CompletableFuture<Result<E, Void>>> result = evalAll(state, forked).map(Program::all);
+            Result<E, CompletableFuture<Result<E, Void>>> result = evalAll(state, forked).map(Program::parAll);
             future.complete(result);
           } catch (RuntimeException e) {
             future.completeExceptionally(e);
@@ -1842,7 +1842,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         .thenApply(Result::sequence);
   }
 
-  private static <E> CompletableFuture<Result<E, Void>> all(
+  private static <E> CompletableFuture<Result<E, Void>> parAll(
       Collection<? extends CompletableFuture<Result<E, Object>>> futures) {
     return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
         .thenApply(Result::<E, Void>success);
