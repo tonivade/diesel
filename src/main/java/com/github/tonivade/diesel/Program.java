@@ -156,6 +156,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record Effect<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {}
 
   /**
+   * Represents a new program that represents a computation that suspends its execution.
+   *
+   * @param supplier the supplier of the program to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Suspend<S, E, T>(Supplier<? extends Program<S, E, T>> supplier) implements Program<S, E, T> {}
+
+  /**
    * Represents a memoized computation that caches the result of the program.
    *
    * @param <S> the type of the state
@@ -354,7 +364,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a computation that suspends execution
    */
   static <S, E, T> Program<S, E, T> suspend(Supplier<Program<S, E, T>> supplier) {
-    return pipe(unit(), _ -> supplier.get());
+    return new Suspend<>(supplier);
   }
 
   /**
@@ -551,6 +561,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         } else if (current instanceof Catch(var source, var recover)) {
           catchStack.push((Function<Throwable, Program<S, ?, ?>>) recover);
           current = source;
+        } else if (current instanceof Suspend(var supplier)) {
+          current = supplier.get();
         } else if (current instanceof Memoized memoized) {
           var result = memoized.get();
           if (result != null) {
