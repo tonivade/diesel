@@ -4,7 +4,7 @@
 //DEPS org.openjdk.jmh:jmh-generator-annprocess:1.37
 //DEPS com.github.tonivade:diesel:0.10
 
-//JAVA 25+
+//JAVA 27+
 
 //JAVAC_OPTIONS -processor org.openjdk.jmh.generators.BenchmarkProcessor
 
