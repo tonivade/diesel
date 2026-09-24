@@ -5,7 +5,17 @@
 package com.github.tonivade.diesel;
 
 import static java.util.function.Function.identity;
-
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.function.Finisher2;
+import com.github.tonivade.diesel.function.Finisher3;
+import com.github.tonivade.diesel.function.Finisher4;
+import com.github.tonivade.diesel.function.Finisher5;
+import com.github.tonivade.diesel.function.Finisher6;
+import com.github.tonivade.diesel.function.Finisher7;
+import com.github.tonivade.diesel.function.Finisher8;
+import com.github.tonivade.diesel.function.Finisher9;
+import com.github.tonivade.purefun.Kind;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -29,18 +39,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-
 import org.jspecify.annotations.Nullable;
-
-import com.github.tonivade.diesel.function.Finisher2;
-import com.github.tonivade.diesel.function.Finisher3;
-import com.github.tonivade.diesel.function.Finisher4;
-import com.github.tonivade.diesel.function.Finisher5;
-import com.github.tonivade.diesel.function.Finisher6;
-import com.github.tonivade.diesel.function.Finisher7;
-import com.github.tonivade.diesel.function.Finisher8;
-import com.github.tonivade.diesel.function.Finisher9;
-import com.github.tonivade.purefun.Kind;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
@@ -532,17 +531,21 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   @SuppressWarnings("unchecked")
   default Result<E, T> eval(@Nullable S state) {
     Program<S, ?, ?> current = this;
-    Deque<Function<Object, Program<S, ?, ?>>> failureStack = new ArrayDeque<>();
-    Deque<Function<Object, Program<S, ?, ?>>> successStack = new ArrayDeque<>();
-    Deque<Function<Throwable, Program<S, ?, ?>>> catchStack = new ArrayDeque<>();
+    Deque<Frame<S>> stack = new ArrayDeque<>();
 
     while (true) {
       try {
         if (current instanceof Pure(var result)) {
-          if (successStack.isEmpty() && failureStack.isEmpty()) {
+          var frame = stack.poll();
+          // leaving a catchAll scope normally, its handler no longer applies
+          while (frame instanceof CatchFrame) {
+            frame = stack.poll();
+          }
+          if (frame == null) {
             return (Result<E, T>) result;
           }
-          current = result.fold(failureStack.pop(), successStack.pop());
+          var fold = (FoldFrame<S>) frame;
+          current = result.fold(fold.onFailure(), fold.onSuccess());
         } else if (current instanceof Effect(var mapper)) {
           current = mapper.apply(state);
         } else if (current instanceof Async(var callback)) {
@@ -553,13 +556,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           var future = CompletableFuture.supplyAsync(() -> forked.current.eval(state), forked.executor);
           current = success(future);
         } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
-          successStack.push((Function<Object, Program<S, ? ,?>>) onSuccess);
-          failureStack.push((Function<Object, Program<S, ?, ?>>) onFailure);
+          stack.push(new FoldFrame<>(
+              (Function<Object, Program<S, ?, ?>>) onFailure,
+              (Function<Object, Program<S, ?, ?>>) onSuccess));
           current = source;
         } else if (current instanceof Raise(var throwable)) {
           return sneakyThrow(throwable.get());
         } else if (current instanceof Catch(var source, var recover)) {
-          catchStack.push((Function<Throwable, Program<S, ?, ?>>) recover);
+          stack.push(new CatchFrame<>((Function<Throwable, Program<S, ?, ?>>) recover));
           current = source;
         } else if (current instanceof Suspend(var supplier)) {
           current = supplier.get();
@@ -568,22 +572,30 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           if (result != null) {
             current = Program.from(result);
           } else {
-            successStack.push(value -> {
-              memoized.set(Result.success(value));
-              return Program.success(value);
-            });
-            failureStack.push(error -> {
-              memoized.set(Result.failure(error));
-              return Program.failure(error);
-            });
+            stack.push(new FoldFrame<>(
+                error -> {
+                  memoized.set(Result.failure(error));
+                  return Program.failure(error);
+                },
+                value -> {
+                  memoized.set(Result.success(value));
+                  return Program.success(value);
+                }));
             current = memoized.current;
           }
         }
       } catch (Throwable e) {
-        if (catchStack.isEmpty()) {
+        // unwind to the nearest catchAll, discarding the continuations inside its scope
+        var frame = stack.poll();
+        while (frame instanceof FoldFrame) {
+          frame = stack.poll();
+        }
+        if (frame == null) {
           return sneakyThrow(e);
         }
-        current = catchStack.pop().apply(e);
+        var recover = ((CatchFrame<S>) frame).recover();
+        // evaluated inside the loop so an exception thrown by the handler reaches outer catchAll
+        current = suspend(() -> (Program<S, Object, Object>) recover.apply(e));
       }
     }
   }
@@ -911,7 +923,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> memoize(Function<? super T, ? extends Program<S, E, R>> function) {
     final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
-    return input -> cache.computeIfAbsent(input, function.andThen(Program::memoized));
+    final var memoized = function.andThen(Program::memoized);
+    return input -> cache.computeIfAbsent(input, memoized);
   }
 
   /**

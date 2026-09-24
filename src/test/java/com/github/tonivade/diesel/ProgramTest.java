@@ -291,6 +291,39 @@ class ProgramTest {
   }
 
   @Test
+  void shouldNotCatchExceptionOutsideCatchScope() {
+    var program = Program.<Void, Void, Integer>success(1)
+        .catchAll(_ -> success(-1))
+        .map(_ -> {
+          throw new UnsupportedOperationException();
+        });
+
+    assertThatThrownBy(program::getOrElseThrow).isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void shouldDiscardContinuationsInsideCatchScope() {
+    var program = Program.<Void, Void, Integer>raise(UnsupportedOperationException::new)
+        .map(x -> "mapped:" + x)
+        .catchAll(_ -> success("recovered"));
+
+    var result = program.getOrElseThrow();
+
+    assertThat(result).isEqualTo("recovered");
+  }
+
+  @Test
+  void shouldPropagateExceptionFromHandlerToOuterCatch() {
+    var program = Program.<Void, Void, String>raise(UnsupportedOperationException::new)
+        .catchAll(_ -> raise(IllegalStateException::new))
+        .catchAll(e -> success(e.getClass().getSimpleName()));
+
+    var result = program.getOrElseThrow();
+
+    assertThat(result).isEqualTo("IllegalStateException");
+  }
+
+  @Test
   void shouldValidate() {
     var validator = Program.<Void, String, Tuple<Integer, String>>validator(
         Validator.of(Tuple::a, Objects::nonNull, _ -> "cannot be null"),
