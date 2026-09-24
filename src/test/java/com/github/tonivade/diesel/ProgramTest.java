@@ -33,6 +33,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigInteger;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
@@ -288,6 +289,80 @@ class ProgramTest {
     var result = program.getOrElseThrow();
 
     assertThat(result).isNull();
+  }
+
+  @Test
+  void shouldSequenceWhenEvaluatedTwice() {
+    var program = Program.<Void, Void, Integer>sequence(success(1), success(2));
+
+    var first = program.getOrElseThrow();
+    var second = program.getOrElseThrow();
+
+    assertThat(first).containsExactly(1, 2);
+    assertThat(second).containsExactly(1, 2);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void shouldChainAllWithoutStackOverflow() {
+    Program<Void, Void, Integer>[] programs = new Program[100_000];
+    Arrays.fill(programs, success(1));
+
+    var result = chainAll(programs).getOrElseThrow();
+
+    assertThat(result).isNull();
+  }
+
+  @Test
+  void shouldFailWhenProgramIsNull() {
+    var program = success(1).flatMap(_ -> null);
+
+    assertThatThrownBy(() -> program.eval(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("program cannot be null");
+  }
+
+  @Test
+  void shouldRecoverWhenProgramIsNull() {
+    var program = Program.<Void, Void, Integer>suspend(() -> null)
+        .catchAll(_ -> success(-1));
+
+    var result = program.eval(null);
+
+    assertThat(result).isEqualTo(Result.success(-1));
+  }
+
+  @Test
+  void shouldNotCatchExceptionOutsideCatchScope() {
+    var program = Program.<Void, Void, Integer>success(1)
+        .catchAll(_ -> success(-1))
+        .map(_ -> {
+          throw new UnsupportedOperationException();
+        });
+
+    assertThatThrownBy(program::getOrElseThrow).isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void shouldDiscardContinuationsInsideCatchScope() {
+    var program = Program.<Void, Void, Integer>raise(UnsupportedOperationException::new)
+        .map(x -> "mapped:" + x)
+        .catchAll(_ -> success("recovered"));
+
+    var result = program.getOrElseThrow();
+
+    assertThat(result).isEqualTo("recovered");
+  }
+
+  @Test
+  void shouldPropagateExceptionFromHandlerToOuterCatch() {
+    var program = Program.<Void, Void, String>raise(UnsupportedOperationException::new)
+        .catchAll(_ -> raise(IllegalStateException::new))
+        .catchAll(e -> success(e.getClass().getSimpleName()));
+
+    var result = program.getOrElseThrow();
+
+    assertThat(result).isEqualTo("IllegalStateException");
   }
 
   @Test

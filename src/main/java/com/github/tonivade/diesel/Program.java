@@ -6,11 +6,22 @@ package com.github.tonivade.diesel;
 
 import static java.util.function.Function.identity;
 
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.function.Finisher2;
+import com.github.tonivade.diesel.function.Finisher3;
+import com.github.tonivade.diesel.function.Finisher4;
+import com.github.tonivade.diesel.function.Finisher5;
+import com.github.tonivade.diesel.function.Finisher6;
+import com.github.tonivade.diesel.function.Finisher7;
+import com.github.tonivade.diesel.function.Finisher8;
+import com.github.tonivade.diesel.function.Finisher9;
+import com.github.tonivade.purefun.Kind;
+
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
@@ -31,16 +42,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
-
-import com.github.tonivade.diesel.function.Finisher2;
-import com.github.tonivade.diesel.function.Finisher3;
-import com.github.tonivade.diesel.function.Finisher4;
-import com.github.tonivade.diesel.function.Finisher5;
-import com.github.tonivade.diesel.function.Finisher6;
-import com.github.tonivade.diesel.function.Finisher7;
-import com.github.tonivade.diesel.function.Finisher8;
-import com.github.tonivade.diesel.function.Finisher9;
-import com.github.tonivade.purefun.Kind;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
@@ -237,13 +238,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing an asynchronous computation
    */
   static <S, E, T> Program<S, E, T> from(CompletableFuture<? extends Result<E, T>> future) {
-    return async((_, callback) -> future.whenCompleteAsync((result, error) -> {
-      if (error != null) {
-        callback.completeExceptionally(error);
-      } else {
-        callback.complete(result);
-      }
-    }));
+    return async((_, callback) -> {
+      // not async: completing the callback is cheap, and it avoids depending on the common pool
+      // the returned future can be ignored because the action cannot throw
+      var _ = future.whenComplete((result, error) -> {
+        if (error != null) {
+          callback.completeExceptionally(error);
+        } else {
+          callback.complete(result);
+        }
+      });
+    });
   }
 
   /**
@@ -356,6 +361,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Creates a new program that represents a computation that suspends execution.
+   *
+   * <p>The supplier is only called when the program is evaluated. Use it to write recursive programs:
+   * the recursion then runs on the interpreter's stack instead of the Java call stack.
    *
    * @param supplier the supplier of the program to be executed
    * @param <S> the type of the state
@@ -532,17 +540,21 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   @SuppressWarnings("unchecked")
   default Result<E, T> eval(@Nullable S state) {
     Program<S, ?, ?> current = this;
-    Deque<Function<Object, Program<S, ?, ?>>> failureStack = new ArrayDeque<>();
-    Deque<Function<Object, Program<S, ?, ?>>> successStack = new ArrayDeque<>();
-    Deque<Function<Throwable, Program<S, ?, ?>>> catchStack = new ArrayDeque<>();
+    Deque<Frame<S>> stack = new ArrayDeque<>();
 
     while (true) {
       try {
         if (current instanceof Pure(var result)) {
-          if (successStack.isEmpty() && failureStack.isEmpty()) {
+          var frame = stack.poll();
+          // leaving a catchAll scope normally, its handler no longer applies
+          while (frame instanceof CatchFrame) {
+            frame = stack.poll();
+          }
+          if (frame == null) {
             return (Result<E, T>) result;
           }
-          current = result.fold(failureStack.pop(), successStack.pop());
+          var fold = (FoldFrame<S>) frame;
+          current = result.fold(fold.onFailure(), fold.onSuccess());
         } else if (current instanceof Effect(var mapper)) {
           current = mapper.apply(state);
         } else if (current instanceof Async(var callback)) {
@@ -553,13 +565,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           var future = CompletableFuture.supplyAsync(() -> forked.current.eval(state), forked.executor);
           current = success(future);
         } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
-          successStack.push((Function<Object, Program<S, ? ,?>>) onSuccess);
-          failureStack.push((Function<Object, Program<S, ?, ?>>) onFailure);
+          stack.push(new FoldFrame<>(
+              (Function<Object, Program<S, ?, ?>>) onFailure,
+              (Function<Object, Program<S, ?, ?>>) onSuccess));
           current = source;
         } else if (current instanceof Raise(var throwable)) {
           return sneakyThrow(throwable.get());
         } else if (current instanceof Catch(var source, var recover)) {
-          catchStack.push((Function<Throwable, Program<S, ?, ?>>) recover);
+          stack.push(new CatchFrame<>((Function<Throwable, Program<S, ?, ?>>) recover));
           current = source;
         } else if (current instanceof Suspend(var supplier)) {
           current = supplier.get();
@@ -568,22 +581,33 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           if (result != null) {
             current = Program.from(result);
           } else {
-            successStack.push(value -> {
-              memoized.set(Result.success(value));
-              return Program.success(value);
-            });
-            failureStack.push(error -> {
-              memoized.set(Result.failure(error));
-              return Program.failure(error);
-            });
+            stack.push(new FoldFrame<>(
+                error -> {
+                  memoized.set(Result.failure(error));
+                  return Program.failure(error);
+                },
+                value -> {
+                  memoized.set(Result.success(value));
+                  return Program.success(value);
+                }));
             current = memoized.current;
           }
+        } else {
+          // every subtype is handled above, so only a null program can reach here
+          throw new NullPointerException("program cannot be null");
         }
       } catch (Throwable e) {
-        if (catchStack.isEmpty()) {
+        // unwind to the nearest catchAll, discarding the continuations inside its scope
+        var frame = stack.poll();
+        while (frame instanceof FoldFrame) {
+          frame = stack.poll();
+        }
+        if (frame == null) {
           return sneakyThrow(e);
         }
-        current = catchStack.pop().apply(e);
+        var recover = ((CatchFrame<S>) frame).recover();
+        // evaluated inside the loop so an exception thrown by the handler reaches outer catchAll
+        current = suspend(() -> (Program<S, Object, Object>) recover.apply(e));
       }
     }
   }
@@ -902,6 +926,23 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a function that maps a value to a memoized program using the provided function.
    *
+   * <p>Recursive calls must be wrapped in {@link #suspend(Supplier)}, so they happen during evaluation
+   * instead of while the program is being built. Calling the memoized function directly from inside
+   * {@code function} updates the cache while it is already being updated, which can fail with
+   * {@code IllegalStateException: Recursive update}.
+   *
+   * <pre>{@code
+   * Function<Integer, Program<Void, Void, Integer>>[] fib = new Function[1];
+   * fib[0] = Program.memoize(n -> {
+   *   if (n < 2) {
+   *     return Program.success(1);
+   *   }
+   *   var fib2 = Program.suspend(() -> fib[0].apply(n - 2));
+   *   var fib1 = Program.suspend(() -> fib[0].apply(n - 1));
+   *   return Program.zip(fib2, fib1, Integer::sum);
+   * });
+   * }</pre>
+   *
    * @param function the function used to map the value to a program
    * @param <S> the type of the state
    * @param <E> the type of the error
@@ -911,7 +952,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> memoize(Function<? super T, ? extends Program<S, E, R>> function) {
     final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
-    return input -> cache.computeIfAbsent(input, function.andThen(Program::memoized));
+    final var memoized = function.andThen(Program::memoized);
+    return input -> cache.computeIfAbsent(input, memoized);
   }
 
   /**
@@ -984,11 +1026,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a sleep
    */
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
-    var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
-    return async((_, callback) -> {
-      var future = CompletableFuture.runAsync(() -> {}, delayed);
-      future.whenCompleteAsync((_, _) -> callback.complete(Result.unit()));
-    });
+    var delayed = CompletableFuture.delayedExecutor(duration.toNanos(), TimeUnit.NANOSECONDS, executor);
+    return async((_, callback) -> delayed.execute(() -> callback.complete(Result.unit())));
   }
 
   /**
@@ -1001,10 +1040,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   @SafeVarargs
   static <S, E> Program<S, E, Void> chainAll(Program<S, E, ?>... programs) {
-    if (programs.length == 0) {
-      return unit();
+    Program<S, E, Void> result = unit();
+    for (int i = programs.length - 1; i >= 0; i--) {
+      result = programs[i].andThen(result);
     }
-    return programs[0].andThen(chainAll(Arrays.copyOfRange(programs, 1, programs.length)));
+    return result;
   }
 
   /**
@@ -1154,7 +1194,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T, R> Program<S, E, Collection<R>> traverse(
       Function<? super T, ? extends Program<S, E, R>> function, Collection<T> values) {
-    Program<S, E, Collection<R>> initial = success(new ArrayList<>());
+    // the accumulator is created on each evaluation, so the program can be evaluated more than once
+    Program<S, E, Collection<R>> initial = supply(ArrayList::new);
     return values.stream().reduce(
         initial,
         (acc, s) -> append(acc, function.apply(s)),
