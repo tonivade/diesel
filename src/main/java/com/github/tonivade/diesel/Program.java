@@ -362,6 +362,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents a computation that suspends execution.
    *
+   * <p>The supplier is only called when the program is evaluated. Use it to write recursive programs:
+   * the recursion then runs on the interpreter's stack instead of the Java call stack.
+   *
    * @param supplier the supplier of the program to be executed
    * @param <S> the type of the state
    * @param <E> the type of the error
@@ -922,6 +925,23 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Creates a function that maps a value to a memoized program using the provided function.
+   *
+   * <p>Recursive calls must be wrapped in {@link #suspend(Supplier)}, so they happen during evaluation
+   * instead of while the program is being built. Calling the memoized function directly from inside
+   * {@code function} updates the cache while it is already being updated, which can fail with
+   * {@code IllegalStateException: Recursive update}.
+   *
+   * <pre>{@code
+   * Function<Integer, Program<Void, Void, Integer>>[] fib = new Function[1];
+   * fib[0] = Program.memoize(n -> {
+   *   if (n < 2) {
+   *     return Program.success(1);
+   *   }
+   *   var fib2 = Program.suspend(() -> fib[0].apply(n - 2));
+   *   var fib1 = Program.suspend(() -> fib[0].apply(n - 1));
+   *   return Program.zip(fib2, fib1, Integer::sum);
+   * });
+   * }</pre>
    *
    * @param function the function used to map the value to a program
    * @param <S> the type of the state
