@@ -2,12 +2,16 @@
 
 //DEPS org.openjdk.jmh:jmh-core:1.37
 //DEPS org.openjdk.jmh:jmh-generator-annprocess:1.37
-//DEPS com.github.tonivade:diesel:0.10-SNAPSHOT
+//DEPS com.github.tonivade:diesel:0.10
 
 //JAVA 25+
 
 //JAVAC_OPTIONS -processor org.openjdk.jmh.generators.BenchmarkProcessor
 
+/*
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Distributed under the terms of the MIT License
+ */
 package test;
 
 import org.openjdk.jmh.annotations.*;
