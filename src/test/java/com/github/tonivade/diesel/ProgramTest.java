@@ -33,6 +33,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigInteger;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
@@ -286,6 +287,28 @@ class ProgramTest {
       }).catchAll(_ -> unit());
 
     var result = program.getOrElseThrow();
+
+    assertThat(result).isNull();
+  }
+
+  @Test
+  void shouldSequenceWhenEvaluatedTwice() {
+    var program = Program.<Void, Void, Integer>sequence(success(1), success(2));
+
+    var first = program.getOrElseThrow();
+    var second = program.getOrElseThrow();
+
+    assertThat(first).containsExactly(1, 2);
+    assertThat(second).containsExactly(1, 2);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void shouldChainAllWithoutStackOverflow() {
+    Program<Void, Void, Integer>[] programs = new Program[100_000];
+    Arrays.fill(programs, success(1));
+
+    var result = chainAll(programs).getOrElseThrow();
 
     assertThat(result).isNull();
   }

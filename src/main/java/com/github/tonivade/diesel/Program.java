@@ -20,7 +20,6 @@ import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
@@ -1014,10 +1013,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   @SafeVarargs
   static <S, E> Program<S, E, Void> chainAll(Program<S, E, ?>... programs) {
-    if (programs.length == 0) {
-      return unit();
+    Program<S, E, Void> result = unit();
+    for (int i = programs.length - 1; i >= 0; i--) {
+      result = programs[i].andThen(result);
     }
-    return programs[0].andThen(chainAll(Arrays.copyOfRange(programs, 1, programs.length)));
+    return result;
   }
 
   /**
@@ -1167,7 +1167,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T, R> Program<S, E, Collection<R>> traverse(
       Function<? super T, ? extends Program<S, E, R>> function, Collection<T> values) {
-    Program<S, E, Collection<R>> initial = success(new ArrayList<>());
+    // the accumulator is created on each evaluation, so the program can be evaluated more than once
+    Program<S, E, Collection<R>> initial = supply(ArrayList::new);
     return values.stream().reduce(
         initial,
         (acc, s) -> append(acc, function.apply(s)),
