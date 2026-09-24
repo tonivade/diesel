@@ -550,11 +550,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           while (frame instanceof CatchFrame) {
             frame = stack.poll();
           }
-          if (frame == null) {
+          if (frame instanceof FoldFrame(var onFailure, var onSuccess)) {
+            current = result.fold(onFailure, onSuccess);
+          } else {
+            // when frame is null
             return (Result<E, T>) result;
           }
-          var fold = (FoldFrame<S>) frame;
-          current = result.fold(fold.onFailure(), fold.onSuccess());
         } else if (current instanceof Effect(var mapper)) {
           current = mapper.apply(state);
         } else if (current instanceof Async(var callback)) {
@@ -602,12 +603,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         while (frame instanceof FoldFrame) {
           frame = stack.poll();
         }
-        if (frame == null) {
+        if (frame instanceof CatchFrame(var recover)) {
+          current = suspend(() -> recover.apply(e));
+        } else {
+          // when frame is null
           return sneakyThrow(e);
         }
-        var recover = ((CatchFrame<S>) frame).recover();
-        // evaluated inside the loop so an exception thrown by the handler reaches outer catchAll
-        current = suspend(() -> (Program<S, Object, Object>) recover.apply(e));
       }
     }
   }
