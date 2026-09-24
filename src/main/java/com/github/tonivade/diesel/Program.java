@@ -589,6 +589,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
                 }));
             current = memoized.current;
           }
+        } else {
+          // every subtype is handled above, so only a null program can reach here
+          throw new NullPointerException("program cannot be null");
         }
       } catch (Throwable e) {
         // unwind to the nearest catchAll, discarding the continuations inside its scope

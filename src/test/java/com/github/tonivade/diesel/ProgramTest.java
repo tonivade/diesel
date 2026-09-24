@@ -314,6 +314,25 @@ class ProgramTest {
   }
 
   @Test
+  void shouldFailWhenProgramIsNull() {
+    var program = success(1).flatMap(_ -> null);
+
+    assertThatThrownBy(() -> program.eval(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("program cannot be null");
+  }
+
+  @Test
+  void shouldRecoverWhenProgramIsNull() {
+    var program = Program.<Void, Void, Integer>suspend(() -> null)
+        .catchAll(_ -> success(-1));
+
+    var result = program.eval(null);
+
+    assertThat(result).isEqualTo(Result.success(-1));
+  }
+
+  @Test
   void shouldNotCatchExceptionOutsideCatchScope() {
     var program = Program.<Void, Void, Integer>success(1)
         .catchAll(_ -> success(-1))
