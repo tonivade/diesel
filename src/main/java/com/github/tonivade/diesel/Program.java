@@ -6,6 +6,18 @@ package com.github.tonivade.diesel;
 
 import static java.util.function.Function.identity;
 
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.function.Finisher2;
+import com.github.tonivade.diesel.function.Finisher3;
+import com.github.tonivade.diesel.function.Finisher4;
+import com.github.tonivade.diesel.function.Finisher5;
+import com.github.tonivade.diesel.function.Finisher6;
+import com.github.tonivade.diesel.function.Finisher7;
+import com.github.tonivade.diesel.function.Finisher8;
+import com.github.tonivade.diesel.function.Finisher9;
+import com.github.tonivade.purefun.Kind;
+
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -30,18 +42,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
-
-import com.github.tonivade.diesel.Frame.CatchFrame;
-import com.github.tonivade.diesel.Frame.FoldFrame;
-import com.github.tonivade.diesel.function.Finisher2;
-import com.github.tonivade.diesel.function.Finisher3;
-import com.github.tonivade.diesel.function.Finisher4;
-import com.github.tonivade.diesel.function.Finisher5;
-import com.github.tonivade.diesel.function.Finisher6;
-import com.github.tonivade.diesel.function.Finisher7;
-import com.github.tonivade.diesel.function.Finisher8;
-import com.github.tonivade.diesel.function.Finisher9;
-import com.github.tonivade.purefun.Kind;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
@@ -238,13 +238,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing an asynchronous computation
    */
   static <S, E, T> Program<S, E, T> from(CompletableFuture<? extends Result<E, T>> future) {
-    return async((_, callback) -> future.whenCompleteAsync((result, error) -> {
-      if (error != null) {
-        callback.completeExceptionally(error);
-      } else {
-        callback.complete(result);
-      }
-    }));
+    return async((_, callback) -> {
+      // not async: completing the callback is cheap, and it avoids depending on the common pool
+      // the returned future can be ignored because the action cannot throw
+      var _ = future.whenComplete((result, error) -> {
+        if (error != null) {
+          callback.completeExceptionally(error);
+        } else {
+          callback.complete(result);
+        }
+      });
+    });
   }
 
   /**
@@ -999,11 +1003,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a sleep
    */
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
-    var delayed = CompletableFuture.delayedExecutor(duration.toMillis(), TimeUnit.MILLISECONDS, executor);
-    return async((_, callback) -> {
-      var future = CompletableFuture.runAsync(() -> {}, delayed);
-      future.whenCompleteAsync((_, _) -> callback.complete(Result.unit()));
-    });
+    var delayed = CompletableFuture.delayedExecutor(duration.toNanos(), TimeUnit.NANOSECONDS, executor);
+    return async((_, callback) -> delayed.execute(() -> callback.complete(Result.unit())));
   }
 
   /**
