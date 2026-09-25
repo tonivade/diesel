@@ -157,7 +157,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record Effect<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {}
 
   /**
-   * Represents a new program that represents a computation that suspends its execution.
+   * Represents a new program that describes a computation that suspends its execution.
    *
    * @param supplier the supplier of the program to be executed
    * @param <S> the type of the state
@@ -604,6 +604,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           frame = stack.poll();
         }
         if (frame instanceof CatchFrame(var recover)) {
+          // run the handler inside the loop so an exception it throws reaches an outer catchAll
           current = suspend(() -> recover.apply(e));
         } else {
           // when frame is null
