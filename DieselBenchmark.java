@@ -50,18 +50,11 @@ public class DieselBenchmark {
 
   // the memoized function is created on each invocation so the cache starts empty
   @Benchmark
-  @SuppressWarnings("unchecked")
   public Result<Void, Integer> recursive() {
-    Function<Integer, Program<Void, Void, Integer>>[] fib = new Function[1];
-    fib[0] = Program.memoize(k -> {
-      if (k < 2) {
-        return Program.success(1);
-      }
-      var fib2 = Program.suspend(() -> fib[0].apply(k - 2));
-      var fib1 = Program.suspend(() -> fib[0].apply(k - 1));
-      return Program.zip(fib2, fib1, Integer::sum);
-    });
-    return fib[0].apply(n).eval(null);
+    Function<Integer, Program<Void, Void, Integer>> fib = Program.memoizeRecursive((self, k) -> k < 2
+        ? Program.success(1)
+        : Program.zip(self.apply(k - 2), self.apply(k - 1), Integer::sum));
+    return fib.apply(n).eval(null);
   }
 
   public static void main(String[] args) throws Exception {

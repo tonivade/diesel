@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -931,19 +932,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <p>Recursive calls must be wrapped in {@link #suspend(Supplier)}, so they happen during evaluation
    * instead of while the program is being built. Calling the memoized function directly from inside
    * {@code function} updates the cache while it is already being updated, which can fail with
-   * {@code IllegalStateException: Recursive update}.
-   *
-   * <pre>{@code
-   * Function<Integer, Program<Void, Void, Integer>>[] fib = new Function[1];
-   * fib[0] = Program.memoize(n -> {
-   *   if (n < 2) {
-   *     return Program.success(1);
-   *   }
-   *   var fib2 = Program.suspend(() -> fib[0].apply(n - 2));
-   *   var fib1 = Program.suspend(() -> fib[0].apply(n - 1));
-   *   return Program.zip(fib2, fib1, Integer::sum);
-   * });
-   * }</pre>
+   * {@code IllegalStateException: Recursive update}. For recursive functions, prefer
+   * {@link #memoizeRecursive(BiFunction)}, which does this for you.
    *
    * @param function the function used to map the value to a program
    * @param <S> the type of the state
@@ -956,6 +946,40 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
     final var memoized = function.andThen(Program::memoized);
     return input -> cache.computeIfAbsent(input, memoized);
+  }
+
+  /**
+   * Creates a memoized function for recursive programs. The provided function receives the memoized
+   * function itself as its first argument, to be used for the recursive calls.
+   *
+   * <p>Recursive calls made through that argument are suspended, so they happen during evaluation
+   * and use the interpreter's stack instead of the Java call stack.
+   *
+   * <pre>{@code
+   * Function<Integer, Program<Void, Void, Integer>> fib = Program.memoizeRecursive((self, n) -> n < 2
+   *     ? Program.success(1)
+   *     : Program.zip(self.apply(n - 2), self.apply(n - 1), Integer::sum));
+   * }</pre>
+   *
+   * @param function the function used to map the value to a program, receiving the memoized function itself
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input value
+   * @param <R> the type of the result
+   * @return a function that maps a value to a memoized program
+   */
+  static <S, E, T, R> Function<T, Program<S, E, R>> memoizeRecursive(
+      BiFunction<Function<T, Program<S, E, R>>, ? super T, ? extends Program<S, E, R>> function) {
+    final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
+    return new Function<>() {
+      // recursive calls are suspended so they don't update the cache while it's being updated
+      final Function<T, Program<S, E, R>> self = input -> suspend(() -> apply(input));
+
+      @Override
+      public Program<S, E, R> apply(T input) {
+        return cache.computeIfAbsent(input, key -> function.apply(self, key).memoized());
+      }
+    };
   }
 
   /**

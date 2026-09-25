@@ -11,6 +11,7 @@ import static com.github.tonivade.diesel.Program.effectR;
 import static com.github.tonivade.diesel.Program.either;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.memoize;
+import static com.github.tonivade.diesel.Program.memoizeRecursive;
 import static com.github.tonivade.diesel.Program.parAll;
 import static com.github.tonivade.diesel.Program.parSequence;
 import static com.github.tonivade.diesel.Program.parZip;
@@ -127,6 +128,29 @@ class ProgramTest {
   @Test
   void shouldGenerateBigFibSequenceWithMemoization() {
     assertThat(fibMemoized.apply(BigInteger.valueOf(9999)).getOrElseThrow().toString())
+      .hasSize(2090);
+  }
+
+  @Test
+  void shouldGenerateFibSequenceWithRecursiveMemoization() {
+    Function<Integer, Program<Void, Void, Integer>> fib = memoizeRecursive((self, n) -> n < 2
+        ? success(1)
+        : zip(self.apply(n - 2), self.apply(n - 1), Integer::sum));
+
+    assertThat(fib.apply(0).getOrElseThrow()).isEqualTo(1);
+    assertThat(fib.apply(1).getOrElseThrow()).isEqualTo(1);
+    assertThat(fib.apply(10).getOrElseThrow()).isEqualTo(89);
+    assertThat(fib.apply(22).getOrElseThrow()).isEqualTo(28657);
+  }
+
+  @Test
+  void shouldGenerateBigFibSequenceWithRecursiveMemoization() {
+    Function<BigInteger, Program<Void, Void, BigInteger>> fib = memoizeRecursive((self, n) ->
+        n.compareTo(BigInteger.TWO) < 0
+            ? success(BigInteger.ONE)
+            : zip(self.apply(n.subtract(BigInteger.TWO)), self.apply(n.subtract(BigInteger.ONE)), BigInteger::add));
+
+    assertThat(fib.apply(BigInteger.valueOf(9999)).getOrElseThrow().toString())
       .hasSize(2090);
   }
 
