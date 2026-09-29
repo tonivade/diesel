@@ -949,6 +949,39 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
+   * Creates a function for recursive programs. The provided function receives the function itself
+   * as its first argument, to be used for the recursive calls.
+   *
+   * <p>Recursive calls made through that argument are suspended, so they happen during evaluation
+   * and use the interpreter's stack instead of the Java call stack.
+   *
+   * <pre>{@code
+   * Function<Integer, Program<Void, Void, Integer>> fib = Program.recursive((self, n) -> n < 2
+   *     ? Program.success(1)
+   *     : Program.zip(self.apply(n - 2), self.apply(n - 1), Integer::sum));
+   * }</pre>
+   *
+   * @param function the function used to map the value to a program, receiving function itself
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input value
+   * @param <R> the type of the result
+   * @return a function that maps a value to a program
+   */
+  static <S, E, T, R> Function<T, Program<S, E, R>> recursive(
+      BiFunction<Function<T, Program<S, E, R>>, ? super T, ? extends Program<S, E, R>> function) {
+    return new Function<>() {
+      // recursive calls are suspended so they don't update the cache while it's being updated
+      final Function<T, Program<S, E, R>> self = input -> suspend(() -> apply(input));
+
+      @Override
+      public Program<S, E, R> apply(T input) {
+        return function.apply(self, input);
+      }
+    };
+  }
+
+  /**
    * Creates a memoized function for recursive programs. The provided function receives the memoized
    * function itself as its first argument, to be used for the recursive calls.
    *

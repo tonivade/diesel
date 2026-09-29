@@ -32,6 +32,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
+
 import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Arrays;
@@ -45,8 +47,6 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoSettings;
-
-import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 @MockitoSettings
 class ProgramTest {
@@ -82,9 +82,25 @@ class ProgramTest {
 
   @Test
   void shouldBeStackSafety() {
-    var sum = safeSum(100000, 0);
+    var sum = safeSum(100_000, 0);
 
     var result = sum.getOrElseThrow();
+
+    assertThat(result).isEqualTo(705082704);
+  }
+
+  @Test
+  void shouldBeStackSafetyRecursive() {
+    record Input(int n, int sum) {};
+
+    Function<Input, Program<Void, Void, Integer>> program = Program.recursive((self, input) -> {
+      if (input.n == 0) {
+        return success(input.sum);
+      }
+      return self.apply(new Input(input.n - 1, input.sum + input.n));
+    });
+
+    var result = program.apply(new Input(100_000, 0)).getOrElseThrow();
 
     assertThat(result).isEqualTo(705082704);
   }
