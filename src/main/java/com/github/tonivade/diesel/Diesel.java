@@ -73,6 +73,9 @@ import java.lang.annotation.Target;
  *
  * <p>In this example, the interface {@code Console} is marked as DSL. The annotation processor will
  * generate the necessary code to implement programs based on this DSL.</p>
+ *
+ * <p>Generic methods are supported: their type variables are added to the generated methods, after
+ * {@code S} and {@code E}. For this reason a method's type variables cannot be named {@code S} or {@code E}.</p>
  */
 @Retention(SOURCE)
 @Target(TYPE)
