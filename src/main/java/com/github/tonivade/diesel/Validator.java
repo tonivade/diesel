@@ -44,7 +44,7 @@ public interface Validator<S, E, T> {
         this.apply(value),
         result -> result.fold(
             () -> other.apply(value),
-            Validator::invalid
+            Program::invalid
         )
     );
   }
@@ -61,7 +61,7 @@ public interface Validator<S, E, T> {
     return value -> pipe(
         this.apply(value),
         result -> result.fold(
-            Validator::valid,
+            Program::valid,
             _ -> other.apply(value)
         )
     );
@@ -83,29 +83,6 @@ public interface Validator<S, E, T> {
   }
 
   /**
-   * Creates a valid validation result.
-   *
-   * @param <S> The state type of the Program
-   * @param <E> The error type for validation failures
-   * @return A Program representing a valid validation result
-   */
-  static <S, E> Program<S, Void, Validation<E>> valid() {
-    return Program.success(Validation.valid());
-  }
-
-  /**
-   * Creates an invalid validation result.
-   *
-   * @param <S> The state type of the Program
-   * @param <E> The error type for validation failures
-   * @param error The error associated with the invalid validation
-   * @return A Program representing an invalid validation result
-   */
-  static <S, E> Program<S, Void, Validation<E>> invalid(E error) {
-    return Program.success(Validation.invalid(error));
-  }
-
-  /**
    * Creates a Validator based on the given predicate and error.
    *
    * @param predicate The predicate to test the value
@@ -115,7 +92,7 @@ public interface Validator<S, E, T> {
    * @param <T> The type of the value to be validated
    * @return A Validator that uses the given predicate and error
    */
-  static <S, E, T> Validator<S, E, T> of(Predicate<T> predicate, E error) {
+  static <S, E, T> Validator<S, E, T> of(Predicate<? super T> predicate, E error) {
     return of(predicate, _ -> error);
   }
 
@@ -129,7 +106,7 @@ public interface Validator<S, E, T> {
    * @param <T> The type of the value to be validated
    * @return A Validator that uses the given predicate and mapper
    */
-  static <S, E, T> Validator<S, E, T> of(Predicate<T> predicate, Function<T, E> mapper) {
+  static <S, E, T> Validator<S, E, T> of(Predicate<? super T> predicate, Function<? super T, ? extends E> mapper) {
     return of(identity(), predicate, mapper);
   }
 
@@ -145,14 +122,14 @@ public interface Validator<S, E, T> {
    * @param <R> The type of the field to be validated
    * @return A Validator that uses the given accessor, predicate, and mapper
    */
-  static <S, E, T, R> Validator<S, E, T> of(Function<T, R> accessor, Predicate<R> predicate, Function<R, E> mapper) {
-    return value -> {
+  static <S, E, T, R> Validator<S, E, T> of(Function<? super T, ? extends R> accessor, Predicate<? super R> predicate, Function<? super R, ? extends E> mapper) {
+    return of(value -> {
       var field = accessor.apply(value);
       if (predicate.test(field)) {
-        return valid();
+        return Validation.valid();
       }
-      return invalid(mapper.apply(field));
-    };
+      return Validation.invalid(mapper.apply(field));
+    });
   }
 
   /**
@@ -167,8 +144,12 @@ public interface Validator<S, E, T> {
    * @param <R> The type of the field to be validated
    * @return A Validator that uses the given accessor, predicate, and error
    */
-  static <S, E, T, R> Validator<S, E, T> of(Function<T, R> accessor, Predicate<R> predicate, E error) {
+  static <S, E, T, R> Validator<S, E, T> of(Function<? super T, ? extends R> accessor, Predicate<? super R> predicate, E error) {
     return of(accessor, predicate, _ -> error);
+  }
+
+  static <S, E, T> Validator<S, E, T> of(Function<? super T, ? extends Validation<E>> validator) {
+    return value -> validator.apply(value).fold(Program::valid, Program::invalid);
   }
 
   /**
@@ -184,6 +165,10 @@ public interface Validator<S, E, T> {
     return fromFailure(program, identity());
   }
 
+  static <S, E, T> Validator<S, E, T> fromFailure(Function<? super T, ? extends Program<S, E, ?>> program) {
+    return fromFailure(program, identity());
+  }
+
   /**
    * Creates a Validator from a Program that will fail when the program fails, mapping errors of type E to type F.
    *
@@ -195,8 +180,13 @@ public interface Validator<S, E, T> {
    * @param <F> The error type for validation failures
    * @return A Validator that uses the given Program and mapper
    */
-  static <S, E, T, F> Validator<S, F, T> fromFailure(Program<S, E, ?> program, Function<E, F> mapper) {
-    return _ -> program.foldMap(mapper.andThen(Validator::invalid), _ -> valid());
+  static <S, E, T, F> Validator<S, F, T> fromFailure(Program<S, E, ?> program, Function<? super E, ? extends F> mapper) {
+    return fromFailure(_ -> program, mapper);
+  }
+
+  static <S, E, T, F> Validator<S, F, T> fromFailure(Function<? super T, ? extends Program<S, E, ?>> program, Function<? super E, ? extends F> mapper) {
+    return value -> program.apply(value).foldMap(
+        mapper.andThen(Program::invalid), _ -> Program.valid());
   }
 
   /**
@@ -211,7 +201,12 @@ public interface Validator<S, E, T> {
    * @param <F> The error type for validation failures
    * @return A Validator that uses the given Program and mapper
    */
-  static <S, E, T, V, F> Validator<S, F, T> fromSuccess(Program<S, E, V> program, Function<V, F> mapper) {
-    return _ -> program.foldMap(_ -> valid(), mapper.andThen(Validator::invalid));
+  static <S, E, T, V, F> Validator<S, F, T> fromSuccess(Program<S, E, V> program, Function<? super V, ? extends F> mapper) {
+    return fromSuccess(_ -> program, mapper);
+  }
+
+  static <S, E, T, V, F> Validator<S, F, T> fromSuccess(Function<? super T, ? extends Program<S, E, V>> program, Function<? super V, ? extends F> mapper) {
+    return value -> program.apply(value).foldMap(
+        _ -> Program.valid(), mapper.andThen(Program::invalid));
   }
 }
