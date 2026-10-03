@@ -149,7 +149,7 @@ public interface Validator<S, E, T> {
   }
 
   /**
-   * Creates a Validator based on a function that returns a Validation result
+   * Creates a Validator based on a function that returns a Validation result.
    *
    * @param validator the function that generates the Validation result
    * @param <S> The state type of the Program
@@ -197,7 +197,7 @@ public interface Validator<S, E, T> {
    * @param <E> The error type produced by the Program
    * @param <T> The type of the value to be validated
    * @param <F> The error type for validation failures
-   * @return A Validator that uses the given function and a mapper
+   * @return A Validator that uses the given Program and a mapper
    */
   static <S, E, T, F> Validator<S, F, T> fromFailure(Program<S, E, ?> program, Function<? super E, ? extends F> mapper) {
     return fromFailure(_ -> program, mapper);
@@ -205,7 +205,7 @@ public interface Validator<S, E, T> {
 
   /**
    * Creates a Validator from a function that receives the value and returns a Program that
-   * that will fail when the program fails, mapping errors of type E to type F.
+   * will fail when the program fails, mapping errors of type E to type F.
    *
    * @param program The function that generates the Program that produces errors of type E
    * @param mapper The function to map errors of type E to type F
@@ -213,7 +213,7 @@ public interface Validator<S, E, T> {
    * @param <E> The error type produced by the Program
    * @param <T> The type of the value to be validated
    * @param <F> The error type for validation failures
-   * @return A Validator that uses the given Program and a mapper
+   * @return A Validator that uses the given function and a mapper
    */
   static <S, E, T, F> Validator<S, F, T> fromFailure(Function<? super T, ? extends Program<S, E, ?>> program, Function<? super E, ? extends F> mapper) {
     return value -> program.apply(value).foldMap(

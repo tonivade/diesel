@@ -10,6 +10,7 @@ import static com.github.tonivade.diesel.Validation.valid;
 import static org.junit.Assert.assertEquals;
 
 import java.util.List;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
 
@@ -54,6 +55,25 @@ class ValidatorTest {
     assertEquals(positiveAndEven.apply(-3).eval(null), success(invalid("Value must be positive")));
     assertEquals(positiveOrEven.apply(-3).eval(null), success(invalid("Value must be even")));
     assertEquals(positiveCombineEven.apply(-3).eval(null), success(invalid(List.of("Value must be positive", "Value must be even"))));
+  }
+
+  @Test
+  void shouldValidateFromProgram() {
+    Function<Integer, Program<Object, String, Integer>> lookup =
+        value -> value > 0 ? Program.success(value) : Program.failure("not found");
+
+    Validator<Object, String, Integer> mustExist = Validator.fromFailure(lookup);
+    Validator<Object, String, Integer> mustExistMapped = Validator.fromFailure(lookup, error -> "error: " + error);
+    Validator<Object, String, Integer> mustNotExist = Validator.fromSuccess(lookup, value -> value + " already exists");
+
+    assertEquals(mustExist.apply(1).eval(null), success(valid()));
+    assertEquals(mustExist.apply(-1).eval(null), success(invalid("not found")));
+
+    assertEquals(mustExistMapped.apply(1).eval(null), success(valid()));
+    assertEquals(mustExistMapped.apply(-1).eval(null), success(invalid("error: not found")));
+
+    assertEquals(mustNotExist.apply(1).eval(null), success(invalid("1 already exists")));
+    assertEquals(mustNotExist.apply(-1).eval(null), success(valid()));
   }
 
 }

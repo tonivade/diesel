@@ -16,6 +16,9 @@ import java.util.function.Supplier;
  */
 public sealed interface Validation<E> {
 
+  /**
+   * The single instance of {@link Valid}.
+   */
   Valid<?> VALID = new Valid<>();
 
   /**
@@ -26,10 +29,13 @@ public sealed interface Validation<E> {
   final class Valid<E> implements Validation<E> {
 
     /**
-     * Private constructor to do not allow create additional instances of this class.
+     * Prevents creating additional instances.
      */
-    private Valid() {
+    private Valid() {}
 
+    @Override
+    public String toString() {
+      return "Valid";
     }
   }
 
