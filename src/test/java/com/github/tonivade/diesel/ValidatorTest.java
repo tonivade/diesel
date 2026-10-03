@@ -1,12 +1,12 @@
 /*
- * Copyright (c) 2018-2024, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Result.success;
-import static com.github.tonivade.diesel.Validator.invalid;
-import static com.github.tonivade.diesel.Validator.valid;
+import static com.github.tonivade.diesel.Validation.invalid;
+import static com.github.tonivade.diesel.Validation.valid;
 import static org.junit.Assert.assertEquals;
 
 import java.util.List;
@@ -17,43 +17,43 @@ class ValidatorTest {
 
   @Test
   void shouldCompose() {
-    Validator<Object, String, Integer> isPositive = value -> {
+    Validator<Object, String, Integer> isPositive = Validator.of(value -> {
       if (value > 0) {
         return valid();
       }
       return invalid("Value must be positive");
-    };
+    });
 
-    Validator<Object, String, Integer> isEven = value -> {
+    Validator<Object, String, Integer> isEven = Validator.of(value -> {
       if (value % 2 == 0) {
         return valid();
       }
       return invalid("Value must be even");
-    };
+    });
 
     var positiveAndEven = isPositive.and(isEven);
     var positiveOrEven = isPositive.or(isEven);
     var positiveCombineEven = isPositive.combine(isEven);
 
     // Test with a positive even number
-    assertEquals(positiveAndEven.apply(4).eval(null), success(Validation.valid()));
-    assertEquals(positiveOrEven.apply(4).eval(null), success(Validation.valid()));
-    assertEquals(positiveCombineEven.apply(4).eval(null), success(Validation.valid()));
+    assertEquals(positiveAndEven.apply(4).eval(null), success(valid()));
+    assertEquals(positiveOrEven.apply(4).eval(null), success(valid()));
+    assertEquals(positiveCombineEven.apply(4).eval(null), success(valid()));
 
     // Test with a positive odd number
-    assertEquals(positiveAndEven.apply(3).eval(null), success(Validation.invalid("Value must be even")));
-    assertEquals(positiveOrEven.apply(3).eval(null), success(Validation.valid()));
-    assertEquals(positiveCombineEven.apply(3).eval(null), success(Validation.invalid(List.of("Value must be even"))));
+    assertEquals(positiveAndEven.apply(3).eval(null), success(invalid("Value must be even")));
+    assertEquals(positiveOrEven.apply(3).eval(null), success(valid()));
+    assertEquals(positiveCombineEven.apply(3).eval(null), success(invalid(List.of("Value must be even"))));
 
     // Test with a negative even number
-    assertEquals(positiveAndEven.apply(-2).eval(null), success(Validation.invalid("Value must be positive")));
-    assertEquals(positiveOrEven.apply(-2).eval(null), success(Validation.valid()));
-    assertEquals(positiveCombineEven.apply(-2).eval(null), success(Validation.invalid(List.of("Value must be positive"))));
+    assertEquals(positiveAndEven.apply(-2).eval(null), success(invalid("Value must be positive")));
+    assertEquals(positiveOrEven.apply(-2).eval(null), success(valid()));
+    assertEquals(positiveCombineEven.apply(-2).eval(null), success(invalid(List.of("Value must be positive"))));
 
     // Test with a negative odd number
-    assertEquals(positiveAndEven.apply(-3).eval(null), success(Validation.invalid("Value must be positive")));
-    assertEquals(positiveOrEven.apply(-3).eval(null), success(Validation.invalid("Value must be even")));
-    assertEquals(positiveCombineEven.apply(-3).eval(null), success(Validation.invalid(List.of("Value must be positive", "Value must be even"))));
+    assertEquals(positiveAndEven.apply(-3).eval(null), success(invalid("Value must be positive")));
+    assertEquals(positiveOrEven.apply(-3).eval(null), success(invalid("Value must be even")));
+    assertEquals(positiveCombineEven.apply(-3).eval(null), success(invalid(List.of("Value must be positive", "Value must be even"))));
   }
 
 }

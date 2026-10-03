@@ -307,6 +307,29 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
+   * Creates program that returns a success with a valid validation result.
+   *
+   * @param <S> The state type of the Program
+   * @param <E> The error type for validation failures
+   * @return A Program representing a valid validation result
+   */
+  static <S, E> Program<S, Void, Validation<E>> valid() {
+    return success(Validation.valid());
+  }
+
+  /**
+   * Creates program that returns a success with a invalid validation result.
+   *
+   * @param <S> The state type of the Program
+   * @param <E> The error type for validation failures
+   * @param error The error associated with the invalid validation
+   * @return A Program representing an invalid validation result
+   */
+  static <S, E> Program<S, Void, Validation<E>> invalid(E error) {
+    return success(Validation.invalid(error));
+  }
+
+  /**
    * Creates a new program that represents a computation that attempts to execute the given supplier.
    *
    * @param supplier the supplier of the value

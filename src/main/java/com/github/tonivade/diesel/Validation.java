@@ -23,7 +23,15 @@ public sealed interface Validation<E> {
    *
    * @param <E> The type of the error (not used in this case)
    */
-  record Valid<E>() implements Validation<E> {}
+  final class Valid<E> implements Validation<E> {
+
+    /**
+     * Private constructor to do not allow create additional instances of this class.
+     */
+    private Valid() {
+
+    }
+  }
 
   /**
    * Represents an invalid validation result with an associated error.
