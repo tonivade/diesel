@@ -555,7 +555,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return the result of evaluating the program
    */
   default T evalOrElseThrow(Function<? super E, ? extends Throwable> mapper) {
-    return eval(null).getOrElseThrow(mapper);
+    return eval().getOrElseThrow(mapper);
+  }
+
+  /**
+   * Evaluates the program without any state and return the result.
+   *
+   * @return the result of the evaluation
+   */
+  default Result<E, T> eval() {
+    return eval(null);
   }
 
   /**

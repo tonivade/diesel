@@ -224,6 +224,21 @@ class ProgramTest {
   }
 
   @Test
+  void shouldFailFast() throws Exception {
+    var p1 = delayed(Duration.ofSeconds(5), () -> 10);
+    var p2 = sleep(Duration.ofSeconds(2)).andThen(Program.failure("error"));
+
+    var start = System.nanoTime();
+    var result = parZip(p1, p2, Tuple::new).eval();
+    var duration = Duration.ofNanos(System.nanoTime() - start);
+
+    assertThat(duration)
+      .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
+    assertThat(result)
+      .isEqualTo(Result.failure("error"));
+  }
+
+  @Test
   void shouldRace() {
     var p1 = delayed(Duration.ofSeconds(20), () -> 10);
     var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
@@ -357,7 +372,7 @@ class ProgramTest {
   void shouldFailWhenProgramIsNull() {
     var program = success(1).flatMap(_ -> null);
 
-    assertThatThrownBy(() -> program.eval(null))
+    assertThatThrownBy(() -> program.eval())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("program cannot be null");
   }
@@ -367,7 +382,7 @@ class ProgramTest {
     var program = Program.<Void, Void, Integer>suspend(() -> null)
         .catchAll(_ -> success(-1));
 
-    var result = program.eval(null);
+    var result = program.eval();
 
     assertThat(result).isEqualTo(Result.success(-1));
   }
@@ -411,10 +426,10 @@ class ProgramTest {
         Validator.of(Tuple::a, Objects::nonNull, _ -> "cannot be null"),
         Validator.of(Tuple::b, not(String::isEmpty), _ -> "cannot be empty"));
 
-    var result1 = validator.apply(new Tuple<>(1, "hola")).eval(null);
-    var result2 = validator.apply(new Tuple<>(1, "")).eval(null);
-    var result3 = validator.apply(new Tuple<>(null, "hola")).eval(null);
-    var result4 = validator.apply(new Tuple<>(null, "")).eval(null);
+    var result1 = validator.apply(new Tuple<>(1, "hola")).eval();
+    var result2 = validator.apply(new Tuple<>(1, "")).eval();
+    var result3 = validator.apply(new Tuple<>(null, "hola")).eval();
+    var result4 = validator.apply(new Tuple<>(null, "")).eval();
 
     assertThat(result1).isEqualTo(Result.success(new Tuple<>(1, "hola")));
     assertThat(result2).isEqualTo(Result.failure(List.of("cannot be empty")));
@@ -436,7 +451,7 @@ class ProgramTest {
   void shouldReleaseResourceOnFailure(@Mock AutoCloseable resource) throws Exception {
     var program = bracket(() -> resource, _ -> failure(new UnsupportedOperationException()));
 
-    var result = program.eval(null);
+    var result = program.eval();
 
     assertThat(result).isInstanceOf(Result.Failure.class);
     verify(resource).close();
