@@ -2032,6 +2032,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <E> CompletableFuture<Result<E, Void>> parAllFailFast(
       Collection<? extends CompletableFuture<? extends Result<E, ?>>> futures) {
+    if (futures.isEmpty()) {
+      return CompletableFuture.completedFuture(Result.unit());
+    }
     var result = new CompletableFuture<Result<E, Void>>();
     var remaining = new AtomicInteger(futures.size());
 
