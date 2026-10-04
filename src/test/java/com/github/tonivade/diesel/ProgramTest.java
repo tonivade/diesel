@@ -17,6 +17,7 @@ import static com.github.tonivade.diesel.Program.parSequence;
 import static com.github.tonivade.diesel.Program.parZip;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.recover;
+import static com.github.tonivade.diesel.Program.recursive;
 import static com.github.tonivade.diesel.Program.sequence;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
@@ -93,7 +94,7 @@ class ProgramTest {
   void shouldBeStackSafetyRecursive() {
     record Input(int n, int sum) {};
 
-    Function<Input, Program<Void, Void, Integer>> program = Program.recursive((self, input) -> {
+    Function<Input, Program<Void, Void, Integer>> program = recursive((self, input) -> {
       if (input.n == 0) {
         return success(input.sum);
       }
@@ -226,7 +227,7 @@ class ProgramTest {
   @Test
   void shouldFailFast() throws Exception {
     var p1 = delayed(Duration.ofSeconds(5), () -> 10);
-    var p2 = sleep(Duration.ofSeconds(2)).andThen(Program.failure("error"));
+    var p2 = sleep(Duration.ofSeconds(2)).andThen(failure("error"));
 
     var start = System.nanoTime();
     var result = parZip(p1, p2, Tuple::new).eval();
