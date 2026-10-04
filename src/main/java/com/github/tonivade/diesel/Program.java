@@ -8,6 +8,7 @@ import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Result.Failure;
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
 import com.github.tonivade.diesel.function.Finisher4;
@@ -33,6 +34,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -45,6 +47,7 @@ import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 /**
+ *
  * A {@code Program} represents a computation that can be executed in a specific context.
  * It is a functional programming construct that allows for the composition of computations
  * and error handling.
@@ -535,8 +538,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * @return the result of evaluating thr program
    */
-  default T getOrElseThrow() {
-    return getOrElseThrow(e -> {
+  default T evalOrElseThrow() {
+    return evalOrElseThrow(e -> {
       if (e instanceof Throwable throwable) {
         return sneakyThrow(throwable);
       }
@@ -551,8 +554,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param mapper the function used to map the error to an exception
    * @return the result of evaluating the program
    */
-  default T getOrElseThrow(Function<? super E, ? extends Throwable> mapper) {
-    return eval(null).getOrElseThrow(mapper);
+  default T evalOrElseThrow(Function<? super E, ? extends Throwable> mapper) {
+    return eval().getOrElseThrow(mapper);
+  }
+
+  /**
+   * Evaluates the program without any state and return the result.
+   *
+   * @return the result of the evaluation
+   */
+  default Result<E, T> eval() {
+    return eval(null);
   }
 
   /**
@@ -1163,7 +1175,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return Program.<S, E, CompletableFuture<Result<E, Void>>>async(
         (state, future) -> {
           try {
-            Result<E, CompletableFuture<Result<E, Void>>> result = evalAll(state, forked).map(Program::parAll);
+            var result = evalAll(state, forked).map(Program::parAllFailFast);
             future.complete(result);
           } catch (RuntimeException e) {
             future.completeExceptionally(e);
@@ -1235,7 +1247,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return Program.<S, E, CompletableFuture<Result<E, Collection<T>>>>async(
         (state, future) -> {
           try {
-            var result = evalAll(state, forked).map(Program::parSequence);
+            var result = evalAll(state, forked).map(Program::parSequenceFailFast);
             future.complete(result);
           } catch (RuntimeException e) {
             future.completeExceptionally(e);
@@ -1708,9 +1720,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         p0.fork(executor),
         p1.fork(executor),
         (f0, f1) -> {
-          return f0.thenCompose(_0 ->
-          f1.thenApply(_1 -> Result.zip(_0, _1, finisher))
-              );
+          return parAllFailFast(List.of(f0, f1))
+              .thenApply(result -> result.fold(
+                  Result::<E, R>failure,
+                  _ -> Result.zip(f0.join(), f1.join(), finisher)));
         })
         .flatMap(Program::from);
   }
@@ -1726,10 +1739,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         p1.fork(executor),
         p2.fork(executor),
         (f0, f1, f2) -> {
-          return f0.thenCompose(_0 ->
-          f1.thenCompose(_1 ->
-          f2.thenApply(_2 -> Result.zip(_0, _1, _2, finisher))
-              ));
+          return parAllFailFast(List.of(f0, f1, f2))
+              .thenApply(result -> result.fold(
+                  Result::<E, R>failure,
+                  _ -> Result.zip(f0.join(), f1.join(), f2.join(), finisher)));
         })
         .flatMap(Program::from);
   }
@@ -1747,11 +1760,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         p2.fork(executor),
         p3.fork(executor),
         (f0, f1, f2, f3) -> {
-          return f0.thenCompose(_0 ->
-          f1.thenCompose(_1 ->
-          f2.thenCompose(_2 ->
-          f3.thenApply(_3 -> Result.zip(_0, _1, _2, _3, finisher))
-              )));
+          return parAllFailFast(List.of(f0, f1, f2, f3))
+              .thenApply(result -> result.fold(
+                  Result::<E, R>failure,
+                  _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), finisher)));
         })
         .flatMap(Program::from);
   }
@@ -1771,12 +1783,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         p3.fork(executor),
         p4.fork(executor),
         (f0, f1, f2, f3, f4) -> {
-          return f0.thenCompose(_0 ->
-          f1.thenCompose(_1 ->
-          f2.thenCompose(_2 ->
-          f3.thenCompose(_3 ->
-          f4.thenApply(_4 -> Result.zip(_0, _1, _2, _3, _4, finisher))
-              ))));
+          return parAllFailFast(List.of(f0, f1, f2, f3, f4))
+              .thenApply(result -> result.fold(
+                  Result::<E, R>failure,
+                  _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), finisher)));
         })
         .flatMap(Program::from);
   }
@@ -1798,13 +1808,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         p4.fork(executor),
         p5.fork(executor),
         (f0, f1, f2, f3, f4, f5) -> {
-          return f0.thenCompose(_0 ->
-          f1.thenCompose(_1 ->
-          f2.thenCompose(_2 ->
-          f3.thenCompose(_3 ->
-          f4.thenCompose(_4 ->
-          f5.thenApply(_5 -> Result.zip(_0, _1, _2, _3, _4, _5, finisher))
-              )))));
+          return parAllFailFast(List.of(f0, f1, f2, f3, f4, f5))
+              .thenApply(result -> result.fold(
+                  Result::<E, R>failure,
+                  _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), finisher)));
         })
         .flatMap(Program::from);
   }
@@ -1828,14 +1835,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         p5.fork(executor),
         p6.fork(executor),
         (f0, f1, f2, f3, f4, f5, f6) -> {
-          return f0.thenCompose(_0 ->
-          f1.thenCompose(_1 ->
-          f2.thenCompose(_2 ->
-          f3.thenCompose(_3 ->
-          f4.thenCompose(_4 ->
-          f5.thenCompose(_5 ->
-          f6.thenApply(_6 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, finisher))
-              ))))));
+          return parAllFailFast(List.of(f0, f1, f2, f3, f4, f5, f6))
+              .thenApply(result -> result.fold(
+                  Result::<E, R>failure,
+                  _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), finisher)));
         })
         .flatMap(Program::from);
   }
@@ -1861,15 +1864,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         p6.fork(executor),
         p7.fork(executor),
         (f0, f1, f2, f3, f4, f5, f6, f7) -> {
-          return f0.thenCompose(_0 ->
-          f1.thenCompose(_1 ->
-          f2.thenCompose(_2 ->
-          f3.thenCompose(_3 ->
-          f4.thenCompose(_4 ->
-          f5.thenCompose(_5 ->
-          f6.thenCompose(_6 ->
-          f7.thenApply(_7 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, _7, finisher))
-              )))))));
+          return parAllFailFast(List.of(f0, f1, f2, f3, f4, f5, f6, f7))
+              .thenApply(result -> result.fold(
+                  Result::<E, R>failure,
+                  _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), f7.join(), finisher)));
         })
         .flatMap(Program::from);
   }
@@ -1897,16 +1895,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         p7.fork(executor),
         p8.fork(executor),
         (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> {
-          return f0.thenCompose(_0 ->
-          f1.thenCompose(_1 ->
-          f2.thenCompose(_2 ->
-          f3.thenCompose(_3 ->
-          f4.thenCompose(_4 ->
-          f5.thenCompose(_5 ->
-          f6.thenCompose(_6 ->
-          f7.thenCompose(_7 ->
-          f8.thenApply(_8 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, _7, _8, finisher))
-              ))))))));
+          return parAllFailFast(List.of(f0, f1, f2, f3, f4, f5, f6, f7, f8))
+              .thenApply(result -> result.fold(
+                  Result::<E, R>failure,
+                  _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), f7.join(), f8.join(), finisher)));
         })
         .flatMap(Program::from);
   }
@@ -2030,23 +2022,41 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return list;
   }
 
-  private static <E, T> CompletableFuture<Result<E, Collection<T>>> parSequence(
+  private static <E, T> CompletableFuture<Result<E, Collection<T>>> parSequenceFailFast(
       Collection<? extends CompletableFuture<Result<E, T>>> futures) {
-    return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
-        .thenApply(_ -> futures.stream().map(CompletableFuture::join).toList())
-        .thenApply(Result::sequence);
+    return parAllFailFast(futures)
+        .thenApply(value -> value.fold(
+            Result::failure,
+            _ -> Result.sequence(futures.stream().map(CompletableFuture::join).toList())));
   }
 
-  private static <E> CompletableFuture<Result<E, Void>> parAll(
-      Collection<? extends CompletableFuture<Result<E, Object>>> futures) {
-    return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
-        .thenApply(Result::<E, Void>success);
+  private static <E> CompletableFuture<Result<E, Void>> parAllFailFast(
+      Collection<? extends CompletableFuture<? extends Result<E, ?>>> futures) {
+    if (futures.isEmpty()) {
+      return CompletableFuture.completedFuture(Result.unit());
+    }
+    var result = new CompletableFuture<Result<E, Void>>();
+    var remaining = new AtomicInteger(futures.size());
+
+    for (var future : futures) {
+      future.whenComplete((value, error) -> {
+        if (error != null) {
+          result.completeExceptionally(error);
+        } else if (value instanceof Failure(var fail)) {
+          result.complete(Result.failure(fail));
+        } else if (remaining.decrementAndGet() == 0) {
+          result.complete(Result.unit());
+        }
+      });
+    }
+
+    return result;
   }
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
       CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
-    return f1.thenApplyAsync(t -> t.map(Either::<T, U>left))
-        .applyToEitherAsync(f2.thenApplyAsync(u -> u.map(Either::<T, U>right)), result -> {
+    return f1.thenApply(t -> t.map(Either::<T, U>left))
+        .applyToEither(f2.thenApplyAsync(u -> u.map(Either::<T, U>right)), result -> {
           cancelBoth(f1, f2);
           return result;
         });

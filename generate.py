@@ -54,9 +54,10 @@ static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, 
     return zip(
       {% for i in range(value) %} p{{ i }}.fork(executor), 
       {% endfor %} ({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}) -> {
-        return {% for i in range(value - 1) %}f{{ i }}.thenCompose(_{{ i }} -> 
-          {% endfor %}f{{ value - 1 }}.thenApply(_{{ value -1 }} -> Result.zip({% for i in range(value) %}_{{ i }}, {% endfor %}finisher))
-          {% for i in range(value - 1) %}){% endfor %};
+        return parAll(List.of({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}))
+          .thenApply(result -> result.fold(
+            Result::<E, R>failure,
+            _ -> Result.zip({% for i in range(value) %}f{{ i }}.join(), {% endfor %}finisher)));
       })
       .flatMap(Program::from);
 }

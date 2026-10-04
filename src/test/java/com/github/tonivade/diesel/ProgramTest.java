@@ -17,6 +17,7 @@ import static com.github.tonivade.diesel.Program.parSequence;
 import static com.github.tonivade.diesel.Program.parZip;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.recover;
+import static com.github.tonivade.diesel.Program.recursive;
 import static com.github.tonivade.diesel.Program.sequence;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
@@ -84,7 +85,7 @@ class ProgramTest {
   void shouldBeStackSafety() {
     var sum = safeSum(100_000, 0);
 
-    var result = sum.getOrElseThrow();
+    var result = sum.evalOrElseThrow();
 
     assertThat(result).isEqualTo(705082704);
   }
@@ -93,57 +94,57 @@ class ProgramTest {
   void shouldBeStackSafetyRecursive() {
     record Input(int n, int sum) {};
 
-    Function<Input, Program<Void, Void, Integer>> program = Program.recursive((self, input) -> {
+    Function<Input, Program<Void, Void, Integer>> program = recursive((self, input) -> {
       if (input.n == 0) {
         return success(input.sum);
       }
       return self.apply(new Input(input.n - 1, input.sum + input.n));
     });
 
-    var result = program.apply(new Input(100_000, 0)).getOrElseThrow();
+    var result = program.apply(new Input(100_000, 0)).evalOrElseThrow();
 
     assertThat(result).isEqualTo(705082704);
   }
 
   @Test
   void shouldGenerateFibSequence() {
-    assertThat(fib(0).getOrElseThrow()).isEqualTo(1);
-    assertThat(fib(1).getOrElseThrow()).isEqualTo(1);
-    assertThat(fib(2).getOrElseThrow()).isEqualTo(2);
-    assertThat(fib(3).getOrElseThrow()).isEqualTo(3);
-    assertThat(fib(4).getOrElseThrow()).isEqualTo(5);
-    assertThat(fib(5).getOrElseThrow()).isEqualTo(8);
-    assertThat(fib(6).getOrElseThrow()).isEqualTo(13);
-    assertThat(fib(7).getOrElseThrow()).isEqualTo(21);
-    assertThat(fib(8).getOrElseThrow()).isEqualTo(34);
-    assertThat(fib(9).getOrElseThrow()).isEqualTo(55);
-    assertThat(fib(10).getOrElseThrow()).isEqualTo(89);
-    assertThat(fib(20).getOrElseThrow()).isEqualTo(10946);
-    assertThat(fib(21).getOrElseThrow()).isEqualTo(17711);
-    assertThat(fib(22).getOrElseThrow()).isEqualTo(28657);
+    assertThat(fib(0).evalOrElseThrow()).isEqualTo(1);
+    assertThat(fib(1).evalOrElseThrow()).isEqualTo(1);
+    assertThat(fib(2).evalOrElseThrow()).isEqualTo(2);
+    assertThat(fib(3).evalOrElseThrow()).isEqualTo(3);
+    assertThat(fib(4).evalOrElseThrow()).isEqualTo(5);
+    assertThat(fib(5).evalOrElseThrow()).isEqualTo(8);
+    assertThat(fib(6).evalOrElseThrow()).isEqualTo(13);
+    assertThat(fib(7).evalOrElseThrow()).isEqualTo(21);
+    assertThat(fib(8).evalOrElseThrow()).isEqualTo(34);
+    assertThat(fib(9).evalOrElseThrow()).isEqualTo(55);
+    assertThat(fib(10).evalOrElseThrow()).isEqualTo(89);
+    assertThat(fib(20).evalOrElseThrow()).isEqualTo(10946);
+    assertThat(fib(21).evalOrElseThrow()).isEqualTo(17711);
+    assertThat(fib(22).evalOrElseThrow()).isEqualTo(28657);
   }
 
   @Test
   void shouldGenerateFibSequenceWithMemoization() {
-    assertThat(fibMemoized.apply(BigInteger.ZERO).getOrElseThrow()).isEqualTo(BigInteger.ONE);
-    assertThat(fibMemoized.apply(BigInteger.ONE).getOrElseThrow()).isEqualTo(BigInteger.ONE);
-    assertThat(fibMemoized.apply(BigInteger.valueOf(2)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(2));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(3)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(3));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(4)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(5));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(5)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(8));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(6)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(13));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(7)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(21));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(8)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(34));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(9)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(55));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(10)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(89));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(20)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(10946));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(21)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(17711));
-    assertThat(fibMemoized.apply(BigInteger.valueOf(22)).getOrElseThrow()).isEqualTo(BigInteger.valueOf(28657));
+    assertThat(fibMemoized.apply(BigInteger.ZERO).evalOrElseThrow()).isEqualTo(BigInteger.ONE);
+    assertThat(fibMemoized.apply(BigInteger.ONE).evalOrElseThrow()).isEqualTo(BigInteger.ONE);
+    assertThat(fibMemoized.apply(BigInteger.valueOf(2)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(2));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(3)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(3));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(4)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(5));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(5)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(8));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(6)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(13));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(7)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(21));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(8)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(34));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(9)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(55));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(10)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(89));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(20)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(10946));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(21)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(17711));
+    assertThat(fibMemoized.apply(BigInteger.valueOf(22)).evalOrElseThrow()).isEqualTo(BigInteger.valueOf(28657));
   }
 
   @Test
   void shouldGenerateBigFibSequenceWithMemoization() {
-    assertThat(fibMemoized.apply(BigInteger.valueOf(9999)).getOrElseThrow().toString())
+    assertThat(fibMemoized.apply(BigInteger.valueOf(9999)).evalOrElseThrow().toString())
       .hasSize(2090);
   }
 
@@ -153,10 +154,10 @@ class ProgramTest {
         ? success(1)
         : zip(self.apply(n - 2), self.apply(n - 1), Integer::sum));
 
-    assertThat(fib.apply(0).getOrElseThrow()).isEqualTo(1);
-    assertThat(fib.apply(1).getOrElseThrow()).isEqualTo(1);
-    assertThat(fib.apply(10).getOrElseThrow()).isEqualTo(89);
-    assertThat(fib.apply(22).getOrElseThrow()).isEqualTo(28657);
+    assertThat(fib.apply(0).evalOrElseThrow()).isEqualTo(1);
+    assertThat(fib.apply(1).evalOrElseThrow()).isEqualTo(1);
+    assertThat(fib.apply(10).evalOrElseThrow()).isEqualTo(89);
+    assertThat(fib.apply(22).evalOrElseThrow()).isEqualTo(28657);
   }
 
   @Test
@@ -166,7 +167,7 @@ class ProgramTest {
             ? success(BigInteger.ONE)
             : zip(self.apply(n.subtract(BigInteger.TWO)), self.apply(n.subtract(BigInteger.ONE)), BigInteger::add));
 
-    assertThat(fib.apply(BigInteger.valueOf(9999)).getOrElseThrow().toString())
+    assertThat(fib.apply(BigInteger.valueOf(9999)).evalOrElseThrow().toString())
       .hasSize(2090);
   }
 
@@ -179,7 +180,7 @@ class ProgramTest {
   void shouldSleep() {
     var duration = Duration.ofSeconds(2);
 
-    var result = sleep(duration).timed().getOrElseThrow();
+    var result = sleep(duration).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(duration, Duration.ofMillis(100));
@@ -189,7 +190,7 @@ class ProgramTest {
   void shouldDelay() {
     var duration = Duration.ofSeconds(2);
 
-    var result = delayed(duration, () -> 10).timed().getOrElseThrow();
+    var result = delayed(duration, () -> 10).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(duration, Duration.ofMillis(100));
@@ -202,7 +203,7 @@ class ProgramTest {
     var p1 = delayed(Duration.ofSeconds(2), () -> 10);
     var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
 
-    var result = zip(p1, p2, Tuple::new).timed().getOrElseThrow();
+    var result = zip(p1, p2, Tuple::new).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(4), Duration.ofMillis(100));
@@ -215,7 +216,7 @@ class ProgramTest {
     var p1 = delayed(Duration.ofSeconds(2), () -> 10);
     var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
 
-    var result = parZip(p1, p2, Tuple::new).timed().getOrElseThrow();
+    var result = parZip(p1, p2, Tuple::new).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
@@ -224,11 +225,26 @@ class ProgramTest {
   }
 
   @Test
+  void shouldFailFast() throws Exception {
+    var p1 = delayed(Duration.ofSeconds(5), () -> 10);
+    var p2 = sleep(Duration.ofSeconds(2)).andThen(failure("error"));
+
+    var start = System.nanoTime();
+    var result = parZip(p1, p2, Tuple::new).eval();
+    var duration = Duration.ofNanos(System.nanoTime() - start);
+
+    assertThat(duration)
+      .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
+    assertThat(result)
+      .isEqualTo(Result.failure("error"));
+  }
+
+  @Test
   void shouldRace() {
     var p1 = delayed(Duration.ofSeconds(20), () -> 10);
     var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
 
-    var result = either(p1, p2).timed().getOrElseThrow();
+    var result = either(p1, p2).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
@@ -241,7 +257,7 @@ class ProgramTest {
     var p1 = delayed(Duration.ofSeconds(20), () -> 10);
     var p2 = p1.timeout(Duration.ofSeconds(1));
 
-    assertThatThrownBy(() -> p2.getOrElseThrow())
+    assertThatThrownBy(() -> p2.evalOrElseThrow())
       .isInstanceOf(TimeoutException.class);
   }
 
@@ -250,7 +266,7 @@ class ProgramTest {
     var p1 = delayed(Duration.ofSeconds(2), () -> 10);
     var p2 = p1.timeout(Duration.ofSeconds(10));
 
-    var result = p2.getOrElseThrow();
+    var result = p2.evalOrElseThrow();
 
     assertThat(result).isEqualTo(10);
   }
@@ -259,7 +275,7 @@ class ProgramTest {
   void shouldRaiseException() {
     var program = raise(UnsupportedOperationException::new);
 
-    assertThatThrownBy(() -> program.getOrElseThrow())
+    assertThatThrownBy(() -> program.evalOrElseThrow())
       .isInstanceOf(UnsupportedOperationException.class);
   }
 
@@ -267,7 +283,7 @@ class ProgramTest {
   void shouldExecuteAllPrograms(@Mock Supplier<String> supplier) {
     when(supplier.get()).thenReturn("hi!");
 
-    chainAll(supply(supplier), supply(supplier), supply(supplier)).getOrElseThrow();
+    chainAll(supply(supplier), supply(supplier), supply(supplier)).evalOrElseThrow();
 
     verify(supplier, times(3)).get();
   }
@@ -276,7 +292,7 @@ class ProgramTest {
   void shouldExecuteAllProgramsAndCollectsResult(@Mock Supplier<String> supplier) {
     when(supplier.get()).thenReturn("1", "2", "3");
 
-    var result = sequence(supply(supplier), supply(supplier), supply(supplier)).getOrElseThrow();
+    var result = sequence(supply(supplier), supply(supplier), supply(supplier)).evalOrElseThrow();
 
     assertThat(result).isEqualTo(List.of("1", "2", "3"));
     verify(supplier, times(3)).get();
@@ -289,7 +305,7 @@ class ProgramTest {
     var result = parAll(
         delayed(Duration.ofSeconds(1), supplier),
         delayed(Duration.ofSeconds(2), supplier),
-        delayed(Duration.ofSeconds(3), supplier)).timed().getOrElseThrow();
+        delayed(Duration.ofSeconds(3), supplier)).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
@@ -303,7 +319,7 @@ class ProgramTest {
     var result = parSequence(
         delayed(Duration.ofSeconds(1), supplier),
         delayed(Duration.ofSeconds(2), supplier),
-        delayed(Duration.ofSeconds(3), supplier)).timed().getOrElseThrow();
+        delayed(Duration.ofSeconds(3), supplier)).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
@@ -315,7 +331,7 @@ class ProgramTest {
   void shouldCatchException() {
     var program = raise(UnsupportedOperationException::new).catchAll(_ -> success(10));
 
-    var result = program.getOrElseThrow();
+    var result = program.evalOrElseThrow();
 
     assertThat(result).isEqualTo(10);
   }
@@ -326,7 +342,7 @@ class ProgramTest {
         throw new UnsupportedOperationException();
       }).catchAll(_ -> unit());
 
-    var result = program.getOrElseThrow();
+    var result = program.evalOrElseThrow();
 
     assertThat(result).isNull();
   }
@@ -335,8 +351,8 @@ class ProgramTest {
   void shouldSequenceWhenEvaluatedTwice() {
     var program = Program.<Void, Void, Integer>sequence(success(1), success(2));
 
-    var first = program.getOrElseThrow();
-    var second = program.getOrElseThrow();
+    var first = program.evalOrElseThrow();
+    var second = program.evalOrElseThrow();
 
     assertThat(first).containsExactly(1, 2);
     assertThat(second).containsExactly(1, 2);
@@ -348,7 +364,7 @@ class ProgramTest {
     Program<Void, Void, Integer>[] programs = new Program[100_000];
     Arrays.fill(programs, success(1));
 
-    var result = chainAll(programs).getOrElseThrow();
+    var result = chainAll(programs).evalOrElseThrow();
 
     assertThat(result).isNull();
   }
@@ -357,7 +373,7 @@ class ProgramTest {
   void shouldFailWhenProgramIsNull() {
     var program = success(1).flatMap(_ -> null);
 
-    assertThatThrownBy(() -> program.eval(null))
+    assertThatThrownBy(() -> program.eval())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("program cannot be null");
   }
@@ -367,7 +383,7 @@ class ProgramTest {
     var program = Program.<Void, Void, Integer>suspend(() -> null)
         .catchAll(_ -> success(-1));
 
-    var result = program.eval(null);
+    var result = program.eval();
 
     assertThat(result).isEqualTo(Result.success(-1));
   }
@@ -380,7 +396,7 @@ class ProgramTest {
           throw new UnsupportedOperationException();
         });
 
-    assertThatThrownBy(program::getOrElseThrow).isInstanceOf(UnsupportedOperationException.class);
+    assertThatThrownBy(program::evalOrElseThrow).isInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test
@@ -389,7 +405,7 @@ class ProgramTest {
         .map(x -> "mapped:" + x)
         .catchAll(_ -> success("recovered"));
 
-    var result = program.getOrElseThrow();
+    var result = program.evalOrElseThrow();
 
     assertThat(result).isEqualTo("recovered");
   }
@@ -400,7 +416,7 @@ class ProgramTest {
         .catchAll(_ -> raise(IllegalStateException::new))
         .catchAll(e -> success(e.getClass().getSimpleName()));
 
-    var result = program.getOrElseThrow();
+    var result = program.evalOrElseThrow();
 
     assertThat(result).isEqualTo("IllegalStateException");
   }
@@ -411,10 +427,10 @@ class ProgramTest {
         Validator.of(Tuple::a, Objects::nonNull, _ -> "cannot be null"),
         Validator.of(Tuple::b, not(String::isEmpty), _ -> "cannot be empty"));
 
-    var result1 = validator.apply(new Tuple<>(1, "hola")).eval(null);
-    var result2 = validator.apply(new Tuple<>(1, "")).eval(null);
-    var result3 = validator.apply(new Tuple<>(null, "hola")).eval(null);
-    var result4 = validator.apply(new Tuple<>(null, "")).eval(null);
+    var result1 = validator.apply(new Tuple<>(1, "hola")).eval();
+    var result2 = validator.apply(new Tuple<>(1, "")).eval();
+    var result3 = validator.apply(new Tuple<>(null, "hola")).eval();
+    var result4 = validator.apply(new Tuple<>(null, "")).eval();
 
     assertThat(result1).isEqualTo(Result.success(new Tuple<>(1, "hola")));
     assertThat(result2).isEqualTo(Result.failure(List.of("cannot be empty")));
@@ -426,7 +442,7 @@ class ProgramTest {
   void shouldReleaseResource(@Mock AutoCloseable resource) throws Exception {
     var program = bracket(() -> resource, Program::success);
 
-    var result = program.getOrElseThrow();
+    var result = program.evalOrElseThrow();
 
     assertThat(result).isEqualTo(resource);
     verify(resource).close();
@@ -436,7 +452,7 @@ class ProgramTest {
   void shouldReleaseResourceOnFailure(@Mock AutoCloseable resource) throws Exception {
     var program = bracket(() -> resource, _ -> failure(new UnsupportedOperationException()));
 
-    var result = program.eval(null);
+    var result = program.eval();
 
     assertThat(result).isInstanceOf(Result.Failure.class);
     verify(resource).close();
