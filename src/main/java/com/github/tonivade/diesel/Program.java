@@ -2035,31 +2035,18 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <E, T> CompletableFuture<Result<E, Collection<T>>> parSequence(
       Collection<? extends CompletableFuture<Result<E, T>>> futures) {
-    CompletableFuture<Result<E, Void>> result = new CompletableFuture<>();
-    AtomicInteger remaining = new AtomicInteger(futures.size());
+    var result = parAll(futures);
 
-    for (CompletableFuture<Result<E, T>> future : futures) {
-      future.whenComplete((value, error) -> {
-        if (error != null) {
-          result.completeExceptionally(error);
-        } else if (value instanceof Failure(var fail)) {
-          result.complete(Result.failure(fail));
-        } else if (remaining.decrementAndGet() == 0) {
-          result.complete(Result.unit());
-        }
-      });
-    }
-
-    return result.thenApply(value -> 
+    return result.thenApply(value ->
           value.fold(Result::failure, _ -> Result.sequence(futures.stream().map(CompletableFuture::join).toList())));
   }
 
   private static <E> CompletableFuture<Result<E, Void>> parAll(
-      Collection<? extends CompletableFuture<Result<E, Object>>> futures) {
+      Collection<? extends CompletableFuture<? extends Result<E, ?>>> futures) {
     CompletableFuture<Result<E, Void>> result = new CompletableFuture<>();
     AtomicInteger remaining = new AtomicInteger(futures.size());
 
-    for (CompletableFuture<Result<E, Object>> future : futures) {
+    for (CompletableFuture<? extends Result<E, ?>> future : futures) {
       future.whenComplete((value, error) -> {
         if (error != null) {
           result.completeExceptionally(error);
