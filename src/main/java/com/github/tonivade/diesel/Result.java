@@ -364,13 +364,11 @@ public sealed interface Result<F, S> {
    * @return A result containing a collection of mapped success values, or a failure if any mapping fails.
    */
   static <F, S, R> Result<F, Collection<R>> traverse(Collection<S> values, Function<S, Result<F, R>> mapper) {
-    Result<F, Collection<R>> initial = success(new ArrayList<>());
-    return values.stream().reduce(
-        initial,
-        (acc, s) -> append(acc, mapper.apply(s)),
-        (_, _) -> {
-          throw new UnsupportedOperationException("Parallel stream not supported");
-        });
+    Result<F, Collection<R>> acc = success(new ArrayList<>());
+    for (S s : values) {
+      acc = append(acc, mapper.apply(s));
+    }
+    return acc;
   }
 
   private static <F, R> Result<F, Collection<R>> append(Result<F, Collection<R>> acc, Result<F, R> value) {

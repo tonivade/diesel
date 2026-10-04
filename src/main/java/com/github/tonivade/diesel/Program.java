@@ -1289,13 +1289,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   static <S, E, T, R> Program<S, E, Collection<R>> traverse(
       Function<? super T, ? extends Program<S, E, R>> function, Collection<T> values) {
     // the accumulator is created on each evaluation, so the program can be evaluated more than once
-    Program<S, E, Collection<R>> initial = supply(ArrayList::new);
-    return values.stream().reduce(
-        initial,
-        (acc, s) -> append(acc, function.apply(s)),
-        (_, _) -> {
-          throw new UnsupportedOperationException("Parallel stream not supported");
-        });
+    Program<S, E, Collection<R>> acc = supply(ArrayList::new);
+    for (T t : values) {
+      acc = append(acc, function.apply(t));
+    }
+    return acc;
   }
 
   /**
