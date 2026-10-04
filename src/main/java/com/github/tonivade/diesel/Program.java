@@ -2043,10 +2043,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <E> CompletableFuture<Result<E, Void>> parAll(
       Collection<? extends CompletableFuture<? extends Result<E, ?>>> futures) {
-    CompletableFuture<Result<E, Void>> result = new CompletableFuture<>();
-    AtomicInteger remaining = new AtomicInteger(futures.size());
+    var result = new CompletableFuture<Result<E, Void>>();
+    var remaining = new AtomicInteger(futures.size());
 
-    for (CompletableFuture<? extends Result<E, ?>> future : futures) {
+    for (var future : futures) {
       future.whenComplete((value, error) -> {
         if (error != null) {
           result.completeExceptionally(error);
@@ -2063,8 +2063,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
       CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
-    return f1.thenApplyAsync(t -> t.map(Either::<T, U>left))
-        .applyToEitherAsync(f2.thenApplyAsync(u -> u.map(Either::<T, U>right)), result -> {
+    return f1.thenApply(t -> t.map(Either::<T, U>left))
+        .applyToEither(f2.thenApplyAsync(u -> u.map(Either::<T, U>right)), result -> {
           cancelBoth(f1, f2);
           return result;
         });
