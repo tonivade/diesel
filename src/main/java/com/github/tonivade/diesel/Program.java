@@ -6,6 +6,19 @@ package com.github.tonivade.diesel;
 
 import static java.util.function.Function.identity;
 
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Result.Failure;
+import com.github.tonivade.diesel.function.Finisher2;
+import com.github.tonivade.diesel.function.Finisher3;
+import com.github.tonivade.diesel.function.Finisher4;
+import com.github.tonivade.diesel.function.Finisher5;
+import com.github.tonivade.diesel.function.Finisher6;
+import com.github.tonivade.diesel.function.Finisher7;
+import com.github.tonivade.diesel.function.Finisher8;
+import com.github.tonivade.diesel.function.Finisher9;
+import com.github.tonivade.purefun.Kind;
+
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -33,20 +46,8 @@ import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
 
-import com.github.tonivade.diesel.Frame.CatchFrame;
-import com.github.tonivade.diesel.Frame.FoldFrame;
-import com.github.tonivade.diesel.Result.Failure;
-import com.github.tonivade.diesel.function.Finisher2;
-import com.github.tonivade.diesel.function.Finisher3;
-import com.github.tonivade.diesel.function.Finisher4;
-import com.github.tonivade.diesel.function.Finisher5;
-import com.github.tonivade.diesel.function.Finisher6;
-import com.github.tonivade.diesel.function.Finisher7;
-import com.github.tonivade.diesel.function.Finisher8;
-import com.github.tonivade.diesel.function.Finisher9;
-import com.github.tonivade.purefun.Kind;
-
 /**
+ *
  * A {@code Program} represents a computation that can be executed in a specific context.
  * It is a functional programming construct that allows for the composition of computations
  * and error handling.
@@ -2049,9 +2050,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       });
     }
 
-    return result
-        .thenApply(_ -> futures.stream().map(CompletableFuture::join).toList())
-        .thenApply(Result::sequence);
+    return result.thenApply(value -> 
+          value.fold(Result::failure, _ -> Result.sequence(futures.stream().map(CompletableFuture::join).toList())));
   }
 
   private static <E> CompletableFuture<Result<E, Void>> parAll(
