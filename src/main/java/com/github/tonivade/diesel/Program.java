@@ -2056,7 +2056,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
       CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
     return f1.thenApply(t -> t.map(Either::<T, U>left))
-        .applyToEither(f2.thenApplyAsync(u -> u.map(Either::<T, U>right)), result -> {
+        .applyToEither(f2.thenApply(u -> u.map(Either::<T, U>right)), result -> {
           cancelBoth(f1, f2);
           return result;
         });
