@@ -122,7 +122,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
       Function<? super E, ? extends Program<S, F, R>> onFailure,
-      Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {}
+          Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {}
 
   /**
    * Represents an asynchronous computation within the program.
@@ -756,7 +756,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   default <F, R> Program<S, F, R> foldMap(
       Function<? super E, ? extends Program<S, F, R>> onFailure,
-      Function<? super T, ? extends Program<S, F, R>> onSuccess) {
+          Function<? super T, ? extends Program<S, F, R>> onSuccess) {
     return new FoldMap<>(this, onFailure, onSuccess);
   }
 
@@ -783,7 +783,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return pipe(
         start(),
         start -> map(value -> end(start, value))
-      );
+        );
   }
 
   /**
@@ -922,7 +922,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
     return either(sleep(duration, executor), this, executor)
-      .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
+        .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
   }
 
   /**
@@ -1083,7 +1083,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return pipe(
         sleep(duration, executor),
         _ -> program
-      );
+        );
   }
 
   /**
@@ -1408,13 +1408,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   static <S, E, T, R> Program<S, E, R> bracket(
       Program<S, E, T> acquire,
       Function<? super T, ? extends Program<S, E, R>> use,
-      Function<? super T, ? extends Program<S, E, Void>> release) {
+          Function<? super T, ? extends Program<S, E, Void>> release) {
     return pipe(
         acquire,
         resource -> use.apply(resource).foldMap(
             e -> release.apply(resource).andThen(failure(e)),
             t -> release.apply(resource).andThen(success(t)))
-    );
+        );
   }
 
   // start generated code
@@ -1428,70 +1428,70 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   static <S, E, T0, T1, T2> Program<S, E, T2> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-      Function<? super T1, ? extends Program<S, E, T2>> p2) {
+          Function<? super T1, ? extends Program<S, E, T2>> p2) {
     return p0.flatMap(p1).flatMap(p2);
   }
 
   static <S, E, T0, T1, T2, T3> Program<S, E, T3> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-      Function<? super T1, ? extends Program<S, E, T2>> p2,
-      Function<? super T2, ? extends Program<S, E, T3>> p3) {
+          Function<? super T1, ? extends Program<S, E, T2>> p2,
+              Function<? super T2, ? extends Program<S, E, T3>> p3) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3);
   }
 
   static <S, E, T0, T1, T2, T3, T4> Program<S, E, T4> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-      Function<? super T1, ? extends Program<S, E, T2>> p2,
-      Function<? super T2, ? extends Program<S, E, T3>> p3,
-      Function<? super T3, ? extends Program<S, E, T4>> p4) {
+          Function<? super T1, ? extends Program<S, E, T2>> p2,
+              Function<? super T2, ? extends Program<S, E, T3>> p3,
+                  Function<? super T3, ? extends Program<S, E, T4>> p4) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5> Program<S, E, T5> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-      Function<? super T1, ? extends Program<S, E, T2>> p2,
-      Function<? super T2, ? extends Program<S, E, T3>> p3,
-      Function<? super T3, ? extends Program<S, E, T4>> p4,
-      Function<? super T4, ? extends Program<S, E, T5>> p5) {
+          Function<? super T1, ? extends Program<S, E, T2>> p2,
+              Function<? super T2, ? extends Program<S, E, T3>> p3,
+                  Function<? super T3, ? extends Program<S, E, T4>> p4,
+                      Function<? super T4, ? extends Program<S, E, T5>> p5) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6> Program<S, E, T6> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-      Function<? super T1, ? extends Program<S, E, T2>> p2,
-      Function<? super T2, ? extends Program<S, E, T3>> p3,
-      Function<? super T3, ? extends Program<S, E, T4>> p4,
-      Function<? super T4, ? extends Program<S, E, T5>> p5,
-      Function<? super T5, ? extends Program<S, E, T6>> p6) {
+          Function<? super T1, ? extends Program<S, E, T2>> p2,
+              Function<? super T2, ? extends Program<S, E, T3>> p3,
+                  Function<? super T3, ? extends Program<S, E, T4>> p4,
+                      Function<? super T4, ? extends Program<S, E, T5>> p5,
+                          Function<? super T5, ? extends Program<S, E, T6>> p6) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7> Program<S, E, T7> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-      Function<? super T1, ? extends Program<S, E, T2>> p2,
-      Function<? super T2, ? extends Program<S, E, T3>> p3,
-      Function<? super T3, ? extends Program<S, E, T4>> p4,
-      Function<? super T4, ? extends Program<S, E, T5>> p5,
-      Function<? super T5, ? extends Program<S, E, T6>> p6,
-      Function<? super T6, ? extends Program<S, E, T7>> p7) {
+          Function<? super T1, ? extends Program<S, E, T2>> p2,
+              Function<? super T2, ? extends Program<S, E, T3>> p3,
+                  Function<? super T3, ? extends Program<S, E, T4>> p4,
+                      Function<? super T4, ? extends Program<S, E, T5>> p5,
+                          Function<? super T5, ? extends Program<S, E, T6>> p6,
+                              Function<? super T6, ? extends Program<S, E, T7>> p7) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8> Program<S, E, T8> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-      Function<? super T1, ? extends Program<S, E, T2>> p2,
-      Function<? super T2, ? extends Program<S, E, T3>> p3,
-      Function<? super T3, ? extends Program<S, E, T4>> p4,
-      Function<? super T4, ? extends Program<S, E, T5>> p5,
-      Function<? super T5, ? extends Program<S, E, T6>> p6,
-      Function<? super T6, ? extends Program<S, E, T7>> p7,
-      Function<? super T7, ? extends Program<S, E, T8>> p8) {
+          Function<? super T1, ? extends Program<S, E, T2>> p2,
+              Function<? super T2, ? extends Program<S, E, T3>> p3,
+                  Function<? super T3, ? extends Program<S, E, T4>> p4,
+                      Function<? super T4, ? extends Program<S, E, T5>> p5,
+                          Function<? super T5, ? extends Program<S, E, T6>> p6,
+                              Function<? super T6, ? extends Program<S, E, T7>> p7,
+                                  Function<? super T7, ? extends Program<S, E, T8>> p8) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7).flatMap(p8);
   }
 
@@ -1575,51 +1575,51 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Finisher2<T0, T1, R> finisher) {
-     return p0.flatMap(_0 ->
-       p1.map(_1 -> finisher.apply(_0, _1))
-       );
-   }
+    return p0.flatMap(_0 ->
+    p1.map(_1 -> finisher.apply(_0, _1))
+        );
+  }
 
-   static <S, E, T0, T1, T2, R> Program<S, E, R> zip(
+  static <S, E, T0, T1, T2, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
       Finisher3<T0, T1, T2, R> finisher) {
-     return p0.flatMap(_0 ->
-       p1.flatMap(_1 ->
-       p2.map(_2 -> finisher.apply(_0, _1, _2))
-       ));
-   }
+    return p0.flatMap(_0 ->
+    p1.flatMap(_1 ->
+    p2.map(_2 -> finisher.apply(_0, _1, _2))
+        ));
+  }
 
-   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> zip(
+  static <S, E, T0, T1, T2, T3, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
       Program<S, E, T3> p3,
       Finisher4<T0, T1, T2, T3, R> finisher) {
-     return p0.flatMap(_0 ->
-       p1.flatMap(_1 ->
-       p2.flatMap(_2 ->
-       p3.map(_3 -> finisher.apply(_0, _1, _2, _3))
-       )));
-   }
+    return p0.flatMap(_0 ->
+    p1.flatMap(_1 ->
+    p2.flatMap(_2 ->
+    p3.map(_3 -> finisher.apply(_0, _1, _2, _3))
+        )));
+  }
 
-   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> zip(
+  static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
       Program<S, E, T3> p3,
       Program<S, E, T4> p4,
       Finisher5<T0, T1, T2, T3, T4, R> finisher) {
-     return p0.flatMap(_0 ->
-       p1.flatMap(_1 ->
-       p2.flatMap(_2 ->
-       p3.flatMap(_3 ->
-       p4.map(_4 -> finisher.apply(_0, _1, _2, _3, _4))
-       ))));
-   }
+    return p0.flatMap(_0 ->
+    p1.flatMap(_1 ->
+    p2.flatMap(_2 ->
+    p3.flatMap(_3 ->
+    p4.map(_4 -> finisher.apply(_0, _1, _2, _3, _4))
+        ))));
+  }
 
-   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> zip(
+  static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1627,16 +1627,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Program<S, E, T4> p4,
       Program<S, E, T5> p5,
       Finisher6<T0, T1, T2, T3, T4, T5, R> finisher) {
-     return p0.flatMap(_0 ->
-       p1.flatMap(_1 ->
-       p2.flatMap(_2 ->
-       p3.flatMap(_3 ->
-       p4.flatMap(_4 ->
-       p5.map(_5 -> finisher.apply(_0, _1, _2, _3, _4, _5))
-       )))));
-   }
+    return p0.flatMap(_0 ->
+    p1.flatMap(_1 ->
+    p2.flatMap(_2 ->
+    p3.flatMap(_3 ->
+    p4.flatMap(_4 ->
+    p5.map(_5 -> finisher.apply(_0, _1, _2, _3, _4, _5))
+        )))));
+  }
 
-   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> zip(
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1645,17 +1645,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Program<S, E, T5> p5,
       Program<S, E, T6> p6,
       Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher) {
-     return p0.flatMap(_0 ->
-       p1.flatMap(_1 ->
-       p2.flatMap(_2 ->
-       p3.flatMap(_3 ->
-       p4.flatMap(_4 ->
-       p5.flatMap(_5 ->
-       p6.map(_6 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6))
-       ))))));
-   }
+    return p0.flatMap(_0 ->
+    p1.flatMap(_1 ->
+    p2.flatMap(_2 ->
+    p3.flatMap(_3 ->
+    p4.flatMap(_4 ->
+    p5.flatMap(_5 ->
+    p6.map(_6 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6))
+        ))))));
+  }
 
-   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> zip(
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1665,18 +1665,18 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Program<S, E, T6> p6,
       Program<S, E, T7> p7,
       Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher) {
-     return p0.flatMap(_0 ->
-       p1.flatMap(_1 ->
-       p2.flatMap(_2 ->
-       p3.flatMap(_3 ->
-       p4.flatMap(_4 ->
-       p5.flatMap(_5 ->
-       p6.flatMap(_6 ->
-       p7.map(_7 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7))
-       )))))));
-   }
+    return p0.flatMap(_0 ->
+    p1.flatMap(_1 ->
+    p2.flatMap(_2 ->
+    p3.flatMap(_3 ->
+    p4.flatMap(_4 ->
+    p5.flatMap(_5 ->
+    p6.flatMap(_6 ->
+    p7.map(_7 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7))
+        )))))));
+  }
 
-   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> zip(
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1687,226 +1687,226 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Program<S, E, T7> p7,
       Program<S, E, T8> p8,
       Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher) {
-     return p0.flatMap(_0 ->
-       p1.flatMap(_1 ->
-       p2.flatMap(_2 ->
-       p3.flatMap(_3 ->
-       p4.flatMap(_4 ->
-       p5.flatMap(_5 ->
-       p6.flatMap(_6 ->
-       p7.flatMap(_7 ->
-       p8.map(_8 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7, _8))
-       ))))))));
-   }
+    return p0.flatMap(_0 ->
+    p1.flatMap(_1 ->
+    p2.flatMap(_2 ->
+    p3.flatMap(_3 ->
+    p4.flatMap(_4 ->
+    p5.flatMap(_5 ->
+    p6.flatMap(_6 ->
+    p7.flatMap(_7 ->
+    p8.map(_8 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7, _8))
+        ))))))));
+  }
 
   static <S, E, T0, T1, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Finisher2<T0, T1, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor), 
-         p1.fork(executor), 
-         (f0, f1) -> {
-          return f0.thenCompose(_0 -> 
-            f1.thenApply(_1 -> Result.zip(_0, _1, finisher))
-            );
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Finisher2<T0, T1, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        (f0, f1) -> {
+          return f0.thenCompose(_0 ->
+          f1.thenApply(_1 -> Result.zip(_0, _1, finisher))
+              );
         })
         .flatMap(Program::from);
   }
 
   static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Finisher3<T0, T1, T2, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor), 
-         p1.fork(executor), 
-         p2.fork(executor), 
-         (f0, f1, f2) -> {
-          return f0.thenCompose(_0 -> 
-            f1.thenCompose(_1 -> 
-            f2.thenApply(_2 -> Result.zip(_0, _1, _2, finisher))
-            ));
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Finisher3<T0, T1, T2, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        (f0, f1, f2) -> {
+          return f0.thenCompose(_0 ->
+          f1.thenCompose(_1 ->
+          f2.thenApply(_2 -> Result.zip(_0, _1, _2, finisher))
+              ));
         })
         .flatMap(Program::from);
   }
 
   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Finisher4<T0, T1, T2, T3, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor), 
-         p1.fork(executor), 
-         p2.fork(executor), 
-         p3.fork(executor), 
-         (f0, f1, f2, f3) -> {
-          return f0.thenCompose(_0 -> 
-            f1.thenCompose(_1 -> 
-            f2.thenCompose(_2 -> 
-            f3.thenApply(_3 -> Result.zip(_0, _1, _2, _3, finisher))
-            )));
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Finisher4<T0, T1, T2, T3, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        (f0, f1, f2, f3) -> {
+          return f0.thenCompose(_0 ->
+          f1.thenCompose(_1 ->
+          f2.thenCompose(_2 ->
+          f3.thenApply(_3 -> Result.zip(_0, _1, _2, _3, finisher))
+              )));
         })
         .flatMap(Program::from);
   }
 
   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Finisher5<T0, T1, T2, T3, T4, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor), 
-         p1.fork(executor), 
-         p2.fork(executor), 
-         p3.fork(executor), 
-         p4.fork(executor), 
-         (f0, f1, f2, f3, f4) -> {
-          return f0.thenCompose(_0 -> 
-            f1.thenCompose(_1 -> 
-            f2.thenCompose(_2 -> 
-            f3.thenCompose(_3 -> 
-            f4.thenApply(_4 -> Result.zip(_0, _1, _2, _3, _4, finisher))
-            ))));
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Finisher5<T0, T1, T2, T3, T4, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        p4.fork(executor),
+        (f0, f1, f2, f3, f4) -> {
+          return f0.thenCompose(_0 ->
+          f1.thenCompose(_1 ->
+          f2.thenCompose(_2 ->
+          f3.thenCompose(_3 ->
+          f4.thenApply(_4 -> Result.zip(_0, _1, _2, _3, _4, finisher))
+              ))));
         })
         .flatMap(Program::from);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Finisher6<T0, T1, T2, T3, T4, T5, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor), 
-         p1.fork(executor), 
-         p2.fork(executor), 
-         p3.fork(executor), 
-         p4.fork(executor), 
-         p5.fork(executor), 
-         (f0, f1, f2, f3, f4, f5) -> {
-          return f0.thenCompose(_0 -> 
-            f1.thenCompose(_1 -> 
-            f2.thenCompose(_2 -> 
-            f3.thenCompose(_3 -> 
-            f4.thenCompose(_4 -> 
-            f5.thenApply(_5 -> Result.zip(_0, _1, _2, _3, _4, _5, finisher))
-            )))));
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Finisher6<T0, T1, T2, T3, T4, T5, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        p4.fork(executor),
+        p5.fork(executor),
+        (f0, f1, f2, f3, f4, f5) -> {
+          return f0.thenCompose(_0 ->
+          f1.thenCompose(_1 ->
+          f2.thenCompose(_2 ->
+          f3.thenCompose(_3 ->
+          f4.thenCompose(_4 ->
+          f5.thenApply(_5 -> Result.zip(_0, _1, _2, _3, _4, _5, finisher))
+              )))));
         })
         .flatMap(Program::from);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Program<S, E, T6> p6,
-     Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor), 
-         p1.fork(executor), 
-         p2.fork(executor), 
-         p3.fork(executor), 
-         p4.fork(executor), 
-         p5.fork(executor), 
-         p6.fork(executor), 
-         (f0, f1, f2, f3, f4, f5, f6) -> {
-          return f0.thenCompose(_0 -> 
-            f1.thenCompose(_1 -> 
-            f2.thenCompose(_2 -> 
-            f3.thenCompose(_3 -> 
-            f4.thenCompose(_4 -> 
-            f5.thenCompose(_5 -> 
-            f6.thenApply(_6 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, finisher))
-            ))))));
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        p4.fork(executor),
+        p5.fork(executor),
+        p6.fork(executor),
+        (f0, f1, f2, f3, f4, f5, f6) -> {
+          return f0.thenCompose(_0 ->
+          f1.thenCompose(_1 ->
+          f2.thenCompose(_2 ->
+          f3.thenCompose(_3 ->
+          f4.thenCompose(_4 ->
+          f5.thenCompose(_5 ->
+          f6.thenApply(_6 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, finisher))
+              ))))));
         })
         .flatMap(Program::from);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Program<S, E, T6> p6,
-     Program<S, E, T7> p7,
-     Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor), 
-         p1.fork(executor), 
-         p2.fork(executor), 
-         p3.fork(executor), 
-         p4.fork(executor), 
-         p5.fork(executor), 
-         p6.fork(executor), 
-         p7.fork(executor), 
-         (f0, f1, f2, f3, f4, f5, f6, f7) -> {
-          return f0.thenCompose(_0 -> 
-            f1.thenCompose(_1 -> 
-            f2.thenCompose(_2 -> 
-            f3.thenCompose(_3 -> 
-            f4.thenCompose(_4 -> 
-            f5.thenCompose(_5 -> 
-            f6.thenCompose(_6 -> 
-            f7.thenApply(_7 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, _7, finisher))
-            )))))));
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        p4.fork(executor),
+        p5.fork(executor),
+        p6.fork(executor),
+        p7.fork(executor),
+        (f0, f1, f2, f3, f4, f5, f6, f7) -> {
+          return f0.thenCompose(_0 ->
+          f1.thenCompose(_1 ->
+          f2.thenCompose(_2 ->
+          f3.thenCompose(_3 ->
+          f4.thenCompose(_4 ->
+          f5.thenCompose(_5 ->
+          f6.thenCompose(_6 ->
+          f7.thenApply(_7 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, _7, finisher))
+              )))))));
         })
         .flatMap(Program::from);
   }
 
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
-     Program<S, E, T0> p0,
-     Program<S, E, T1> p1,
-     Program<S, E, T2> p2,
-     Program<S, E, T3> p3,
-     Program<S, E, T4> p4,
-     Program<S, E, T5> p5,
-     Program<S, E, T6> p6,
-     Program<S, E, T7> p7,
-     Program<S, E, T8> p8,
-     Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher,
-    Executor executor) {
-      return zip(
-         p0.fork(executor), 
-         p1.fork(executor), 
-         p2.fork(executor), 
-         p3.fork(executor), 
-         p4.fork(executor), 
-         p5.fork(executor), 
-         p6.fork(executor), 
-         p7.fork(executor), 
-         p8.fork(executor), 
-         (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> {
-          return f0.thenCompose(_0 -> 
-            f1.thenCompose(_1 -> 
-            f2.thenCompose(_2 -> 
-            f3.thenCompose(_3 -> 
-            f4.thenCompose(_4 -> 
-            f5.thenCompose(_5 -> 
-            f6.thenCompose(_6 -> 
-            f7.thenCompose(_7 -> 
-            f8.thenApply(_8 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, _7, _8, finisher))
-            ))))))));
+      Program<S, E, T0> p0,
+      Program<S, E, T1> p1,
+      Program<S, E, T2> p2,
+      Program<S, E, T3> p3,
+      Program<S, E, T4> p4,
+      Program<S, E, T5> p5,
+      Program<S, E, T6> p6,
+      Program<S, E, T7> p7,
+      Program<S, E, T8> p8,
+      Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher,
+      Executor executor) {
+    return zip(
+        p0.fork(executor),
+        p1.fork(executor),
+        p2.fork(executor),
+        p3.fork(executor),
+        p4.fork(executor),
+        p5.fork(executor),
+        p6.fork(executor),
+        p7.fork(executor),
+        p8.fork(executor),
+        (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> {
+          return f0.thenCompose(_0 ->
+          f1.thenCompose(_1 ->
+          f2.thenCompose(_2 ->
+          f3.thenCompose(_3 ->
+          f4.thenCompose(_4 ->
+          f5.thenCompose(_5 ->
+          f6.thenCompose(_6 ->
+          f7.thenCompose(_7 ->
+          f8.thenApply(_8 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, _7, _8, finisher))
+              ))))))));
         })
         .flatMap(Program::from);
   }
