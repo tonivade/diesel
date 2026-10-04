@@ -1699,157 +1699,217 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
        ))))))));
    }
 
-   static <S, E, T0, T1, R> Program<S, E, R> parZip(
-       Program<S, E, T0> p0,
-       Program<S, E, T1> p1,
-       Finisher2<T0, T1, R> finisher,
-       Executor executor) {
-     return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         (f0, f1) -> Result.zip(f0.join(), f1.join(), finisher))
-         .flatMap(Program::from);
-   }
+  static <S, E, T0, T1, R> Program<S, E, R> parZip(
+     Program<S, E, T0> p0,
+     Program<S, E, T1> p1,
+     Finisher2<T0, T1, R> finisher,
+    Executor executor) {
+      return zip(
+         p0.fork(executor), 
+         p1.fork(executor), 
+         (f0, f1) -> {
+          return f0.thenCompose(_0 -> 
+            f1.thenApply(_1 -> Result.zip(_0, _1, finisher))
+            );
+        })
+        .flatMap(Program::from);
+  }
 
-   static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
-       Program<S, E, T0> p0,
-       Program<S, E, T1> p1,
-       Program<S, E, T2> p2,
-       Finisher3<T0, T1, T2, R> finisher,
-       Executor executor) {
-     return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         (f0, f1, f2) -> Result.zip(f0.join(), f1.join(), f2.join(), finisher))
-         .flatMap(Program::from);
-   }
+  static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
+     Program<S, E, T0> p0,
+     Program<S, E, T1> p1,
+     Program<S, E, T2> p2,
+     Finisher3<T0, T1, T2, R> finisher,
+    Executor executor) {
+      return zip(
+         p0.fork(executor), 
+         p1.fork(executor), 
+         p2.fork(executor), 
+         (f0, f1, f2) -> {
+          return f0.thenCompose(_0 -> 
+            f1.thenCompose(_1 -> 
+            f2.thenApply(_2 -> Result.zip(_0, _1, _2, finisher))
+            ));
+        })
+        .flatMap(Program::from);
+  }
 
-   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
-       Program<S, E, T0> p0,
-       Program<S, E, T1> p1,
-       Program<S, E, T2> p2,
-       Program<S, E, T3> p3,
-       Finisher4<T0, T1, T2, T3, R> finisher,
-       Executor executor) {
-     return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         (f0, f1, f2, f3) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), finisher))
-         .flatMap(Program::from);
-   }
+  static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
+     Program<S, E, T0> p0,
+     Program<S, E, T1> p1,
+     Program<S, E, T2> p2,
+     Program<S, E, T3> p3,
+     Finisher4<T0, T1, T2, T3, R> finisher,
+    Executor executor) {
+      return zip(
+         p0.fork(executor), 
+         p1.fork(executor), 
+         p2.fork(executor), 
+         p3.fork(executor), 
+         (f0, f1, f2, f3) -> {
+          return f0.thenCompose(_0 -> 
+            f1.thenCompose(_1 -> 
+            f2.thenCompose(_2 -> 
+            f3.thenApply(_3 -> Result.zip(_0, _1, _2, _3, finisher))
+            )));
+        })
+        .flatMap(Program::from);
+  }
 
-   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
-       Program<S, E, T0> p0,
-       Program<S, E, T1> p1,
-       Program<S, E, T2> p2,
-       Program<S, E, T3> p3,
-       Program<S, E, T4> p4,
-       Finisher5<T0, T1, T2, T3, T4, R> finisher,
-       Executor executor) {
-     return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         p4.fork(executor),
-         (f0, f1, f2, f3, f4) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), finisher))
-         .flatMap(Program::from);
-   }
+  static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
+     Program<S, E, T0> p0,
+     Program<S, E, T1> p1,
+     Program<S, E, T2> p2,
+     Program<S, E, T3> p3,
+     Program<S, E, T4> p4,
+     Finisher5<T0, T1, T2, T3, T4, R> finisher,
+    Executor executor) {
+      return zip(
+         p0.fork(executor), 
+         p1.fork(executor), 
+         p2.fork(executor), 
+         p3.fork(executor), 
+         p4.fork(executor), 
+         (f0, f1, f2, f3, f4) -> {
+          return f0.thenCompose(_0 -> 
+            f1.thenCompose(_1 -> 
+            f2.thenCompose(_2 -> 
+            f3.thenCompose(_3 -> 
+            f4.thenApply(_4 -> Result.zip(_0, _1, _2, _3, _4, finisher))
+            ))));
+        })
+        .flatMap(Program::from);
+  }
 
-   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
-       Program<S, E, T0> p0,
-       Program<S, E, T1> p1,
-       Program<S, E, T2> p2,
-       Program<S, E, T3> p3,
-       Program<S, E, T4> p4,
-       Program<S, E, T5> p5,
-       Finisher6<T0, T1, T2, T3, T4, T5, R> finisher,
-       Executor executor) {
-     return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         p4.fork(executor),
-         p5.fork(executor),
-         (f0, f1, f2, f3, f4, f5) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), finisher))
-         .flatMap(Program::from);
-   }
+  static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
+     Program<S, E, T0> p0,
+     Program<S, E, T1> p1,
+     Program<S, E, T2> p2,
+     Program<S, E, T3> p3,
+     Program<S, E, T4> p4,
+     Program<S, E, T5> p5,
+     Finisher6<T0, T1, T2, T3, T4, T5, R> finisher,
+    Executor executor) {
+      return zip(
+         p0.fork(executor), 
+         p1.fork(executor), 
+         p2.fork(executor), 
+         p3.fork(executor), 
+         p4.fork(executor), 
+         p5.fork(executor), 
+         (f0, f1, f2, f3, f4, f5) -> {
+          return f0.thenCompose(_0 -> 
+            f1.thenCompose(_1 -> 
+            f2.thenCompose(_2 -> 
+            f3.thenCompose(_3 -> 
+            f4.thenCompose(_4 -> 
+            f5.thenApply(_5 -> Result.zip(_0, _1, _2, _3, _4, _5, finisher))
+            )))));
+        })
+        .flatMap(Program::from);
+  }
 
-   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
-       Program<S, E, T0> p0,
-       Program<S, E, T1> p1,
-       Program<S, E, T2> p2,
-       Program<S, E, T3> p3,
-       Program<S, E, T4> p4,
-       Program<S, E, T5> p5,
-       Program<S, E, T6> p6,
-       Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher,
-       Executor executor) {
-     return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         p4.fork(executor),
-         p5.fork(executor),
-         p6.fork(executor),
-         (f0, f1, f2, f3, f4, f5, f6) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), finisher))
-         .flatMap(Program::from);
-   }
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
+     Program<S, E, T0> p0,
+     Program<S, E, T1> p1,
+     Program<S, E, T2> p2,
+     Program<S, E, T3> p3,
+     Program<S, E, T4> p4,
+     Program<S, E, T5> p5,
+     Program<S, E, T6> p6,
+     Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher,
+    Executor executor) {
+      return zip(
+         p0.fork(executor), 
+         p1.fork(executor), 
+         p2.fork(executor), 
+         p3.fork(executor), 
+         p4.fork(executor), 
+         p5.fork(executor), 
+         p6.fork(executor), 
+         (f0, f1, f2, f3, f4, f5, f6) -> {
+          return f0.thenCompose(_0 -> 
+            f1.thenCompose(_1 -> 
+            f2.thenCompose(_2 -> 
+            f3.thenCompose(_3 -> 
+            f4.thenCompose(_4 -> 
+            f5.thenCompose(_5 -> 
+            f6.thenApply(_6 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, finisher))
+            ))))));
+        })
+        .flatMap(Program::from);
+  }
 
-   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
-       Program<S, E, T0> p0,
-       Program<S, E, T1> p1,
-       Program<S, E, T2> p2,
-       Program<S, E, T3> p3,
-       Program<S, E, T4> p4,
-       Program<S, E, T5> p5,
-       Program<S, E, T6> p6,
-       Program<S, E, T7> p7,
-       Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher,
-       Executor executor) {
-     return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         p4.fork(executor),
-         p5.fork(executor),
-         p6.fork(executor),
-         p7.fork(executor),
-         (f0, f1, f2, f3, f4, f5, f6, f7) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), f7.join(), finisher))
-         .flatMap(Program::from);
-   }
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
+     Program<S, E, T0> p0,
+     Program<S, E, T1> p1,
+     Program<S, E, T2> p2,
+     Program<S, E, T3> p3,
+     Program<S, E, T4> p4,
+     Program<S, E, T5> p5,
+     Program<S, E, T6> p6,
+     Program<S, E, T7> p7,
+     Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher,
+    Executor executor) {
+      return zip(
+         p0.fork(executor), 
+         p1.fork(executor), 
+         p2.fork(executor), 
+         p3.fork(executor), 
+         p4.fork(executor), 
+         p5.fork(executor), 
+         p6.fork(executor), 
+         p7.fork(executor), 
+         (f0, f1, f2, f3, f4, f5, f6, f7) -> {
+          return f0.thenCompose(_0 -> 
+            f1.thenCompose(_1 -> 
+            f2.thenCompose(_2 -> 
+            f3.thenCompose(_3 -> 
+            f4.thenCompose(_4 -> 
+            f5.thenCompose(_5 -> 
+            f6.thenCompose(_6 -> 
+            f7.thenApply(_7 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, _7, finisher))
+            )))))));
+        })
+        .flatMap(Program::from);
+  }
 
-   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
-       Program<S, E, T0> p0,
-       Program<S, E, T1> p1,
-       Program<S, E, T2> p2,
-       Program<S, E, T3> p3,
-       Program<S, E, T4> p4,
-       Program<S, E, T5> p5,
-       Program<S, E, T6> p6,
-       Program<S, E, T7> p7,
-       Program<S, E, T8> p8,
-       Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher,
-       Executor executor) {
-     return zip(
-         p0.fork(executor),
-         p1.fork(executor),
-         p2.fork(executor),
-         p3.fork(executor),
-         p4.fork(executor),
-         p5.fork(executor),
-         p6.fork(executor),
-         p7.fork(executor),
-         p8.fork(executor),
-         (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), f7.join(), f8.join(), finisher))
-         .flatMap(Program::from);
-   }
+  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
+     Program<S, E, T0> p0,
+     Program<S, E, T1> p1,
+     Program<S, E, T2> p2,
+     Program<S, E, T3> p3,
+     Program<S, E, T4> p4,
+     Program<S, E, T5> p5,
+     Program<S, E, T6> p6,
+     Program<S, E, T7> p7,
+     Program<S, E, T8> p8,
+     Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher,
+    Executor executor) {
+      return zip(
+         p0.fork(executor), 
+         p1.fork(executor), 
+         p2.fork(executor), 
+         p3.fork(executor), 
+         p4.fork(executor), 
+         p5.fork(executor), 
+         p6.fork(executor), 
+         p7.fork(executor), 
+         p8.fork(executor), 
+         (f0, f1, f2, f3, f4, f5, f6, f7, f8) -> {
+          return f0.thenCompose(_0 -> 
+            f1.thenCompose(_1 -> 
+            f2.thenCompose(_2 -> 
+            f3.thenCompose(_3 -> 
+            f4.thenCompose(_4 -> 
+            f5.thenCompose(_5 -> 
+            f6.thenCompose(_6 -> 
+            f7.thenCompose(_7 -> 
+            f8.thenApply(_8 -> Result.zip(_0, _1, _2, _3, _4, _5, _6, _7, _8, finisher))
+            ))))))));
+        })
+        .flatMap(Program::from);
+  }
 
   static <S, E, T0, T1, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
