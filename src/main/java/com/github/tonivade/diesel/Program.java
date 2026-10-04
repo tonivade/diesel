@@ -6,18 +6,6 @@ package com.github.tonivade.diesel;
 
 import static java.util.function.Function.identity;
 
-import com.github.tonivade.diesel.Frame.CatchFrame;
-import com.github.tonivade.diesel.Frame.FoldFrame;
-import com.github.tonivade.diesel.function.Finisher2;
-import com.github.tonivade.diesel.function.Finisher3;
-import com.github.tonivade.diesel.function.Finisher4;
-import com.github.tonivade.diesel.function.Finisher5;
-import com.github.tonivade.diesel.function.Finisher6;
-import com.github.tonivade.diesel.function.Finisher7;
-import com.github.tonivade.diesel.function.Finisher8;
-import com.github.tonivade.diesel.function.Finisher9;
-import com.github.tonivade.purefun.Kind;
-
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -33,6 +21,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -43,6 +32,19 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
+
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Result.Failure;
+import com.github.tonivade.diesel.function.Finisher2;
+import com.github.tonivade.diesel.function.Finisher3;
+import com.github.tonivade.diesel.function.Finisher4;
+import com.github.tonivade.diesel.function.Finisher5;
+import com.github.tonivade.diesel.function.Finisher6;
+import com.github.tonivade.diesel.function.Finisher7;
+import com.github.tonivade.diesel.function.Finisher8;
+import com.github.tonivade.diesel.function.Finisher9;
+import com.github.tonivade.purefun.Kind;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
@@ -2032,15 +2034,44 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <E, T> CompletableFuture<Result<E, Collection<T>>> parSequence(
       Collection<? extends CompletableFuture<Result<E, T>>> futures) {
-    return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+    CompletableFuture<Result<E, Void>> result = new CompletableFuture<>();
+    AtomicInteger remaining = new AtomicInteger(futures.size());
+
+    for (CompletableFuture<Result<E, T>> future : futures) {
+      future.whenComplete((value, error) -> {
+        if (error != null) {
+          result.completeExceptionally(error);
+        } else if (value instanceof Failure(var fail)) {
+          result.complete(Result.failure(fail));
+        } else if (remaining.decrementAndGet() == 0) {
+          result.complete(Result.unit());
+        }
+      });
+    }
+
+    return result
         .thenApply(_ -> futures.stream().map(CompletableFuture::join).toList())
         .thenApply(Result::sequence);
   }
 
   private static <E> CompletableFuture<Result<E, Void>> parAll(
       Collection<? extends CompletableFuture<Result<E, Object>>> futures) {
-    return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
-        .thenApply(Result::<E, Void>success);
+    CompletableFuture<Result<E, Void>> result = new CompletableFuture<>();
+    AtomicInteger remaining = new AtomicInteger(futures.size());
+
+    for (CompletableFuture<Result<E, Object>> future : futures) {
+      future.whenComplete((value, error) -> {
+        if (error != null) {
+          result.completeExceptionally(error);
+        } else if (value instanceof Failure(var fail)) {
+          result.complete(Result.failure(fail));
+        } else if (remaining.decrementAndGet() == 0) {
+          result.complete(Result.unit());
+        }
+      });
+    }
+
+    return result;
   }
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
