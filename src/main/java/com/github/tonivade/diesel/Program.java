@@ -7,6 +7,7 @@ package com.github.tonivade.diesel;
 import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
 import com.github.tonivade.diesel.Result.Failure;
 import com.github.tonivade.diesel.function.Finisher2;
@@ -183,6 +184,18 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record Suspend<S, E, T>(Supplier<? extends Program<S, E, T>> supplier) implements Program<S, E, T> {}
 
   /**
+   * Represents a computation that runs a finalizer after the program, whether it succeeds, fails,
+   * throws an exception or is cancelled. The finalizer can't be cancelled.
+   *
+   * @param current the current program
+   * @param finalizer the program to be executed as a finalizer
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Ensuring<S, E, T>(Program<S, E, T> current, Program<S, E, ?> finalizer) implements Program<S, E, T> {}
+
+  /**
    * Represents a memoized computation that caches the result of the program.
    *
    * @param <S> the type of the state
@@ -247,6 +260,18 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T> Program<S, E, T> from(Either<E, T> either) {
     return either.fold(Program::failure, Program::success);
+  }
+
+  /**
+   * Creates a new program thar represent a computation
+   *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param validation
+   * @return a new program representing the computation
+   */
+  static <S, E> Program<S, E, Void> from(Validation<E> validation) {
+    return validation.fold(Program::unit, Program::failure);
   }
 
   /**
@@ -605,6 +630,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           }
           if (frame instanceof FoldFrame(var onFailure, var onSuccess)) {
             current = result.fold(onFailure, onSuccess);
+          } else if (frame instanceof FinalizerFrame(var finalizer)) {
+            // run the finalizer and then continue with the result, unless the finalizer fails
+            stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
+            current = finalizer;
           } else {
             // when frame is null
             return (Result<E, T>) result;
@@ -615,18 +644,19 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           var future = new CompletableFuture<Result<?, ?>>();
           ((BiConsumer<S, CompletableFuture<?>>) callback).accept(state, future);
           current = from(future.join());
+        } else if (current instanceof Ensuring(var source, var finalizer)) {
+          stack.push(new FinalizerFrame<>(finalizer));
+          current = source;
         } else if (current instanceof Forked forked) {
           var future = CompletableFuture.supplyAsync(() -> forked.current.eval(state), forked.executor);
           current = success(future);
         } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
-          stack.push(new FoldFrame<>(
-              (Function<Object, Program<S, ?, ?>>) onFailure,
-              (Function<Object, Program<S, ?, ?>>) onSuccess));
+          stack.push(Frame.fold(onFailure, onSuccess));
           current = source;
         } else if (current instanceof Raise(var throwable)) {
           return sneakyThrow(throwable.get());
         } else if (current instanceof Catch(var source, var recover)) {
-          stack.push(new CatchFrame<>((Function<Throwable, Program<S, ?, ?>>) recover));
+          stack.push(Frame.catch_(recover));
           current = source;
         } else if (current instanceof Suspend(var supplier)) {
           current = supplier.get();
@@ -635,7 +665,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           if (result != null) {
             current = Program.from(result);
           } else {
-            stack.push(new FoldFrame<>(
+            stack.push(Frame.fold(
                 error -> {
                   memoized.set(Result.failure(error));
                   return Program.failure(error);
@@ -659,6 +689,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         if (frame instanceof CatchFrame(var recover)) {
           // run the handler inside the loop so an exception it throws reaches an outer catchAll
           current = suspend(() -> recover.apply(e));
+        } else if (frame instanceof FinalizerFrame(var finalizer)) {
+          // keep unwinding with the same exception once the finalizer is done
+          stack.push(Frame.fold(
+              _ -> raise(() -> e),
+              _ -> raise(() -> e)));
+          current = finalizer;
         } else {
           // when frame is null
           return sneakyThrow(e);
@@ -961,9 +997,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with the finalizer
    */
   default Program<S, E, T> ensuring(Program<S, E, ?> finalizer) {
-    return foldMap(
-        f -> finalizer.andThen(failure(f)),
-        s -> finalizer.andThen(success(s)));
+    return new Ensuring<>(this, finalizer);
   }
 
   /**
@@ -1472,12 +1506,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   static <S, E, T, R> Program<S, E, R> bracket(
       Program<S, E, T> acquire,
       Function<? super T, ? extends Program<S, E, R>> use,
-          Function<? super T, ? extends Program<S, E, Void>> release) {
+      Function<? super T, ? extends Program<S, E, Void>> release) {
     return pipe(
         acquire,
-        resource -> use.apply(resource).foldMap(
-            e -> release.apply(resource).andThen(failure(e)),
-            t -> release.apply(resource).andThen(success(t)))
+        resource -> use.apply(resource).ensuring(release.apply(resource))
         );
   }
 

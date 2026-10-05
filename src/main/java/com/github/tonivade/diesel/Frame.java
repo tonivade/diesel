@@ -16,6 +16,20 @@ sealed interface Frame<S> {
     Function<Object, Program<S, ?, ?>> onSuccess) implements Frame<S> {
   }
 
-  record CatchFrame<S>(Function<Throwable, Program<S, ?, ?>> recover) implements Frame<S> {
+  record CatchFrame<S>(Function<Throwable, Program<S, ?, ?>> recover) implements Frame<S> {}
+
+  record FinalizerFrame<S>(Program<S, ?, ?> finalizer) implements Frame<S> {}
+
+  @SuppressWarnings("unchecked")
+  static <S> FoldFrame<S> fold(Function<?, ? extends Program<S, ?, ?>> onFailure,
+      Function<?, ? extends Program<S, ?, ?>> onSuccess) {
+    return new FoldFrame<>(
+        (Function<Object, Program<S, ?, ?>>) onFailure,
+        (Function<Object, Program<S, ?, ?>>) onSuccess);
+  }
+
+  @SuppressWarnings("unchecked")
+  static <S> CatchFrame<S> catch_(Function<? super Throwable, ? extends Program<S, ?, ?>> recover) {
+    return new CatchFrame<>((Function<Throwable, Program<S, ?, ?>>) recover);
   }
 }

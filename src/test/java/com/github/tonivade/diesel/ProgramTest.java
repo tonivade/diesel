@@ -472,7 +472,7 @@ class ProgramTest {
 
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
-  static Program<TestDsl.Service, TestDsl.Error, Integer> newOperation() {
+  static Program<TestDsl.Service, TestDsl.TestError, Integer> newOperation() {
     return effectR(TestDsl.Service::operation);
   }
 
@@ -482,11 +482,11 @@ class ProgramTest {
 
   interface TestDsl {
 
-    sealed interface Error {}
-    record UnknownError() implements Error {}
+    sealed interface TestError {}
+    record UnknownError() implements TestError {}
 
     interface Service {
-      Result<Error, Integer> operation();
+      Result<TestError, Integer> operation();
     }
   }
 
@@ -514,6 +514,7 @@ class ProgramTest {
   }
 
   Function<BigInteger, Program<Void, Void, BigInteger>> fibMemoized = memoize(new Function<>() {
+    @Override
     public Program<Void, Void, BigInteger> apply(BigInteger n) {
       if (n.equals(BigInteger.ZERO) || n.equals(BigInteger.ONE)) {
         return success(BigInteger.ONE);
