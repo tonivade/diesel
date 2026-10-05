@@ -25,6 +25,18 @@ public interface Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% end
 """)
 
 result_zip_template = environment.from_string("""
+/**
+ * Combines the given results using the finisher function if all of them are successful.
+ * <p>
+ * If any of the results is a failure, the first failure by position is returned.
+ *
+{% for i in range(value) %} * @param r{{ i }} a result to combine
+{% endfor %} * @param finisher the function used to combine the results
+ * @param <F> the type of the failure
+{% for i in range(value) %} * @param <T{{ i }}> the success type of {@code r{{ i }}}
+{% endfor %} * @param <R> the type of the combined result
+ * @return a new result with the combined result, or the first failure
+ */
 static <F, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Result<F, R> zip(
   {% for i in range(value) %} Result<F, T{{ i }}> r{{ i }},
   {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher) {
@@ -36,6 +48,20 @@ static <F, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Result<F, R> zip(
 """)
 
 program_zip_template = environment.from_string("""
+/**
+ * Executes the given programs sequentially and combines their results using the finisher function.
+ * <p>
+ * The execution stops at the first program that fails, and the resulting program fails with
+ * that error. The programs after it are not executed.
+ *
+{% for i in range(value) %} * @param p{{ i }} a program to combine
+{% endfor %} * @param finisher the function used to combine the results
+ * @param <S> the type of the state
+ * @param <E> the type of the error
+{% for i in range(value) %} * @param <T{{ i }}> the success type of {@code p{{ i }}}
+{% endfor %} * @param <R> the type of the combined result
+ * @return a new program with the combined result, or the first failure
+ */
 static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> zip(
   {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
   {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher) {

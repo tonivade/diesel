@@ -90,6 +90,20 @@ public sealed interface Result<F, S> {
 
   // start generated code
 
+  /**
+   * Combines the given results using the finisher function if all of them are successful.
+   * <p>
+   * If any of the results is a failure, the first failure by position is returned.
+   *
+   * @param r0 a result to combine
+   * @param r1 a result to combine
+   * @param finisher the function used to combine the results
+   * @param <F> the type of the failure
+   * @param <T0> the success type of {@code r0}
+   * @param <T1> the success type of {@code r1}
+   * @param <R> the type of the combined result
+   * @return a new result with the combined result, or the first failure
+   */
   static <F, T0, T1, R> Result<F, R> zip(
      Result<F, T0> r0,
      Result<F, T1> r1,
@@ -99,6 +113,22 @@ public sealed interface Result<F, S> {
       );
   }
 
+  /**
+   * Combines the given results using the finisher function if all of them are successful.
+   * <p>
+   * If any of the results is a failure, the first failure by position is returned.
+   *
+   * @param r0 a result to combine
+   * @param r1 a result to combine
+   * @param r2 a result to combine
+   * @param finisher the function used to combine the results
+   * @param <F> the type of the failure
+   * @param <T0> the success type of {@code r0}
+   * @param <T1> the success type of {@code r1}
+   * @param <T2> the success type of {@code r2}
+   * @param <R> the type of the combined result
+   * @return a new result with the combined result, or the first failure
+   */
   static <F, T0, T1, T2, R> Result<F, R> zip(
      Result<F, T0> r0,
      Result<F, T1> r1,
@@ -110,6 +140,24 @@ public sealed interface Result<F, S> {
       ));
   }
 
+  /**
+   * Combines the given results using the finisher function if all of them are successful.
+   * <p>
+   * If any of the results is a failure, the first failure by position is returned.
+   *
+   * @param r0 a result to combine
+   * @param r1 a result to combine
+   * @param r2 a result to combine
+   * @param r3 a result to combine
+   * @param finisher the function used to combine the results
+   * @param <F> the type of the failure
+   * @param <T0> the success type of {@code r0}
+   * @param <T1> the success type of {@code r1}
+   * @param <T2> the success type of {@code r2}
+   * @param <T3> the success type of {@code r3}
+   * @param <R> the type of the combined result
+   * @return a new result with the combined result, or the first failure
+   */
   static <F, T0, T1, T2, T3, R> Result<F, R> zip(
      Result<F, T0> r0,
      Result<F, T1> r1,
@@ -123,6 +171,26 @@ public sealed interface Result<F, S> {
       )));
   }
 
+  /**
+   * Combines the given results using the finisher function if all of them are successful.
+   * <p>
+   * If any of the results is a failure, the first failure by position is returned.
+   *
+   * @param r0 a result to combine
+   * @param r1 a result to combine
+   * @param r2 a result to combine
+   * @param r3 a result to combine
+   * @param r4 a result to combine
+   * @param finisher the function used to combine the results
+   * @param <F> the type of the failure
+   * @param <T0> the success type of {@code r0}
+   * @param <T1> the success type of {@code r1}
+   * @param <T2> the success type of {@code r2}
+   * @param <T3> the success type of {@code r3}
+   * @param <T4> the success type of {@code r4}
+   * @param <R> the type of the combined result
+   * @return a new result with the combined result, or the first failure
+   */
   static <F, T0, T1, T2, T3, T4, R> Result<F, R> zip(
      Result<F, T0> r0,
      Result<F, T1> r1,
@@ -138,6 +206,28 @@ public sealed interface Result<F, S> {
       ))));
   }
 
+  /**
+   * Combines the given results using the finisher function if all of them are successful.
+   * <p>
+   * If any of the results is a failure, the first failure by position is returned.
+   *
+   * @param r0 a result to combine
+   * @param r1 a result to combine
+   * @param r2 a result to combine
+   * @param r3 a result to combine
+   * @param r4 a result to combine
+   * @param r5 a result to combine
+   * @param finisher the function used to combine the results
+   * @param <F> the type of the failure
+   * @param <T0> the success type of {@code r0}
+   * @param <T1> the success type of {@code r1}
+   * @param <T2> the success type of {@code r2}
+   * @param <T3> the success type of {@code r3}
+   * @param <T4> the success type of {@code r4}
+   * @param <T5> the success type of {@code r5}
+   * @param <R> the type of the combined result
+   * @return a new result with the combined result, or the first failure
+   */
   static <F, T0, T1, T2, T3, T4, T5, R> Result<F, R> zip(
      Result<F, T0> r0,
      Result<F, T1> r1,
@@ -155,6 +245,30 @@ public sealed interface Result<F, S> {
       )))));
   }
 
+  /**
+   * Combines the given results using the finisher function if all of them are successful.
+   * <p>
+   * If any of the results is a failure, the first failure by position is returned.
+   *
+   * @param r0 a result to combine
+   * @param r1 a result to combine
+   * @param r2 a result to combine
+   * @param r3 a result to combine
+   * @param r4 a result to combine
+   * @param r5 a result to combine
+   * @param r6 a result to combine
+   * @param finisher the function used to combine the results
+   * @param <F> the type of the failure
+   * @param <T0> the success type of {@code r0}
+   * @param <T1> the success type of {@code r1}
+   * @param <T2> the success type of {@code r2}
+   * @param <T3> the success type of {@code r3}
+   * @param <T4> the success type of {@code r4}
+   * @param <T5> the success type of {@code r5}
+   * @param <T6> the success type of {@code r6}
+   * @param <R> the type of the combined result
+   * @return a new result with the combined result, or the first failure
+   */
   static <F, T0, T1, T2, T3, T4, T5, T6, R> Result<F, R> zip(
      Result<F, T0> r0,
      Result<F, T1> r1,
@@ -174,6 +288,32 @@ public sealed interface Result<F, S> {
       ))))));
   }
 
+  /**
+   * Combines the given results using the finisher function if all of them are successful.
+   * <p>
+   * If any of the results is a failure, the first failure by position is returned.
+   *
+   * @param r0 a result to combine
+   * @param r1 a result to combine
+   * @param r2 a result to combine
+   * @param r3 a result to combine
+   * @param r4 a result to combine
+   * @param r5 a result to combine
+   * @param r6 a result to combine
+   * @param r7 a result to combine
+   * @param finisher the function used to combine the results
+   * @param <F> the type of the failure
+   * @param <T0> the success type of {@code r0}
+   * @param <T1> the success type of {@code r1}
+   * @param <T2> the success type of {@code r2}
+   * @param <T3> the success type of {@code r3}
+   * @param <T4> the success type of {@code r4}
+   * @param <T5> the success type of {@code r5}
+   * @param <T6> the success type of {@code r6}
+   * @param <T7> the success type of {@code r7}
+   * @param <R> the type of the combined result
+   * @return a new result with the combined result, or the first failure
+   */
   static <F, T0, T1, T2, T3, T4, T5, T6, T7, R> Result<F, R> zip(
      Result<F, T0> r0,
      Result<F, T1> r1,
@@ -195,6 +335,34 @@ public sealed interface Result<F, S> {
       )))))));
   }
 
+  /**
+   * Combines the given results using the finisher function if all of them are successful.
+   * <p>
+   * If any of the results is a failure, the first failure by position is returned.
+   *
+   * @param r0 a result to combine
+   * @param r1 a result to combine
+   * @param r2 a result to combine
+   * @param r3 a result to combine
+   * @param r4 a result to combine
+   * @param r5 a result to combine
+   * @param r6 a result to combine
+   * @param r7 a result to combine
+   * @param r8 a result to combine
+   * @param finisher the function used to combine the results
+   * @param <F> the type of the failure
+   * @param <T0> the success type of {@code r0}
+   * @param <T1> the success type of {@code r1}
+   * @param <T2> the success type of {@code r2}
+   * @param <T3> the success type of {@code r3}
+   * @param <T4> the success type of {@code r4}
+   * @param <T5> the success type of {@code r5}
+   * @param <T6> the success type of {@code r6}
+   * @param <T7> the success type of {@code r7}
+   * @param <T8> the success type of {@code r8}
+   * @param <R> the type of the combined result
+   * @return a new result with the combined result, or the first failure
+   */
   static <F, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Result<F, R> zip(
      Result<F, T0> r0,
      Result<F, T1> r1,

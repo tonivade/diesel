@@ -1605,6 +1605,22 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6).map(p7).map(p8);
   }
 
+  /**
+   * Executes the given programs sequentially and combines their results using the finisher function.
+   * <p>
+   * The execution stops at the first program that fails, and the resulting program fails with
+   * that error. The programs after it are not executed.
+   *
+   * @param p0 a program to combine
+   * @param p1 a program to combine
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the success type of {@code p0}
+   * @param <T1> the success type of {@code p1}
+   * @param <R> the type of the combined result
+   * @return a new program with the combined result, or the first failure
+   */
   static <S, E, T0, T1, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1614,6 +1630,24 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         );
   }
 
+  /**
+   * Executes the given programs sequentially and combines their results using the finisher function.
+   * <p>
+   * The execution stops at the first program that fails, and the resulting program fails with
+   * that error. The programs after it are not executed.
+   *
+   * @param p0 a program to combine
+   * @param p1 a program to combine
+   * @param p2 a program to combine
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the success type of {@code p0}
+   * @param <T1> the success type of {@code p1}
+   * @param <T2> the success type of {@code p2}
+   * @param <R> the type of the combined result
+   * @return a new program with the combined result, or the first failure
+   */
   static <S, E, T0, T1, T2, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1625,6 +1659,26 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         ));
   }
 
+  /**
+   * Executes the given programs sequentially and combines their results using the finisher function.
+   * <p>
+   * The execution stops at the first program that fails, and the resulting program fails with
+   * that error. The programs after it are not executed.
+   *
+   * @param p0 a program to combine
+   * @param p1 a program to combine
+   * @param p2 a program to combine
+   * @param p3 a program to combine
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the success type of {@code p0}
+   * @param <T1> the success type of {@code p1}
+   * @param <T2> the success type of {@code p2}
+   * @param <T3> the success type of {@code p3}
+   * @param <R> the type of the combined result
+   * @return a new program with the combined result, or the first failure
+   */
   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1638,6 +1692,28 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         )));
   }
 
+  /**
+   * Executes the given programs sequentially and combines their results using the finisher function.
+   * <p>
+   * The execution stops at the first program that fails, and the resulting program fails with
+   * that error. The programs after it are not executed.
+   *
+   * @param p0 a program to combine
+   * @param p1 a program to combine
+   * @param p2 a program to combine
+   * @param p3 a program to combine
+   * @param p4 a program to combine
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the success type of {@code p0}
+   * @param <T1> the success type of {@code p1}
+   * @param <T2> the success type of {@code p2}
+   * @param <T3> the success type of {@code p3}
+   * @param <T4> the success type of {@code p4}
+   * @param <R> the type of the combined result
+   * @return a new program with the combined result, or the first failure
+   */
   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1653,6 +1729,30 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         ))));
   }
 
+  /**
+   * Executes the given programs sequentially and combines their results using the finisher function.
+   * <p>
+   * The execution stops at the first program that fails, and the resulting program fails with
+   * that error. The programs after it are not executed.
+   *
+   * @param p0 a program to combine
+   * @param p1 a program to combine
+   * @param p2 a program to combine
+   * @param p3 a program to combine
+   * @param p4 a program to combine
+   * @param p5 a program to combine
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the success type of {@code p0}
+   * @param <T1> the success type of {@code p1}
+   * @param <T2> the success type of {@code p2}
+   * @param <T3> the success type of {@code p3}
+   * @param <T4> the success type of {@code p4}
+   * @param <T5> the success type of {@code p5}
+   * @param <R> the type of the combined result
+   * @return a new program with the combined result, or the first failure
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1670,6 +1770,32 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         )))));
   }
 
+  /**
+   * Executes the given programs sequentially and combines their results using the finisher function.
+   * <p>
+   * The execution stops at the first program that fails, and the resulting program fails with
+   * that error. The programs after it are not executed.
+   *
+   * @param p0 a program to combine
+   * @param p1 a program to combine
+   * @param p2 a program to combine
+   * @param p3 a program to combine
+   * @param p4 a program to combine
+   * @param p5 a program to combine
+   * @param p6 a program to combine
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the success type of {@code p0}
+   * @param <T1> the success type of {@code p1}
+   * @param <T2> the success type of {@code p2}
+   * @param <T3> the success type of {@code p3}
+   * @param <T4> the success type of {@code p4}
+   * @param <T5> the success type of {@code p5}
+   * @param <T6> the success type of {@code p6}
+   * @param <R> the type of the combined result
+   * @return a new program with the combined result, or the first failure
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1689,6 +1815,34 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         ))))));
   }
 
+  /**
+   * Executes the given programs sequentially and combines their results using the finisher function.
+   * <p>
+   * The execution stops at the first program that fails, and the resulting program fails with
+   * that error. The programs after it are not executed.
+   *
+   * @param p0 a program to combine
+   * @param p1 a program to combine
+   * @param p2 a program to combine
+   * @param p3 a program to combine
+   * @param p4 a program to combine
+   * @param p5 a program to combine
+   * @param p6 a program to combine
+   * @param p7 a program to combine
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the success type of {@code p0}
+   * @param <T1> the success type of {@code p1}
+   * @param <T2> the success type of {@code p2}
+   * @param <T3> the success type of {@code p3}
+   * @param <T4> the success type of {@code p4}
+   * @param <T5> the success type of {@code p5}
+   * @param <T6> the success type of {@code p6}
+   * @param <T7> the success type of {@code p7}
+   * @param <R> the type of the combined result
+   * @return a new program with the combined result, or the first failure
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1710,6 +1864,36 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         )))))));
   }
 
+  /**
+   * Executes the given programs sequentially and combines their results using the finisher function.
+   * <p>
+   * The execution stops at the first program that fails, and the resulting program fails with
+   * that error. The programs after it are not executed.
+   *
+   * @param p0 a program to combine
+   * @param p1 a program to combine
+   * @param p2 a program to combine
+   * @param p3 a program to combine
+   * @param p4 a program to combine
+   * @param p5 a program to combine
+   * @param p6 a program to combine
+   * @param p7 a program to combine
+   * @param p8 a program to combine
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the success type of {@code p0}
+   * @param <T1> the success type of {@code p1}
+   * @param <T2> the success type of {@code p2}
+   * @param <T3> the success type of {@code p3}
+   * @param <T4> the success type of {@code p4}
+   * @param <T5> the success type of {@code p5}
+   * @param <T6> the success type of {@code p6}
+   * @param <T7> the success type of {@code p7}
+   * @param <T8> the success type of {@code p8}
+   * @param <R> the type of the combined result
+   * @return a new program with the combined result, or the first failure
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> zip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
