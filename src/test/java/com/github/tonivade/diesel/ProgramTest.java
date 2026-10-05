@@ -331,6 +331,21 @@ class ProgramTest {
   }
 
   @Test
+  void shouldFailBeforeTimeout() {
+    var p1 = Program.<Void, String>sleep(Duration.ofSeconds(1)).andThen(failure("error"));
+    var p2 = p1.timeout(Duration.ofSeconds(10));
+
+    var start = System.nanoTime();
+    var result = p2.eval();
+    var duration = Duration.ofNanos(System.nanoTime() - start);
+
+    assertThat(duration)
+      .isCloseTo(Duration.ofSeconds(1), Duration.ofMillis(100));
+    assertThat(result)
+      .isEqualTo(Result.failure("error"));
+  }
+
+  @Test
   void shouldRaiseException() {
     var program = raise(UnsupportedOperationException::new);
 

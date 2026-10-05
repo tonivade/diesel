@@ -558,7 +558,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T, U> Program<S, E, Either<T, U>> either(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
-    return zip(p1.fork(executor), p2.fork(executor), Program::either).flatMap(Program::from);
+    return zip(p1.fork(executor), p2.fork(executor), Program::either)
+        .flatMap(Program::from);
   }
 
   /**
@@ -986,7 +987,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with timeout
    */
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
-    return either(sleep(duration, executor), this, executor)
+    return zip(Program.<S, E>sleep(duration, executor).fork(executor), fork(executor), Program::race)
+        .flatMap(Program::from)
         .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
   }
 
@@ -3118,6 +3120,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     }
 
     return result;
+  }
+
+  private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> race(
+      CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
+    return f1.thenApply(t -> t.map(Either::<T, U>left))
+        .applyToEither(f2.thenApply(u -> u.map(Either::<T, U>right)), identity())
+        .whenComplete((_, _) -> cancelBoth(f1, f2));
   }
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
