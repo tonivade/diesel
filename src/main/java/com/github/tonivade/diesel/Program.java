@@ -1144,6 +1144,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Executes all the given programs in parallel using the common fork-join pool and ignores all their results.
    *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
    * @param programs the programs to be executed
    * @param <S> the type of the state
    * @param <E> the type of the error
@@ -1157,6 +1163,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Executes all the given programs in parallel using the provided executor.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
    *
    * @param executor the executor used to execute the programs in parallel
    * @param programs the programs to be executed
@@ -1214,6 +1226,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * Executes a collection of programs in parallel using the common fork-join pool and sequences
    * their results into a single program containing a collection of success values.
    *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
    * @param programs the programs to be executed
    * @param <S> the type of the state
    * @param <E> the type of the error
@@ -1228,6 +1246,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Executes a collection of programs in parallel using the provided executor
    * and sequences their results into a single program containing a collection of success values.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
    *
    * @param executor the executor used to execute the programs in parallel
    * @param programs the programs to be executed
@@ -1709,6 +1733,27 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         ))))))));
   }
 
+  /**
+   * Executes the given programs in parallel using the provided executor and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param executor the executor used to execute the programs in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1726,6 +1771,29 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         .flatMap(Program::from);
   }
 
+  /**
+   * Executes the given programs in parallel using the provided executor and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param executor the executor used to execute the programs in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1745,6 +1813,31 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         .flatMap(Program::from);
   }
 
+  /**
+   * Executes the given programs in parallel using the provided executor and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param executor the executor used to execute the programs in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1766,6 +1859,33 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         .flatMap(Program::from);
   }
 
+  /**
+   * Executes the given programs in parallel using the provided executor and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param p4 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param executor the executor used to execute the programs in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <T4> the result type of {@code p4}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1789,6 +1909,35 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         .flatMap(Program::from);
   }
 
+  /**
+   * Executes the given programs in parallel using the provided executor and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param p4 a program to be executed in parallel
+   * @param p5 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param executor the executor used to execute the programs in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <T4> the result type of {@code p4}
+   * @param <T5> the result type of {@code p5}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1814,6 +1963,37 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         .flatMap(Program::from);
   }
 
+  /**
+   * Executes the given programs in parallel using the provided executor and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param p4 a program to be executed in parallel
+   * @param p5 a program to be executed in parallel
+   * @param p6 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param executor the executor used to execute the programs in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <T4> the result type of {@code p4}
+   * @param <T5> the result type of {@code p5}
+   * @param <T6> the result type of {@code p6}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1841,6 +2021,39 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         .flatMap(Program::from);
   }
 
+  /**
+   * Executes the given programs in parallel using the provided executor and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param p4 a program to be executed in parallel
+   * @param p5 a program to be executed in parallel
+   * @param p6 a program to be executed in parallel
+   * @param p7 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param executor the executor used to execute the programs in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <T4> the result type of {@code p4}
+   * @param <T5> the result type of {@code p5}
+   * @param <T6> the result type of {@code p6}
+   * @param <T7> the result type of {@code p7}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1870,6 +2083,41 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         .flatMap(Program::from);
   }
 
+  /**
+   * Executes the given programs in parallel using the provided executor and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param p4 a program to be executed in parallel
+   * @param p5 a program to be executed in parallel
+   * @param p6 a program to be executed in parallel
+   * @param p7 a program to be executed in parallel
+   * @param p8 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param executor the executor used to execute the programs in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <T4> the result type of {@code p4}
+   * @param <T5> the result type of {@code p5}
+   * @param <T6> the result type of {@code p6}
+   * @param <T7> the result type of {@code p7}
+   * @param <T8> the result type of {@code p8}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1901,6 +2149,26 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         .flatMap(Program::from);
   }
 
+  /**
+   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1908,6 +2176,28 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return parZip(p0, p1, finisher, ForkJoinPool.commonPool());
   }
 
+  /**
+   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1916,6 +2206,30 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return parZip(p0, p1, p2, finisher, ForkJoinPool.commonPool());
   }
 
+  /**
+   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1925,6 +2239,32 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return parZip(p0, p1, p2, p3, finisher, ForkJoinPool.commonPool());
   }
 
+  /**
+   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param p4 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <T4> the result type of {@code p4}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1935,6 +2275,34 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return parZip(p0, p1, p2, p3, p4, finisher, ForkJoinPool.commonPool());
   }
 
+  /**
+   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param p4 a program to be executed in parallel
+   * @param p5 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <T4> the result type of {@code p4}
+   * @param <T5> the result type of {@code p5}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1946,6 +2314,36 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return parZip(p0, p1, p2, p3, p4, p5, finisher, ForkJoinPool.commonPool());
   }
 
+  /**
+   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param p4 a program to be executed in parallel
+   * @param p5 a program to be executed in parallel
+   * @param p6 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <T4> the result type of {@code p4}
+   * @param <T5> the result type of {@code p5}
+   * @param <T6> the result type of {@code p6}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1958,6 +2356,38 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return parZip(p0, p1, p2, p3, p4, p5, p6, finisher, ForkJoinPool.commonPool());
   }
 
+  /**
+   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param p4 a program to be executed in parallel
+   * @param p5 a program to be executed in parallel
+   * @param p6 a program to be executed in parallel
+   * @param p7 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <T4> the result type of {@code p4}
+   * @param <T5> the result type of {@code p5}
+   * @param <T6> the result type of {@code p6}
+   * @param <T7> the result type of {@code p7}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
@@ -1971,6 +2401,40 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return parZip(p0, p1, p2, p3, p4, p5, p6, p7, finisher, ForkJoinPool.commonPool());
   }
 
+  /**
+   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * using the finisher function.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param p0 a program to be executed in parallel
+   * @param p1 a program to be executed in parallel
+   * @param p2 a program to be executed in parallel
+   * @param p3 a program to be executed in parallel
+   * @param p4 a program to be executed in parallel
+   * @param p5 a program to be executed in parallel
+   * @param p6 a program to be executed in parallel
+   * @param p7 a program to be executed in parallel
+   * @param p8 a program to be executed in parallel
+   * @param finisher the function used to combine the results
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of {@code p1}
+   * @param <T2> the result type of {@code p2}
+   * @param <T3> the result type of {@code p3}
+   * @param <T4> the result type of {@code p4}
+   * @param <T5> the result type of {@code p5}
+   * @param <T6> the result type of {@code p6}
+   * @param <T7> the result type of {@code p7}
+   * @param <T8> the result type of {@code p8}
+   * @param <R> the type of the combined result
+   * @return a new program representing the parallel computation
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,

@@ -47,6 +47,25 @@ static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, 
 """)
 
 program_parzip_template = environment.from_string("""
+/**
+ * Executes the given programs in parallel using the provided executor and combines their results
+ * using the finisher function.
+ *
+ * <p>
+ * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+ * that error without waiting for the rest. If several programs fail, the error returned is the
+ * first one to happen in time, not the first by position. The remaining programs are not
+ * cancelled and keep running in the background.
+ *
+{% for i in range(value) %} * @param p{{ i }} a program to be executed in parallel
+{% endfor %} * @param finisher the function used to combine the results
+ * @param executor the executor used to execute the programs in parallel
+ * @param <S> the type of the state
+ * @param <E> the type of the error
+{% for i in range(value) %} * @param <T{{ i }}> the result type of {@code p{{ i }}}
+{% endfor %} * @param <R> the type of the combined result
+ * @return a new program representing the parallel computation
+ */
 static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> parZip(
   {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
   {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher,
@@ -54,7 +73,7 @@ static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, 
     return zip(
       {% for i in range(value) %} p{{ i }}.fork(executor), 
       {% endfor %} ({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}) -> {
-        return parAll(List.of({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}))
+        return parAllFailFast(List.of({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}))
           .thenApply(result -> result.fold(
             Result::<E, R>failure,
             _ -> Result.zip({% for i in range(value) %}f{{ i }}.join(), {% endfor %}finisher)));
@@ -64,6 +83,24 @@ static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, 
 """)
 
 program_parzip_forkjoin_template = environment.from_string("""
+/**
+ * Executes the given programs in parallel using the common fork-join pool and combines their results
+ * using the finisher function.
+ *
+ * <p>
+ * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+ * that error without waiting for the rest. If several programs fail, the error returned is the
+ * first one to happen in time, not the first by position. The remaining programs are not
+ * cancelled and keep running in the background.
+ *
+{% for i in range(value) %} * @param p{{ i }} a program to be executed in parallel
+{% endfor %} * @param finisher the function used to combine the results
+ * @param <S> the type of the state
+ * @param <E> the type of the error
+{% for i in range(value) %} * @param <T{{ i }}> the result type of {@code p{{ i }}}
+{% endfor %} * @param <R> the type of the combined result
+ * @return a new program representing the parallel computation
+ */
 static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> parZip(
   {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
   {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher) {
