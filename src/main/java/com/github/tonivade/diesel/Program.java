@@ -58,8 +58,20 @@ import org.jspecify.annotations.Nullable;
  */
 public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
+  /**
+   * A program that completes successfully with no meaningful value.
+   */
   Program<?, ?, Void> UNIT = from(Result.UNIT);
 
+  /**
+   * Converts a higher-kinded {@link Kind} value back into a {@code Program}.
+   *
+   * @param value the value to be converted
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return the same value as a {@code Program}
+   */
   @SuppressWarnings("unchecked")
   static <S, E, T> Program<S, E, T> toProgram(Kind<Program<S, E, ?>, ? extends T> value) {
     return (Program<S, E, T>) value;
@@ -182,6 +194,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     private final Program<S, E, T> current;
     private final AtomicReference<Result<E, T>> cache = new AtomicReference<>();
 
+    /**
+     * Creates a memoized program that caches the result of the given program.
+     *
+     * @param current the program whose result will be cached
+     */
     public Memoized(Program<S, E, T> current) {
       this.current = current;
     }
@@ -1055,6 +1072,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * @param duration the duration of the delay
    * @param supplier the supplier of the value to be returned after the delay
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
    * @return a new program representing the delayed computation
    */
   static <S, E, T> Program<S, E, T> delayed(Duration duration, Supplier<T> supplier) {
@@ -1065,6 +1085,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * Delays the execution of the program using the provided duration and the common fork-join pool.
    *
    * @param duration the duration of the delay
+   * @param program the next program to be executed after the delay
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
    * @return a new program representing the delayed computation
    */
   static <S, E, T> Program<S, E, T> delayed(Duration duration, Program<S, E, T> program) {
@@ -1077,6 +1101,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param duration the duration of the delay
    * @param supplier the supplier of the value to be returned after the delay
    * @param executor the executor used to execute the delay
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
    * @return a new program representing the delayed computation
    */
   static <S, E, T> Program<S, E, T> delayed(Duration duration, Supplier<T> supplier, Executor executor) {
@@ -1089,6 +1116,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param duration the duration of the delay
    * @param program the next program to be executed after the delay
    * @param executor the executor used to execute the delay
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
    * @return a new program representing the delayed computation
    */
   static <S, E, T> Program<S, E, T> delayed(Duration duration, Program<S, E, T> program, Executor executor) {
@@ -2987,6 +3017,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   // end generated code
 
+  /**
+   * The result of a timed program, with the time it took to execute and its result.
+   *
+   * @param duration the time it took to execute the program
+   * @param value the result of the program
+   * @param <T> the type of the result
+   */
   record ElapsedTime<T>(Duration duration, T value) {}
 
   private static <S, E> Program<S, E, Long> start() {
