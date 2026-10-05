@@ -41,6 +41,8 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -52,6 +54,8 @@ import org.mockito.junit.jupiter.MockitoSettings;
 
 @MockitoSettings
 class ProgramTest {
+
+  Executor singleThreadExecutor = Executors.newSingleThreadExecutor();
 
   @Test
   void shouldRepeat(@Mock TestDsl.Service service) {
@@ -226,6 +230,19 @@ class ProgramTest {
   }
 
   @Test
+  void shouldParallelizeWithSingleThreadExcecutor() {
+    var p1 = delayed(Duration.ofSeconds(2), () -> 10);
+    var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
+
+    var result = parZip(p1, p2, Tuple::new, singleThreadExecutor).timed().evalOrElseThrow();
+
+    assertThat(result.duration())
+      .isCloseTo(Duration.ofSeconds(4), Duration.ofMillis(100));
+    assertThat(result.value())
+      .isEqualTo(new Tuple<>(10, "hello"));
+  }
+
+  @Test
   void shouldFailFast() throws Exception {
     var p1 = delayed(Duration.ofSeconds(5), () -> 10);
     var p2 = sleep(Duration.ofSeconds(2)).andThen(failure("error"));
@@ -314,6 +331,20 @@ class ProgramTest {
   }
 
   @Test
+  void shouldExecuteAllProgramsWithSingleThreadExecutor(@Mock Supplier<String> supplier) {
+    when(supplier.get()).thenReturn("hi!");
+
+    var result = parAll(singleThreadExecutor,
+        delayed(Duration.ofSeconds(1), supplier),
+        delayed(Duration.ofSeconds(2), supplier),
+        delayed(Duration.ofSeconds(3), supplier)).timed().evalOrElseThrow();
+
+    assertThat(result.duration())
+      .isCloseTo(Duration.ofSeconds(6), Duration.ofMillis(100));
+    verify(supplier, times(3)).get();
+  }
+
+  @Test
   void shouldExecuteAllProgramsInParallelAndCollectsResult(@Mock Supplier<String> supplier) {
     when(supplier.get()).thenReturn("1", "2", "3");
 
@@ -324,6 +355,21 @@ class ProgramTest {
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
+    assertThat(result.value()).isEqualTo(List.of("1", "2", "3"));
+    verify(supplier, times(3)).get();
+  }
+
+  @Test
+  void shouldExecuteAllProgramsWithSingleThreadExecutorAndCollectsResult(@Mock Supplier<String> supplier) {
+    when(supplier.get()).thenReturn("1", "2", "3");
+
+    var result = parSequence(singleThreadExecutor,
+        delayed(Duration.ofSeconds(1), supplier),
+        delayed(Duration.ofSeconds(2), supplier),
+        delayed(Duration.ofSeconds(3), supplier)).timed().evalOrElseThrow();
+
+    assertThat(result.duration())
+      .isCloseTo(Duration.ofSeconds(6), Duration.ofMillis(100));
     assertThat(result.value()).isEqualTo(List.of("1", "2", "3"));
     verify(supplier, times(3)).get();
   }
