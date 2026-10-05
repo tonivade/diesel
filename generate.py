@@ -135,6 +135,21 @@ static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, 
 """)
 
 program_pipe_template = environment.from_string("""
+/**
+ * Executes the given program and passes its result to the next function, which returns
+ * the next program to execute, and so on, returning the result of the last one.
+ * <p>
+ * Equivalent to chaining {@code flatMap} calls. The execution stops at the first program that
+ * fails, and the resulting program fails with that error.
+ *
+ * @param p0 the program to execute first
+{% for i in range(value - 1) %} * @param p{{ i + 1 }} the function that receives the result of the previous step and returns the next program
+{% endfor %} * @param <S> the type of the state
+ * @param <E> the type of the error
+ * @param <T0> the result type of {@code p0}
+{% for i in range(value - 1) %} * @param <T{{ i + 1 }}> the result type of step {@code p{{ i + 1 }}}
+{% endfor %} * @return a new program with the result of the last step
+ */
 static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Program<S, E, T{{ value - 1}}> pipe(
   Program<S, E, T0> p0,
   {% for i in range(value - 1) %} Function<? super T{{ i }}, ? extends Program<S, E, T{{ i + 1 }}>> p{{ i + 1 }}{% if i < value - 2 %},{% endif %}
@@ -144,6 +159,21 @@ static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endi
 """)
 
 program_chain_template = environment.from_string("""
+/**
+ * Executes the given program and transforms its result by applying the given functions
+ * in order, each one receiving the result of the previous one.
+ * <p>
+ * Equivalent to chaining {@code map} calls. If the program fails, the functions are not applied
+ * and the resulting program fails with that error.
+ *
+ * @param p0 the program to execute first
+{% for i in range(value - 1) %} * @param p{{ i + 1 }} the function that transforms the result of the previous step
+{% endfor %} * @param <S> the type of the state
+ * @param <E> the type of the error
+ * @param <T0> the result type of {@code p0}
+{% for i in range(value - 1) %} * @param <T{{ i + 1 }}> the result type of step {@code p{{ i + 1 }}}
+{% endfor %} * @return a new program with the result of the last step
+ */
 static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Program<S, E, T{{ value - 1}}> chain(
   Program<S, E, T0> p0,
   {% for i in range(value - 1) %} Function<? super T{{ i }}, ? extends T{{ i + 1 }}> p{{ i + 1 }}{% if i < value - 2 %},{% endif %}

@@ -1453,12 +1453,44 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   // start generated code
 
+  /**
+   * Executes the given program and passes its result to the next function, which returns
+   * the next program to execute, and so on, returning the result of the last one.
+   * <p>
+   * Equivalent to chaining {@code flatMap} calls. The execution stops at the first program that
+   * fails, and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that receives the result of the previous step and returns the next program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1> Program<S, E, T1> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1) {
     return p0.flatMap(p1);
   }
 
+  /**
+   * Executes the given program and passes its result to the next function, which returns
+   * the next program to execute, and so on, returning the result of the last one.
+   * <p>
+   * Equivalent to chaining {@code flatMap} calls. The execution stops at the first program that
+   * fails, and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that receives the result of the previous step and returns the next program
+   * @param p2 the function that receives the result of the previous step and returns the next program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2> Program<S, E, T2> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
@@ -1466,6 +1498,25 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.flatMap(p1).flatMap(p2);
   }
 
+  /**
+   * Executes the given program and passes its result to the next function, which returns
+   * the next program to execute, and so on, returning the result of the last one.
+   * <p>
+   * Equivalent to chaining {@code flatMap} calls. The execution stops at the first program that
+   * fails, and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that receives the result of the previous step and returns the next program
+   * @param p2 the function that receives the result of the previous step and returns the next program
+   * @param p3 the function that receives the result of the previous step and returns the next program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3> Program<S, E, T3> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
@@ -1474,6 +1525,27 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3);
   }
 
+  /**
+   * Executes the given program and passes its result to the next function, which returns
+   * the next program to execute, and so on, returning the result of the last one.
+   * <p>
+   * Equivalent to chaining {@code flatMap} calls. The execution stops at the first program that
+   * fails, and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that receives the result of the previous step and returns the next program
+   * @param p2 the function that receives the result of the previous step and returns the next program
+   * @param p3 the function that receives the result of the previous step and returns the next program
+   * @param p4 the function that receives the result of the previous step and returns the next program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @param <T4> the result type of step {@code p4}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3, T4> Program<S, E, T4> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
@@ -1483,6 +1555,29 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4);
   }
 
+  /**
+   * Executes the given program and passes its result to the next function, which returns
+   * the next program to execute, and so on, returning the result of the last one.
+   * <p>
+   * Equivalent to chaining {@code flatMap} calls. The execution stops at the first program that
+   * fails, and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that receives the result of the previous step and returns the next program
+   * @param p2 the function that receives the result of the previous step and returns the next program
+   * @param p3 the function that receives the result of the previous step and returns the next program
+   * @param p4 the function that receives the result of the previous step and returns the next program
+   * @param p5 the function that receives the result of the previous step and returns the next program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @param <T4> the result type of step {@code p4}
+   * @param <T5> the result type of step {@code p5}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3, T4, T5> Program<S, E, T5> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
@@ -1493,6 +1588,31 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5);
   }
 
+  /**
+   * Executes the given program and passes its result to the next function, which returns
+   * the next program to execute, and so on, returning the result of the last one.
+   * <p>
+   * Equivalent to chaining {@code flatMap} calls. The execution stops at the first program that
+   * fails, and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that receives the result of the previous step and returns the next program
+   * @param p2 the function that receives the result of the previous step and returns the next program
+   * @param p3 the function that receives the result of the previous step and returns the next program
+   * @param p4 the function that receives the result of the previous step and returns the next program
+   * @param p5 the function that receives the result of the previous step and returns the next program
+   * @param p6 the function that receives the result of the previous step and returns the next program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @param <T4> the result type of step {@code p4}
+   * @param <T5> the result type of step {@code p5}
+   * @param <T6> the result type of step {@code p6}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6> Program<S, E, T6> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
@@ -1504,6 +1624,33 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6);
   }
 
+  /**
+   * Executes the given program and passes its result to the next function, which returns
+   * the next program to execute, and so on, returning the result of the last one.
+   * <p>
+   * Equivalent to chaining {@code flatMap} calls. The execution stops at the first program that
+   * fails, and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that receives the result of the previous step and returns the next program
+   * @param p2 the function that receives the result of the previous step and returns the next program
+   * @param p3 the function that receives the result of the previous step and returns the next program
+   * @param p4 the function that receives the result of the previous step and returns the next program
+   * @param p5 the function that receives the result of the previous step and returns the next program
+   * @param p6 the function that receives the result of the previous step and returns the next program
+   * @param p7 the function that receives the result of the previous step and returns the next program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @param <T4> the result type of step {@code p4}
+   * @param <T5> the result type of step {@code p5}
+   * @param <T6> the result type of step {@code p6}
+   * @param <T7> the result type of step {@code p7}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7> Program<S, E, T7> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
@@ -1516,6 +1663,35 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7);
   }
 
+  /**
+   * Executes the given program and passes its result to the next function, which returns
+   * the next program to execute, and so on, returning the result of the last one.
+   * <p>
+   * Equivalent to chaining {@code flatMap} calls. The execution stops at the first program that
+   * fails, and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that receives the result of the previous step and returns the next program
+   * @param p2 the function that receives the result of the previous step and returns the next program
+   * @param p3 the function that receives the result of the previous step and returns the next program
+   * @param p4 the function that receives the result of the previous step and returns the next program
+   * @param p5 the function that receives the result of the previous step and returns the next program
+   * @param p6 the function that receives the result of the previous step and returns the next program
+   * @param p7 the function that receives the result of the previous step and returns the next program
+   * @param p8 the function that receives the result of the previous step and returns the next program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @param <T4> the result type of step {@code p4}
+   * @param <T5> the result type of step {@code p5}
+   * @param <T6> the result type of step {@code p6}
+   * @param <T7> the result type of step {@code p7}
+   * @param <T8> the result type of step {@code p8}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8> Program<S, E, T8> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
@@ -1529,12 +1705,44 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7).flatMap(p8);
   }
 
+  /**
+   * Executes the given program and transforms its result by applying the given functions
+   * in order, each one receiving the result of the previous one.
+   * <p>
+   * Equivalent to chaining {@code map} calls. If the program fails, the functions are not applied
+   * and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that transforms the result of the previous step
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1> Program<S, E, T1> chain(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends T1> p1) {
     return p0.map(p1);
   }
 
+  /**
+   * Executes the given program and transforms its result by applying the given functions
+   * in order, each one receiving the result of the previous one.
+   * <p>
+   * Equivalent to chaining {@code map} calls. If the program fails, the functions are not applied
+   * and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that transforms the result of the previous step
+   * @param p2 the function that transforms the result of the previous step
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2> Program<S, E, T2> chain(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends T1> p1,
@@ -1542,6 +1750,25 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.map(p1).map(p2);
   }
 
+  /**
+   * Executes the given program and transforms its result by applying the given functions
+   * in order, each one receiving the result of the previous one.
+   * <p>
+   * Equivalent to chaining {@code map} calls. If the program fails, the functions are not applied
+   * and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that transforms the result of the previous step
+   * @param p2 the function that transforms the result of the previous step
+   * @param p3 the function that transforms the result of the previous step
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3> Program<S, E, T3> chain(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends T1> p1,
@@ -1550,6 +1777,27 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.map(p1).map(p2).map(p3);
   }
 
+  /**
+   * Executes the given program and transforms its result by applying the given functions
+   * in order, each one receiving the result of the previous one.
+   * <p>
+   * Equivalent to chaining {@code map} calls. If the program fails, the functions are not applied
+   * and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that transforms the result of the previous step
+   * @param p2 the function that transforms the result of the previous step
+   * @param p3 the function that transforms the result of the previous step
+   * @param p4 the function that transforms the result of the previous step
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @param <T4> the result type of step {@code p4}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3, T4> Program<S, E, T4> chain(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends T1> p1,
@@ -1559,6 +1807,29 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.map(p1).map(p2).map(p3).map(p4);
   }
 
+  /**
+   * Executes the given program and transforms its result by applying the given functions
+   * in order, each one receiving the result of the previous one.
+   * <p>
+   * Equivalent to chaining {@code map} calls. If the program fails, the functions are not applied
+   * and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that transforms the result of the previous step
+   * @param p2 the function that transforms the result of the previous step
+   * @param p3 the function that transforms the result of the previous step
+   * @param p4 the function that transforms the result of the previous step
+   * @param p5 the function that transforms the result of the previous step
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @param <T4> the result type of step {@code p4}
+   * @param <T5> the result type of step {@code p5}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3, T4, T5> Program<S, E, T5> chain(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends T1> p1,
@@ -1569,6 +1840,31 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.map(p1).map(p2).map(p3).map(p4).map(p5);
   }
 
+  /**
+   * Executes the given program and transforms its result by applying the given functions
+   * in order, each one receiving the result of the previous one.
+   * <p>
+   * Equivalent to chaining {@code map} calls. If the program fails, the functions are not applied
+   * and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that transforms the result of the previous step
+   * @param p2 the function that transforms the result of the previous step
+   * @param p3 the function that transforms the result of the previous step
+   * @param p4 the function that transforms the result of the previous step
+   * @param p5 the function that transforms the result of the previous step
+   * @param p6 the function that transforms the result of the previous step
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @param <T4> the result type of step {@code p4}
+   * @param <T5> the result type of step {@code p5}
+   * @param <T6> the result type of step {@code p6}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6> Program<S, E, T6> chain(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends T1> p1,
@@ -1580,6 +1876,33 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6);
   }
 
+  /**
+   * Executes the given program and transforms its result by applying the given functions
+   * in order, each one receiving the result of the previous one.
+   * <p>
+   * Equivalent to chaining {@code map} calls. If the program fails, the functions are not applied
+   * and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that transforms the result of the previous step
+   * @param p2 the function that transforms the result of the previous step
+   * @param p3 the function that transforms the result of the previous step
+   * @param p4 the function that transforms the result of the previous step
+   * @param p5 the function that transforms the result of the previous step
+   * @param p6 the function that transforms the result of the previous step
+   * @param p7 the function that transforms the result of the previous step
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @param <T4> the result type of step {@code p4}
+   * @param <T5> the result type of step {@code p5}
+   * @param <T6> the result type of step {@code p6}
+   * @param <T7> the result type of step {@code p7}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7> Program<S, E, T7> chain(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends T1> p1,
@@ -1592,6 +1915,35 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return p0.map(p1).map(p2).map(p3).map(p4).map(p5).map(p6).map(p7);
   }
 
+  /**
+   * Executes the given program and transforms its result by applying the given functions
+   * in order, each one receiving the result of the previous one.
+   * <p>
+   * Equivalent to chaining {@code map} calls. If the program fails, the functions are not applied
+   * and the resulting program fails with that error.
+   *
+   * @param p0 the program to execute first
+   * @param p1 the function that transforms the result of the previous step
+   * @param p2 the function that transforms the result of the previous step
+   * @param p3 the function that transforms the result of the previous step
+   * @param p4 the function that transforms the result of the previous step
+   * @param p5 the function that transforms the result of the previous step
+   * @param p6 the function that transforms the result of the previous step
+   * @param p7 the function that transforms the result of the previous step
+   * @param p8 the function that transforms the result of the previous step
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T0> the result type of {@code p0}
+   * @param <T1> the result type of step {@code p1}
+   * @param <T2> the result type of step {@code p2}
+   * @param <T3> the result type of step {@code p3}
+   * @param <T4> the result type of step {@code p4}
+   * @param <T5> the result type of step {@code p5}
+   * @param <T6> the result type of step {@code p6}
+   * @param <T7> the result type of step {@code p7}
+   * @param <T8> the result type of step {@code p8}
+   * @return a new program with the result of the last step
+   */
   static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8> Program<S, E, T8> chain(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends T1> p1,
