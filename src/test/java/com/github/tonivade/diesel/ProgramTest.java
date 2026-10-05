@@ -29,6 +29,7 @@ import static com.github.tonivade.diesel.Program.zip;
 import static java.util.function.Predicate.not;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -455,6 +456,15 @@ class ProgramTest {
     var result = program.eval();
 
     assertThat(result).isInstanceOf(Result.Failure.class);
+    verify(resource).close();
+  }
+
+  @Test
+  void shouldReleaseResourceOnException(@Mock AutoCloseable resource) throws Exception {
+    var program = bracket(() -> resource, _ -> raise(UnsupportedOperationException::new));
+
+    assertThrows(UnsupportedOperationException.class, program::eval);
+
     verify(resource).close();
   }
 
