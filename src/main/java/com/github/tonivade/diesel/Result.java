@@ -34,6 +34,9 @@ import com.github.tonivade.diesel.function.Finisher9;
  */
 public sealed interface Result<F, S> {
 
+  /**
+   * A successful result with no meaningful value.
+   */
   Result<?, Void> UNIT = success(null);
 
   /**
@@ -391,6 +394,7 @@ public sealed interface Result<F, S> {
   /**
    * A record representing a failure result.
    *
+   * @param error The failure value.
    * @param <F> The type of the failure value.
    * @param <S> The type of the success value.
    */
@@ -399,6 +403,7 @@ public sealed interface Result<F, S> {
   /**
    * A record representing a success result.
    *
+   * @param value The success value, it can be null.
    * @param <F> The type of the failure value.
    * @param <S> The type of the success value.
    */

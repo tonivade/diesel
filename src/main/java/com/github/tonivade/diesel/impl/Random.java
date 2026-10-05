@@ -11,9 +11,8 @@ import static com.github.tonivade.diesel.Program.effect;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * This sealed interface represents a random number generator that can be used within the Diesel framework.
+ * This interface represents a random number generator that can be used within the Diesel framework.
  * It provides a way to generate random integers within a specified range.
- *
  */
 public interface Random {
 
@@ -37,6 +36,8 @@ public interface Random {
    * Creates a program that generates a random integer within a specified range.
    *
    * @param bound the upper bound of the range (exclusive)
+   * @param <S> the type of the state, which must provide the random service
+   * @param <E> the type of the error
    * @return a program that generates a random integer
    */
   static <S extends Service, E> Program<S, E, Integer> nextInt(int bound) {
