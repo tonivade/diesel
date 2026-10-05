@@ -25,7 +25,6 @@ import java.util.Deque;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import org.jspecify.annotations.Nullable;
 
@@ -74,7 +73,7 @@ final class Interpreter {
               resumed = true;
             } else if (frame instanceof FinalizerFrame(var finalizer)) {
               // run the finalizer and then continue with the result, unless the finalizer fails
-              stack.push(new FoldFrame<>(Program::failure, _ -> Program.from(result)));
+              stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
               masked = enterUncancelable(stack, masked);
               current = finalizer;
               resumed = true;
@@ -102,20 +101,18 @@ final class Interpreter {
         } else if (current instanceof Forked forked) {
           current = Program.success(fork(state, token, forked.current(), forked.executor()));
         } else if (current instanceof Ensuring(var source, var finalizer)) {
-          stack.push(new FinalizerFrame<>(finalizer));
+          stack.push(Frame.finalizer(finalizer));
           current = source;
         } else if (current instanceof Uncancelable(var source)) {
           masked = enterUncancelable(stack, masked);
           current = source;
         } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
-          stack.push(new FoldFrame<>(
-              (Function<Object, Program<S, ?, ?>>) onFailure,
-              (Function<Object, Program<S, ?, ?>>) onSuccess));
+          stack.push(Frame.fold(onFailure, onSuccess));
           current = source;
         } else if (current instanceof Raise(var throwable)) {
           return sneakyThrow(throwable.get());
         } else if (current instanceof Catch(var source, var recover)) {
-          stack.push(new CatchFrame<>((Function<Throwable, Program<S, ?, ?>>) recover));
+          stack.push(Frame.catch_(recover));
           current = source;
         } else if (current instanceof Suspend(var supplier)) {
           current = supplier.get();
@@ -124,7 +121,7 @@ final class Interpreter {
           if (result != null) {
             current = Program.from(result);
           } else {
-            stack.push(new FoldFrame<>(
+            stack.push(Frame.fold(
                 error -> {
                   memoized.set(Result.failure(error));
                   return Program.failure(error);
@@ -156,7 +153,7 @@ final class Interpreter {
             resumed = true;
           } else if (frame instanceof FinalizerFrame(var finalizer)) {
             // keep unwinding with the same exception once the finalizer is done
-            stack.push(new FoldFrame<>(_ -> Program.raise(() -> e), _ -> Program.raise(() -> e)));
+            stack.push(Frame.fold(_ -> Program.raise(() -> e), _ -> Program.raise(() -> e)));
             masked = enterUncancelable(stack, masked);
             current = finalizer;
             resumed = true;
@@ -170,7 +167,7 @@ final class Interpreter {
 
   // the region ends when the UnmaskFrame is popped
   private static <S> int enterUncancelable(Deque<Frame<S>> stack, int masked) {
-    stack.push(new UnmaskFrame<>());
+    stack.push(Frame.unmask());
     return masked + 1;
   }
 
