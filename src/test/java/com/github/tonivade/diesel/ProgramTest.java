@@ -271,6 +271,21 @@ class ProgramTest {
   }
 
   @Test
+  void shouldBothFail() {
+    var p1 = sleep(Duration.ofSeconds(3)).andThen(failure("error 1"));
+    var p2 = sleep(Duration.ofSeconds(2)).andThen(raise(UnsupportedOperationException::new));
+
+    var start = System.nanoTime();
+    var result = either(p1, p2).eval();
+    var duration = Duration.ofNanos(System.nanoTime() - start);
+
+    assertThat(duration)
+      .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
+    assertThat(result)
+      .isEqualTo(Result.failure("error 1"));
+  }
+
+  @Test
   void shouldRaceWhenOneReturnFailure() {
     var p1 = Program.<Void, String, Integer>delayed(Duration.ofSeconds(3), () -> 10);
     var p2 = Program.<Void, String>sleep(Duration.ofSeconds(1)).andThen(failure("error"));
