@@ -100,7 +100,7 @@ final class Interpreter {
             }
           }
         } else if (current instanceof Forked forked) {
-          current = Program.success(fork(state, token.child(), forked.current(), forked.executor()));
+          current = Program.success(fork(state, token, forked.current(), forked.executor()));
         } else if (current instanceof Ensuring(var source, var finalizer)) {
           stack.push(new FinalizerFrame<>(finalizer));
           current = source;
@@ -175,15 +175,27 @@ final class Interpreter {
   }
 
   private static <S, E, T> CompletableFuture<Result<E, T>> fork(
-      @Nullable S state, CancelToken token, Program<S, E, T> program, Executor executor) {
+      @Nullable S state, CancelToken parent, Program<S, E, T> program, Executor executor) {
+    var token = parent.child();
     var future = new CancelableFuture<Result<E, T>>(token);
+    parent.track(future);
     executor.execute(() -> {
+      Result<E, T> result = null;
+      Throwable error = null;
       try {
-        future.complete(ScopedValue.where(CancelToken.CURRENT, token).call(() -> run(program, state, token)));
+        result = ScopedValue.where(CancelToken.CURRENT, token).call(() -> run(program, state, token));
       } catch (Throwable e) {
-        future.completeExceptionally(e);
-      } finally {
-        token.detach();
+        error = e;
+      }
+      if (token.isCancelled()) {
+        // the forks of a cancelled program have been cancelled too, wait for them to stop
+        token.awaitForks();
+      }
+      token.detach();
+      if (error != null) {
+        future.completeExceptionally(error);
+      } else {
+        future.complete(result);
       }
     });
     return future;

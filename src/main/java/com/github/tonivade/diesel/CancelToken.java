@@ -6,6 +6,7 @@ package com.github.tonivade.diesel;
 
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -31,6 +32,7 @@ final class CancelToken {
 
   private final AtomicBoolean cancelled = new AtomicBoolean();
   private final Set<Callback> callbacks = ConcurrentHashMap.newKeySet();
+  private final Set<CompletableFuture<?>> forks = ConcurrentHashMap.newKeySet();
   private Registration parent = NOOP;
 
   private CancelToken() {}
@@ -57,6 +59,33 @@ final class CancelToken {
    */
   void detach() {
     parent.remove();
+  }
+
+  /**
+   * Keeps track of a program forked by the program using this token until it completes.
+   */
+  // futures are compared by identity, which is what is needed to track each fork
+  @SuppressWarnings("CollectionUndefinedEquality")
+  void track(CompletableFuture<?> fork) {
+    if (this == NONE) {
+      // never cancelled, so there is never anything to wait for
+      return;
+    }
+    forks.add(fork);
+    var _ = fork.whenComplete((_, _) -> forks.remove(fork));
+  }
+
+  /**
+   * Waits until all the tracked forks have completed, so a cancelled program finishes only after
+   * the programs it forked have stopped and run their finalizers.
+   */
+  void awaitForks() {
+    while (!forks.isEmpty()) {
+      CompletableFuture.allOf(forks.toArray(new CompletableFuture<?>[0]))
+          // the forks are expected to complete exceptionally, they have been cancelled
+          .handle((_, _) -> null)
+          .join();
+    }
   }
 
   /**
