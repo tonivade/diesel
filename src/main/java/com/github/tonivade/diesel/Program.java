@@ -3122,11 +3122,29 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
       CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
-    return f1.thenApply(t -> t.map(Either::<T, U>left))
-        .applyToEither(f2.thenApply(u -> u.map(Either::<T, U>right)), result -> {
-          cancelBoth(f1, f2);
-          return result;
-        });
+    var result = new CompletableFuture<Result<E, Either<T, U>>>();
+    var remaining = new AtomicInteger(2);
+
+    f1.whenComplete((value, error) -> eitherComplete(result, remaining, value, error, Either::<T, U>left));
+    f2.whenComplete((value, error) -> eitherComplete(result, remaining, value, error, Either::<T, U>right));
+
+    return result.whenComplete((_, _) -> cancelBoth(f1, f2));
+  }
+
+  private static <E, T, R> void eitherComplete(CompletableFuture<Result<E, R>> result, AtomicInteger remaining,
+      @Nullable Result<E, T> value, @Nullable Throwable error, Function<T, R> mapper) {
+    // only fail when both programs have failed, otherwise wait for the other one
+    if (error != null) {
+      if (remaining.decrementAndGet() == 0) {
+        result.completeExceptionally(error);
+      }
+    } else if (value instanceof Failure(var fail)) {
+      if (remaining.decrementAndGet() == 0) {
+        result.complete(Result.failure(fail));
+      }
+    } else if (value != null) {
+      result.complete(value.map(mapper));
+    }
   }
 
   // XXX: https://www.baeldung.com/java-sneaky-throws

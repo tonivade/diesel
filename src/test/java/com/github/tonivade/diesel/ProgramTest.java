@@ -271,6 +271,32 @@ class ProgramTest {
   }
 
   @Test
+  void shouldRaceWhenOneReturnFailure() {
+    var p1 = Program.<Void, String, Integer>delayed(Duration.ofSeconds(3), () -> 10);
+    var p2 = Program.<Void, String>sleep(Duration.ofSeconds(1)).andThen(failure("error"));
+
+    var result = either(p1, p2).timed().evalOrElseThrow();
+
+    assertThat(result.duration())
+      .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
+    assertThat(result.value())
+      .isEqualTo(Either.left(10));
+  }
+
+  @Test
+  void shouldRaceWhenOneThrowsException() {
+    var p1 = Program.<Void, String, Integer>delayed(Duration.ofSeconds(3), () -> 10);
+    var p2 = Program.<Void, String>sleep(Duration.ofSeconds(1)).andThen(raise(UnsupportedOperationException::new));
+
+    var result = either(p1, p2).timed().evalOrElseThrow();
+
+    assertThat(result.duration())
+      .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
+    assertThat(result.value())
+      .isEqualTo(Either.left(10));
+  }
+
+  @Test
   void shouldTimeout() {
     var p1 = delayed(Duration.ofSeconds(20), () -> 10);
     var p2 = p1.timeout(Duration.ofSeconds(1));
