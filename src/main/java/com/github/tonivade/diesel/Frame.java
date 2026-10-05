@@ -32,4 +32,8 @@ sealed interface Frame<S> {
   static <S> CatchFrame<S> catch_(Function<? super Throwable, ? extends Program<S, ?, ?>> recover) {
     return new CatchFrame<>((Function<Throwable, Program<S, ?, ?>>) recover);
   }
+
+  static <S> FinalizerFrame<S> finalizer(Program<S, ?, ?> finalizer) {
+    return new FinalizerFrame<>(finalizer);
+  }
 }

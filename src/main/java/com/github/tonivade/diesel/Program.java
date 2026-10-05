@@ -645,7 +645,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           ((BiConsumer<S, CompletableFuture<?>>) callback).accept(state, future);
           current = from(future.join());
         } else if (current instanceof Ensuring(var source, var finalizer)) {
-          stack.push(new FinalizerFrame<>(finalizer));
+          stack.push(Frame.finalizer(finalizer));
           current = source;
         } else if (current instanceof Forked forked) {
           var future = CompletableFuture.supplyAsync(() -> forked.current.eval(state), forked.executor);
