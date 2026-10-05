@@ -78,10 +78,12 @@ program_parzip_template = environment.from_string("""
  * using the finisher function.
  *
  * <p>
- * The execution is fail-fast: as soon as any program fails, the resulting program fails with
- * that error without waiting for the rest. If several programs fail, the error returned is the
- * first one to happen in time, not the first by position. The remaining programs are not
- * cancelled and keep running in the background.
+ * The execution is fail-fast: as soon as any program fails, the remaining programs are
+ * cancelled and the resulting program fails with that error. If several programs fail, the
+ * error returned is the first one to happen in time, not the first by position. Cancelled
+ * programs stop at their next step and run their finalizers, and the resulting program
+ * completes once they have stopped. Cancellation is cooperative, so code that is already
+ * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
  *
 {% for i in range(value) %} * @param p{{ i }} a program to be executed in parallel
 {% endfor %} * @param finisher the function used to combine the results
@@ -114,10 +116,12 @@ program_parzip_forkjoin_template = environment.from_string("""
  * using the finisher function.
  *
  * <p>
- * The execution is fail-fast: as soon as any program fails, the resulting program fails with
- * that error without waiting for the rest. If several programs fail, the error returned is the
- * first one to happen in time, not the first by position. The remaining programs are not
- * cancelled and keep running in the background.
+ * The execution is fail-fast: as soon as any program fails, the remaining programs are
+ * cancelled and the resulting program fails with that error. If several programs fail, the
+ * error returned is the first one to happen in time, not the first by position. Cancelled
+ * programs stop at their next step and run their finalizers, and the resulting program
+ * completes once they have stopped. Cancellation is cooperative, so code that is already
+ * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
  *
 {% for i in range(value) %} * @param p{{ i }} a program to be executed in parallel
 {% endfor %} * @param finisher the function used to combine the results

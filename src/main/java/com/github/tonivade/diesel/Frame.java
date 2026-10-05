@@ -7,7 +7,7 @@ package com.github.tonivade.diesel;
 import java.util.function.Function;
 
 /**
- * Continuation frames used by {@link Program#eval(Object)}.
+ * Continuation frames used by the {@link Interpreter}.
  */
 sealed interface Frame<S> {
 
@@ -17,5 +17,12 @@ sealed interface Frame<S> {
   }
 
   record CatchFrame<S>(Function<Throwable, Program<S, ?, ?>> recover) implements Frame<S> {
+  }
+
+  record FinalizerFrame<S>(Program<S, ?, ?> finalizer) implements Frame<S> {
+  }
+
+  // marks the end of an uncancelable region
+  record UnmaskFrame<S>() implements Frame<S> {
   }
 }

@@ -6,8 +6,6 @@ package com.github.tonivade.diesel;
 
 import static java.util.function.Function.identity;
 
-import com.github.tonivade.diesel.Frame.CatchFrame;
-import com.github.tonivade.diesel.Frame.FoldFrame;
 import com.github.tonivade.diesel.Result.Failure;
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
@@ -21,10 +19,8 @@ import com.github.tonivade.purefun.Kind;
 
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -203,6 +199,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       this.current = current;
     }
 
+    Program<S, E, T> current() {
+      return current;
+    }
+
     /**
      * Returns the cached result of the computation if it is available, or {@code null} if the computation has not been executed yet.
      *
@@ -222,6 +222,29 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       cache.compareAndSet(null, result);
     }
   }
+
+  /**
+   * Represents a computation that runs a finalizer after the program, whether it succeeds, fails,
+   * throws an exception or is cancelled. The finalizer can't be cancelled.
+   *
+   * @param current the current program
+   * @param finalizer the program to be executed as a finalizer
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Ensuring<S, E, T>(Program<S, E, T> current, Program<S, E, ?> finalizer) implements Program<S, E, T> {}
+
+  /**
+   * Represents a computation that can't be cancelled, a cancellation requested while it runs
+   * takes effect after it finishes.
+   *
+   * @param current the current program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Uncancelable<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {}
 
   /**
    * Creates a new program that represents a computation that can be executed in a specific context.
@@ -507,6 +530,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents an either of two programs executed in parallel using the common fork-join pool.
    *
+   * <p>The program that finishes last is cancelled, and the resulting program completes once it
+   * has stopped and run its finalizers.
+   *
    * @param p1 the first program
    * @param p2 the second program
    * @param <S> the type of the state
@@ -521,6 +547,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Creates a new program that represents an either of two programs executed in parallel using the provided executor.
+   *
+   * <p>The program that finishes last is cancelled, and the resulting program completes once it
+   * has stopped and run its finalizers.
    *
    * @param p1 the first program
    * @param p2 the second program
@@ -558,9 +587,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default T evalOrElseThrow() {
     return evalOrElseThrow(e -> {
       if (e instanceof Throwable throwable) {
-        return sneakyThrow(throwable);
+        return Interpreter.sneakyThrow(throwable);
       }
-      return sneakyThrow(new NoSuchElementException());
+      return Interpreter.sneakyThrow(new NoSuchElementException());
     });
   }
 
@@ -590,81 +619,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param state the state used to evaluate the program
    * @return the result of the evaluation
    */
-  @SuppressWarnings("unchecked")
   default Result<E, T> eval(@Nullable S state) {
-    Program<S, ?, ?> current = this;
-    Deque<Frame<S>> stack = new ArrayDeque<>();
-
-    while (true) {
-      try {
-        if (current instanceof Pure(var result)) {
-          var frame = stack.poll();
-          // leaving a catchAll scope normally, its handler no longer applies
-          while (frame instanceof CatchFrame) {
-            frame = stack.poll();
-          }
-          if (frame instanceof FoldFrame(var onFailure, var onSuccess)) {
-            current = result.fold(onFailure, onSuccess);
-          } else {
-            // when frame is null
-            return (Result<E, T>) result;
-          }
-        } else if (current instanceof Effect(var mapper)) {
-          current = mapper.apply(state);
-        } else if (current instanceof Async(var callback)) {
-          var future = new CompletableFuture<Result<?, ?>>();
-          ((BiConsumer<S, CompletableFuture<?>>) callback).accept(state, future);
-          current = from(future.join());
-        } else if (current instanceof Forked forked) {
-          var future = CompletableFuture.supplyAsync(() -> forked.current.eval(state), forked.executor);
-          current = success(future);
-        } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
-          stack.push(new FoldFrame<>(
-              (Function<Object, Program<S, ?, ?>>) onFailure,
-              (Function<Object, Program<S, ?, ?>>) onSuccess));
-          current = source;
-        } else if (current instanceof Raise(var throwable)) {
-          return sneakyThrow(throwable.get());
-        } else if (current instanceof Catch(var source, var recover)) {
-          stack.push(new CatchFrame<>((Function<Throwable, Program<S, ?, ?>>) recover));
-          current = source;
-        } else if (current instanceof Suspend(var supplier)) {
-          current = supplier.get();
-        } else if (current instanceof Memoized memoized) {
-          var result = memoized.get();
-          if (result != null) {
-            current = Program.from(result);
-          } else {
-            stack.push(new FoldFrame<>(
-                error -> {
-                  memoized.set(Result.failure(error));
-                  return Program.failure(error);
-                },
-                value -> {
-                  memoized.set(Result.success(value));
-                  return Program.success(value);
-                }));
-            current = memoized.current;
-          }
-        } else {
-          // every subtype is handled above, so only a null program can reach here
-          throw new NullPointerException("program cannot be null");
-        }
-      } catch (Throwable e) {
-        // unwind to the nearest catchAll, discarding the continuations inside its scope
-        var frame = stack.poll();
-        while (frame instanceof FoldFrame) {
-          frame = stack.poll();
-        }
-        if (frame instanceof CatchFrame(var recover)) {
-          // run the handler inside the loop so an exception it throws reaches an outer catchAll
-          current = suspend(() -> recover.apply(e));
-        } else {
-          // when frame is null
-          return sneakyThrow(e);
-        }
-      }
-    }
+    return Interpreter.eval(this, state);
   }
 
   /**
@@ -916,6 +872,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Forks the program to be executed asynchronously using the common fork-join pool.
    *
+   * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
+   * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
+   * The forked program is also cancelled when the program that forked it is cancelled.
+   *
    * @return a new program representing the forked computation
    */
   default Program<S, E, CompletableFuture<Result<E, T>>> fork() {
@@ -924,6 +884,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Forks the program to be executed asynchronously using the provided executor.
+   *
+   * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
+   * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
+   * The forked program is also cancelled when the program that forked it is cancelled.
    *
    * @param executor the executor used to execute the program asynchronously
    * @return a new program representing the forked computation
@@ -935,6 +899,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Adds a timeout to the program using the provided duration and the common fork-join pool.
    *
+   * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
+   * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
+   *
    * @param duration the duration of the timeout
    * @return a new program representing the computation with timeout
    */
@@ -944,6 +911,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Adds a timeout to the program using the provided duration and executor.
+   *
+   * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
+   * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
    *
    * @param duration the duration of the timeout
    * @param executor the executor used to execute the timeout
@@ -957,13 +927,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Ensures that the finalizer program is executed after the current program, regardless of success or failure.
    *
+   * <p>The finalizer also runs when the program throws an exception or is cancelled, and it can't be
+   * cancelled itself. If the finalizer fails, its failure replaces the result of the program.
+   *
    * @param finalizer the program to be executed as a finalizer
    * @return a new program representing the computation with the finalizer
    */
   default Program<S, E, T> ensuring(Program<S, E, ?> finalizer) {
-    return foldMap(
-        f -> finalizer.andThen(failure(f)),
-        s -> finalizer.andThen(success(s)));
+    return new Ensuring<>(this, finalizer);
   }
 
   /**
@@ -1175,10 +1146,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * Executes all the given programs in parallel using the common fork-join pool and ignores all their results.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param programs the programs to be executed
    * @param <S> the type of the state
@@ -1195,10 +1168,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * Executes all the given programs in parallel using the provided executor.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param executor the executor used to execute the programs in parallel
    * @param programs the programs to be executed
@@ -1257,10 +1232,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * their results into a single program containing a collection of success values.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param programs the programs to be executed
    * @param <S> the type of the state
@@ -1278,10 +1255,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * and sequences their results into a single program containing a collection of success values.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param executor the executor used to execute the programs in parallel
    * @param programs the programs to be executed
@@ -1460,6 +1439,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it
    *
+   * <p>Acquiring and releasing the resource can't be cancelled, and once acquired the resource is
+   * released whether {@code use} succeeds, fails, throws an exception or is cancelled.
+   *
    * @param acquire the supplier of the resource to be acquired
    * @param use the function used to use the acquired resource
    * @param release the function used to release the acquired resource
@@ -1473,11 +1455,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Program<S, E, T> acquire,
       Function<? super T, ? extends Program<S, E, R>> use,
           Function<? super T, ? extends Program<S, E, Void>> release) {
+    // installing the finalizer never observes a cancellation, so there is no gap between
+    // acquiring the resource and guaranteeing its release
     return pipe(
-        acquire,
-        resource -> use.apply(resource).foldMap(
-            e -> release.apply(resource).andThen(failure(e)),
-            t -> release.apply(resource).andThen(success(t)))
+        new Uncancelable<>(acquire),
+        resource -> use.apply(resource).ensuring(release.apply(resource))
         );
   }
 
@@ -2304,10 +2286,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2342,10 +2326,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2384,10 +2370,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2430,10 +2418,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2480,10 +2470,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2534,10 +2526,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2592,10 +2586,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2654,10 +2650,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2720,10 +2718,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2747,10 +2747,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2777,10 +2779,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2810,10 +2814,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2846,10 +2852,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2885,10 +2893,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2927,10 +2937,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -2972,10 +2984,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -3085,22 +3099,35 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       });
     }
 
-    return result;
+    var outcome = result.whenComplete((value, error) -> {
+      if (error != null || value instanceof Failure) {
+        // fail-fast: cancel the programs that are still running
+        futures.forEach(future -> future.cancel(true));
+      }
+    });
+    return afterAll(futures, outcome);
   }
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
       CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
-    return f1.thenApply(t -> t.map(Either::<T, U>left))
-        .applyToEither(f2.thenApply(u -> u.map(Either::<T, U>right)), result -> {
-          cancelBoth(f1, f2);
-          return result;
-        });
+    var outcome = f1.thenApply(t -> t.map(Either::<T, U>left))
+        .applyToEither(f2.thenApply(u -> u.map(Either::<T, U>right)), identity())
+        .whenComplete((_, _) -> cancelBoth(f1, f2));
+    return afterAll(List.of(f1, f2), outcome);
   }
 
-  // XXX: https://www.baeldung.com/java-sneaky-throws
-  @SuppressWarnings("unchecked")
-  private static <X extends Throwable, R> R sneakyThrow(Throwable t) throws X {
-    throw (X) t;
+  /**
+   * Completes like {@code outcome} once all the futures are done too, so the cancelled programs
+   * have stopped and run their finalizers before the caller continues.
+   */
+  private static <T> CompletableFuture<T> afterAll(
+      Collection<? extends CompletableFuture<?>> futures, CompletableFuture<T> outcome) {
+    var all = new ArrayList<CompletableFuture<?>>(futures);
+    all.add(outcome);
+    return CompletableFuture.allOf(all.toArray(new CompletableFuture<?>[0]))
+        // the cancelled programs complete exceptionally, that is expected
+        .handle((_, _) -> null)
+        .thenCompose(_ -> outcome);
   }
 
   private static void cancelBoth(CompletableFuture<?> f1, CompletableFuture<?> f2) {
