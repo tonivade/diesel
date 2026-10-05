@@ -81,7 +81,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private AnnotationMirror getAnnotation(TypeElement annotation, Element element) {
     return element.getAnnotationMirrors().stream()
-        .filter(am -> am.getAnnotationType().equals(annotation.asType()))
+        .filter(am -> processingEnv.getTypeUtils().isSameType(am.getAnnotationType(), annotation.asType()))
         .findFirst().orElseThrow();
   }
 
