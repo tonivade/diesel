@@ -4,16 +4,11 @@
  */
 package com.github.tonivade.diesel;
 
-import com.github.tonivade.diesel.Frame.CatchFrame;
-import com.github.tonivade.diesel.Frame.FinalizerFrame;
-import com.github.tonivade.diesel.Frame.FoldFrame;
 import com.github.tonivade.purefun.Kind;
 
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
-import java.util.ArrayDeque;
 import java.util.Collection;
-import java.util.Deque;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
@@ -204,6 +199,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       this.current = current;
     }
 
+    Program<S, E, T> current() {
+      return current;
+    }
+
     /**
      * Returns the cached result of the computation if it is available, or {@code null} if the computation has not been executed yet.
      *
@@ -223,6 +222,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       cache.compareAndSet(null, result);
     }
   }
+
+  /**
+   * Represents a computation that can't be cancelled, a cancellation requested while it runs
+   * takes effect after it finishes.
+   *
+   * @param current the current program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Uncancelable<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {}
 
   /**
    * Creates a new program that represents a computation that can be executed in a specific context.
@@ -551,9 +561,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default T evalOrElseThrow() {
     return evalOrElseThrow(e -> {
       if (e instanceof Throwable throwable) {
-        return sneakyThrow(throwable);
+        return Interpreter.sneakyThrow(throwable);
       }
-      return sneakyThrow(new NoSuchElementException());
+      return Interpreter.sneakyThrow(new NoSuchElementException());
     });
   }
 
@@ -583,92 +593,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param state the state used to evaluate the program
    * @return the result of the evaluation
    */
-  @SuppressWarnings("unchecked")
   default Result<E, T> eval(@Nullable S state) {
-    Program<S, ?, ?> current = this;
-    Deque<Frame<S>> stack = new ArrayDeque<>();
-
-    while (true) {
-      try {
-        if (current instanceof Pure(var result)) {
-          var frame = stack.poll();
-          // leaving a catchAll scope normally, its handler no longer applies
-          while (frame instanceof CatchFrame) {
-            frame = stack.poll();
-          }
-          if (frame instanceof FoldFrame(var onFailure, var onSuccess)) {
-            current = result.fold(onFailure, onSuccess);
-          } else if (frame instanceof FinalizerFrame(var finalizer)) {
-            // run the finalizer and then continue with the result, unless the finalizer fails
-            stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
-            current = finalizer;
-          } else {
-            // when frame is null
-            return (Result<E, T>) result;
-          }
-        } else if (current instanceof Effect(var mapper)) {
-          current = mapper.apply(state);
-        } else if (current instanceof Async(var callback)) {
-          var future = new CompletableFuture<Result<?, ?>>();
-          ((BiConsumer<S, CompletableFuture<?>>) callback).accept(state, future);
-          current = from(future.join());
-        } else if (current instanceof Ensuring(var source, var finalizer)) {
-          stack.push(Frame.finalizer(finalizer));
-          current = source;
-        } else if (current instanceof Forked forked) {
-          var future = CompletableFuture.supplyAsync(() -> forked.current.eval(state), forked.executor);
-          current = success(future);
-        } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
-          stack.push(Frame.fold(onFailure, onSuccess));
-          current = source;
-        } else if (current instanceof Raise(var throwable)) {
-          return sneakyThrow(throwable.get());
-        } else if (current instanceof Catch(var source, var recover)) {
-          stack.push(Frame.catch_(recover));
-          current = source;
-        } else if (current instanceof Suspend(var supplier)) {
-          current = supplier.get();
-        } else if (current instanceof Memoized memoized) {
-          var result = memoized.get();
-          if (result != null) {
-            current = Program.from(result);
-          } else {
-            stack.push(Frame.fold(
-                error -> {
-                  memoized.set(Result.failure(error));
-                  return Program.failure(error);
-                },
-                value -> {
-                  memoized.set(Result.success(value));
-                  return Program.success(value);
-                }));
-            current = memoized.current;
-          }
-        } else {
-          // every subtype is handled above, so only a null program can reach here
-          throw new NullPointerException("program cannot be null");
-        }
-      } catch (Throwable e) {
-        // unwind to the nearest catchAll, discarding the continuations inside its scope
-        var frame = stack.poll();
-        while (frame instanceof FoldFrame) {
-          frame = stack.poll();
-        }
-        if (frame instanceof CatchFrame(var recover)) {
-          // run the handler inside the loop so an exception it throws reaches an outer catchAll
-          current = suspend(() -> recover.apply(e));
-        } else if (frame instanceof FinalizerFrame(var finalizer)) {
-          // keep unwinding with the same exception once the finalizer is done
-          stack.push(Frame.fold(
-              _ -> raise(() -> e),
-              _ -> raise(() -> e)));
-          current = finalizer;
-        } else {
-          // when frame is null
-          return sneakyThrow(e);
-        }
-      }
-    }
+    return Interpreter.eval(this, state);
   }
 
   /**
@@ -920,6 +846,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Forks the program to be executed asynchronously using the common fork-join pool.
    *
+   * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
+   * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
+   * The forked program is also cancelled when the program that forked it is cancelled.
+   *
    * @return a new program representing the forked computation
    */
   default Program<S, E, CompletableFuture<Result<E, T>>> fork() {
@@ -928,6 +858,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Forks the program to be executed asynchronously using the provided executor.
+   *
+   * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
+   * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
+   * The forked program is also cancelled when the program that forked it is cancelled.
    *
    * @param executor the executor used to execute the program asynchronously
    * @return a new program representing the forked computation
@@ -939,6 +873,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Adds a timeout to the program using the provided duration and the common fork-join pool.
    *
+   * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
+   * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
+   *
    * @param duration the duration of the timeout
    * @return a new program representing the computation with timeout
    */
@@ -948,6 +885,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Adds a timeout to the program using the provided duration and executor.
+   *
+   * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
+   * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
    *
    * @param duration the duration of the timeout
    * @param executor the executor used to execute the timeout
@@ -960,6 +900,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Ensures that the finalizer program is executed after the current program, regardless of success or failure.
+   *
+   * <p>The finalizer also runs when the program throws an exception or is cancelled, and it can't be
+   * cancelled itself. If the finalizer fails, its failure replaces the result of the program.
    *
    * @param finalizer the program to be executed as a finalizer
    * @return a new program representing the computation with the finalizer
@@ -1266,6 +1209,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it
    *
+   * <p>Acquiring and releasing the resource can't be cancelled, and once acquired the resource is
+   * released whether {@code use} succeeds, fails, throws an exception or is cancelled.
+   *
    * @param acquire the supplier of the resource to be acquired
    * @param use the function used to use the acquired resource
    * @param release the function used to release the acquired resource
@@ -1279,8 +1225,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Program<S, E, T> acquire,
       Function<? super T, ? extends Program<S, E, R>> use,
       Function<? super T, ? extends Program<S, E, Void>> release) {
+    // installing the finalizer never observes a cancellation, so there is no gap between
+    // acquiring the resource and guaranteeing its release
     return Combine.pipe(
-        acquire,
+        new Uncancelable<>(acquire),
         resource -> use.apply(resource).ensuring(release.apply(resource))
         );
   }
@@ -1304,11 +1252,5 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <T> ElapsedTime<T> end(long start, T value) {
     return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
-  }
-
-  // XXX: https://www.baeldung.com/java-sneaky-throws
-  @SuppressWarnings("unchecked")
-  private static <X extends Throwable, R> R sneakyThrow(Throwable t) throws X {
-    throw (X) t;
   }
 }
