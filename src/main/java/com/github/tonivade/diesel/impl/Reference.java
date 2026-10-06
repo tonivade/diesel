@@ -4,9 +4,9 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.effect;
 import static com.github.tonivade.diesel.Program.inspect;
-import static com.github.tonivade.diesel.Program.pipe;
 
 import java.util.function.UnaryOperator;
 

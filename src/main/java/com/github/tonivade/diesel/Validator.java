@@ -4,8 +4,8 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Program.pipe;
-import static com.github.tonivade.diesel.Program.zip;
+import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Combine.zip;
 import static java.util.function.Function.identity;
 
 import java.util.Collection;

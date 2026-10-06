@@ -142,7 +142,8 @@ extend with additional operations.
 You can generate additional operations using the annotation processor. The generated code is based 
 on `Program` and you will need to combine them to build your programs.
 
-There are two basic combinator methods `zip` (and the parallelized version called `parZip`) and `pipe`. 
+There are two basic combinator methods `zip` (and the parallelized version called `parZip`) and `pipe`,
+available in the `Combine` class. 
 
 ### Zip
 

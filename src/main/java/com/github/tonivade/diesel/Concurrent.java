@@ -4,11 +4,11 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.evalAll;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.unit;
-import static com.github.tonivade.diesel.Program.zip;
 import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Result.Failure;
@@ -32,7 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Concurrent combinators to execute {@link Program}s in parallel.
  */
-public interface Concurrent {
+public final class Concurrent {
+
+  private Concurrent() {}
 
   /**
    * Creates a new program that represents an either of two programs executed in parallel using the common fork-join pool.
@@ -47,7 +49,7 @@ public interface Concurrent {
    * @param <U> the type of the result of the second program
    * @return a new program representing an either of the two programs
    */
-  static <S, E, T, U> Program<S, E, Either<T, U>> either(Program<S, E, T> p1, Program<S, E, U> p2) {
+  public static <S, E, T, U> Program<S, E, Either<T, U>> either(Program<S, E, T> p1, Program<S, E, U> p2) {
     return either(p1, p2, ForkJoinPool.commonPool());
   }
 
@@ -65,7 +67,7 @@ public interface Concurrent {
    * @param <U> the type of the result of the second program
    * @return a new program representing an either of the two programs
    */
-  static <S, E, T, U> Program<S, E, Either<T, U>> either(
+  public static <S, E, T, U> Program<S, E, Either<T, U>> either(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
     return zip(p1.fork(executor), p2.fork(executor), Concurrent::either)
         .flatMap(Program::from);
@@ -84,7 +86,7 @@ public interface Concurrent {
    * @param <U> the type of the result of the second program
    * @return a new program representing an either of the two programs
    */
-  static <S, E, T, U> Program<S, E, Either<T, U>> race(Program<S, E, T> p1, Program<S, E, U> p2) {
+  public static <S, E, T, U> Program<S, E, Either<T, U>> race(Program<S, E, T> p1, Program<S, E, U> p2) {
     return race(p1, p2, ForkJoinPool.commonPool());
   }
 
@@ -102,7 +104,7 @@ public interface Concurrent {
    * @param <U> the type of the result of the second program
    * @return a new program representing an either of the two programs
    */
-  static <S, E, T, U> Program<S, E, Either<T, U>> race(
+  public static <S, E, T, U> Program<S, E, Either<T, U>> race(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
     return zip(p1.fork(executor), p2.fork(executor), Concurrent::race)
         .flatMap(Program::from);
@@ -124,7 +126,7 @@ public interface Concurrent {
    * @return a new program representing the parallel computation
    */
   @SafeVarargs
-  static <S, E, T> Program<S, E, Void> parAll(Program<S, E, T>... programs) {
+  public static <S, E, T> Program<S, E, Void> parAll(Program<S, E, T>... programs) {
     return parAll(ForkJoinPool.commonPool(), programs);
   }
 
@@ -144,7 +146,7 @@ public interface Concurrent {
    * @return a new program representing the parallel computation
    */
   @SafeVarargs
-  static <S, E> Program<S, E, Void> parAll(Executor executor, Program<S, E, ?>... programs) {
+  public static <S, E> Program<S, E, Void> parAll(Executor executor, Program<S, E, ?>... programs) {
     return parAll(executor, List.of(programs));
   }
 
@@ -162,7 +164,7 @@ public interface Concurrent {
    * @param <E> the type of the error
    * @return a new program representing the parallel computation
    */
-  static <S, E> Program<S, E, Void> parAll(Collection<? extends Program<S, E, ?>> programs) {
+  public static <S, E> Program<S, E, Void> parAll(Collection<? extends Program<S, E, ?>> programs) {
     return parAll(ForkJoinPool.commonPool(), programs);
   }
 
@@ -181,7 +183,7 @@ public interface Concurrent {
    * @param <E> the type of the error
    * @return a new program representing the parallel computation
    */
-  static <S, E> Program<S, E, Void> parAll(Executor executor, Collection<? extends Program<S, E, ?>> programs) {
+  public static <S, E> Program<S, E, Void> parAll(Executor executor, Collection<? extends Program<S, E, ?>> programs) {
     if (programs.isEmpty()) {
       return unit();
     }
@@ -216,7 +218,7 @@ public interface Concurrent {
    * @return a new program representing the first successful computation
    */
   @SafeVarargs
-  static <S, E, T> Program<S, E, T> parAny(Program<S, E, T>... programs) {
+  public static <S, E, T> Program<S, E, T> parAny(Program<S, E, T>... programs) {
     return parAny(List.of(programs));
   }
 
@@ -237,7 +239,7 @@ public interface Concurrent {
    * @return a new program representing the first successful computation
    */
   @SafeVarargs
-  static <S, E, T> Program<S, E, T> parAny(Executor executor, Program<S, E, T>... programs) {
+  public static <S, E, T> Program<S, E, T> parAny(Executor executor, Program<S, E, T>... programs) {
     return parAny(executor, List.of(programs));
   }
 
@@ -257,7 +259,7 @@ public interface Concurrent {
    * @return a new program representing the first successful computation
    * @throws NoSuchElementException when evaluated if no programs are given
    */
-  static <S, E, T> Program<S, E, T> parAny(Collection<? extends Program<S, E, T>> programs) {
+  public static <S, E, T> Program<S, E, T> parAny(Collection<? extends Program<S, E, T>> programs) {
     return parAny(ForkJoinPool.commonPool(), programs);
   }
 
@@ -278,7 +280,7 @@ public interface Concurrent {
    * @return a new program representing the first successful computation
    * @throws NoSuchElementException when evaluated if no programs are given
    */
-  static <S, E, T> Program<S, E, T> parAny(Executor executor, Collection<? extends Program<S, E, T>> programs) {
+  public static <S, E, T> Program<S, E, T> parAny(Executor executor, Collection<? extends Program<S, E, T>> programs) {
     if (programs.size() == 0) {
       return raise(NoSuchElementException::new);
     }
@@ -314,7 +316,7 @@ public interface Concurrent {
    * @return a new program representing the parallel computation with sequenced results
    */
   @SafeVarargs
-  static <S, E, T> Program<S, E, Collection<T>> parSequence(Program<S, E, T>... programs) {
+  public static <S, E, T> Program<S, E, Collection<T>> parSequence(Program<S, E, T>... programs) {
     return parSequence(ForkJoinPool.commonPool(), programs);
   }
 
@@ -336,7 +338,7 @@ public interface Concurrent {
    * @return a new program representing the parallel computation with sequenced results
    */
   @SafeVarargs
-  static <S, E, T> Program<S, E, Collection<T>> parSequence(Executor executor, Program<S, E, T>... programs) {
+  public static <S, E, T> Program<S, E, Collection<T>> parSequence(Executor executor, Program<S, E, T>... programs) {
     return parSequence(executor, List.of(programs));
   }
 
@@ -356,7 +358,7 @@ public interface Concurrent {
    * @param <T> the type of the result
    * @return a new program representing the parallel computation with sequenced results
    */
-  static <S, E, T> Program<S, E, Collection<T>> parSequence(Collection<? extends Program<S, E, T>> programs) {
+  public static <S, E, T> Program<S, E, Collection<T>> parSequence(Collection<? extends Program<S, E, T>> programs) {
     return parSequence(ForkJoinPool.commonPool(), programs);
   }
 
@@ -377,7 +379,7 @@ public interface Concurrent {
    * @param <T> the type of the result
    * @return a new program representing the parallel computation with sequenced results
    */
-  static <S, E, T> Program<S, E, Collection<T>> parSequence(
+  public static <S, E, T> Program<S, E, Collection<T>> parSequence(
       Executor executor, Collection<? extends Program<S, E, T>> programs) {
     if (programs.isEmpty()) {
       return success(List.of());
@@ -418,7 +420,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Finisher2<T0, T1, R> finisher,
@@ -458,7 +460,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -502,7 +504,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -550,7 +552,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -602,7 +604,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -658,7 +660,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -718,7 +720,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -782,7 +784,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -833,7 +835,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Finisher2<T0, T1, R> finisher) {
@@ -862,7 +864,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -894,7 +896,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -929,7 +931,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, T4, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -967,7 +969,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, T4, T5, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1008,7 +1010,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, T4, T5, T6, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1052,7 +1054,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
@@ -1099,7 +1101,7 @@ public interface Concurrent {
    * @param <R> the type of the combined result
    * @return a new program representing the parallel computation
    */
-  static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
+  public static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8, R> Program<S, E, R> parZip(
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,

@@ -4,10 +4,10 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Combine.chain;
+import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.attempt;
 import static com.github.tonivade.diesel.Program.branch;
-import static com.github.tonivade.diesel.Program.chain;
-import static com.github.tonivade.diesel.Program.pipe;
 import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.impl.Console.prompt;
 import static com.github.tonivade.diesel.impl.Console.writeLine;

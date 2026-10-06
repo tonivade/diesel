@@ -62,7 +62,7 @@ program_zip_template = environment.from_string("""
 {% endfor %} * @param <R> the type of the combined result
  * @return a new program with the combined result, or the first failure
  */
-static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> zip(
+public static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> zip(
   {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
   {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher) {
   return {% for i in range(value - 1) %}p{{ i }}.flatMap(_{{ i }} -> 
@@ -92,7 +92,7 @@ program_parzip_template = environment.from_string("""
 {% endfor %} * @param <R> the type of the combined result
  * @return a new program representing the parallel computation
  */
-static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> parZip(
+public static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> parZip(
   {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
   {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher,
   Executor executor) {
@@ -127,7 +127,7 @@ program_parzip_forkjoin_template = environment.from_string("""
 {% endfor %} * @param <R> the type of the combined result
  * @return a new program representing the parallel computation
  */
-static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> parZip(
+public static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> parZip(
   {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
   {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher) {
     return parZip({% for i in range(value) %}p{{ i }}, {% endfor %}finisher, ForkJoinPool.commonPool());
@@ -150,7 +150,7 @@ program_pipe_template = environment.from_string("""
 {% for i in range(value - 1) %} * @param <T{{ i + 1 }}> the result type of step {@code p{{ i + 1 }}}
 {% endfor %} * @return a new program with the result of the last step
  */
-static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Program<S, E, T{{ value - 1}}> pipe(
+public static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Program<S, E, T{{ value - 1}}> pipe(
   Program<S, E, T0> p0,
   {% for i in range(value - 1) %} Function<? super T{{ i }}, ? extends Program<S, E, T{{ i + 1 }}>> p{{ i + 1 }}{% if i < value - 2 %},{% endif %}
   {% endfor %}) {
@@ -174,7 +174,7 @@ program_chain_template = environment.from_string("""
 {% for i in range(value - 1) %} * @param <T{{ i + 1 }}> the result type of step {@code p{{ i + 1 }}}
 {% endfor %} * @return a new program with the result of the last step
  */
-static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Program<S, E, T{{ value - 1}}> chain(
+public static <S, E, {% for i in range(value) %}T{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}> Program<S, E, T{{ value - 1}}> chain(
   Program<S, E, T0> p0,
   {% for i in range(value - 1) %} Function<? super T{{ i }}, ? extends T{{ i + 1 }}> p{{ i + 1 }}{% if i < value - 2 %},{% endif %}
   {% endfor %}) {
@@ -190,22 +190,22 @@ print(">>>> result zip")
 for i in range(2, 10):
   print(result_zip_template.render(value=i))
 
-print(">>>> program zip")
+print(">>>> Combine zip")
 for i in range(2, 10):
   print(program_zip_template.render(value=i))
 
-print(">>>> program parzip")
+print(">>>> Concurrent parzip")
 for i in range(2, 10):
   print(program_parzip_template.render(value=i))
 
-print(">>>> program parzip fork join")
+print(">>>> Concurrent parzip fork join")
 for i in range(2, 10):
   print(program_parzip_forkjoin_template.render(value=i))
 
-print(">>>> program pipe")
+print(">>>> Combine pipe")
 for i in range(2, 10):
   print(program_pipe_template.render(value=i))
 
-print(">>>> program chain")
+print(">>>> Combine chain")
 for i in range(2, 10):
   print(program_chain_template.render(value=i))

@@ -4,6 +4,7 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.bracket;
 import static com.github.tonivade.diesel.Program.chainAll;
 import static com.github.tonivade.diesel.Program.delayed;
@@ -21,7 +22,6 @@ import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
 import static com.github.tonivade.diesel.Program.unit;
-import static com.github.tonivade.diesel.Program.zip;
 import static java.util.function.Predicate.not;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

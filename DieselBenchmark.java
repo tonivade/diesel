@@ -20,6 +20,7 @@ import org.openjdk.jmh.runner.options.*;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import com.github.tonivade.diesel.Combine;
 import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Result;
 
@@ -53,7 +54,7 @@ public class DieselBenchmark {
   public Result<Void, Integer> recursive() {
     Function<Integer, Program<Void, Void, Integer>> fib = Program.memoizeRecursive((self, k) -> k < 2
         ? Program.success(1)
-        : Program.zip(self.apply(k - 2), self.apply(k - 1), Integer::sum));
+        : Combine.zip(self.apply(k - 2), self.apply(k - 1), Integer::sum));
     return fib.apply(n).eval(null);
   }
 
