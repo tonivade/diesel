@@ -4,8 +4,6 @@
  */
 package com.github.tonivade.diesel;
 
-import static java.util.function.Function.identity;
-
 import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
@@ -14,10 +12,8 @@ import com.github.tonivade.purefun.Kind;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
-import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
@@ -38,6 +34,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  *
+ *
  * A {@code Program} represents a computation that can be executed in a specific context.
  * It is a functional programming construct that allows for the composition of computations
  * and error handling.
@@ -46,6 +43,7 @@ import org.jspecify.annotations.Nullable;
  * @param <E> the type of the error
  * @param <T> the type of the result
  * @see Concurrent
+ * @see Combine
  */
 public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
@@ -1147,89 +1145,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Chains all the given programs sequentially ignoring all their results.
-   *
-   * @param programs the programs to be chained
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @return a new program representing the chained computation
-   */
-  @SafeVarargs
-  static <S, E> Program<S, E, Void> chainAll(Program<S, E, ?>... programs) {
-    Program<S, E, Void> result = unit();
-    for (int i = programs.length - 1; i >= 0; i--) {
-      result = programs[i].andThen(result);
-    }
-    return result;
-  }
-
-  /**
-   * Sequences a collection of programs into a single program containing a collection of success values.
-   *
-   * @param programs the programs to be forked
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a collection of forked programs
-   */
-  @SafeVarargs
-  static <S, E, T> Program<S, E, Collection<T>> sequence(Program<S, E, T>... programs) {
-    return sequence(List.of(programs));
-  }
-
-  /**
-   * Sequences a collection of programs into a single program containing a collection of success values.
-   *
-   * @param programs the programs to be forked
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a collection of forked programs
-   */
-  static <S, E, T> Program<S, E, Collection<T>> sequence(Collection<Program<S, E, T>> programs) {
-    return traverse(identity(), programs);
-  }
-  /**
-   * Traverses a collection of values, applying the provided function to each value
-   * and sequencing the results into a single program containing a collection of success values.
-   *
-   * @param function the function used to map each value to a program
-   * @param values the values to be traversed
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the input values
-   * @param <R> the type of the result
-   * @return a new program representing the traversed computation with sequenced results
-   */
-  @SafeVarargs
-  static <S, E, T, R> Program<S, E, Collection<R>> traverse(
-      Function<? super T, ? extends Program<S, E, R>> function, T... values) {
-    return traverse(function, List.of(values));
-  }
-
-  /**
-   * Traverses a collection of values, applying the provided function to each value
-   * and sequencing the results into a single program containing a collection of success values.
-   *
-   * @param function the function used to map each value to a program
-   * @param values the values to be traversed
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the input values
-   * @param <R> the type of the result
-   * @return a new program representing the traversed computation with sequenced results
-   */
-  static <S, E, T, R> Program<S, E, Collection<R>> traverse(
-      Function<? super T, ? extends Program<S, E, R>> function, Collection<T> values) {
-    // the accumulator is created on each evaluation, so the program can be evaluated more than once
-    Program<S, E, Collection<R>> acc = supply(ArrayList::new);
-    for (T t : values) {
-      acc = append(acc, function.apply(t));
-    }
-    return acc;
-  }
-
-  /**
    * Creates a function that validates a value using the provided validators.
    *
    * @param validators the validators used to validate the value
@@ -1255,7 +1170,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   @SafeVarargs
   static <S, E, T> Program<S, Collection<E>, T> validate(T value, Validator<S, E, T>... validators) {
-    return traverse(v -> v.apply(value), validators)
+    return Combine.traverse(v -> v.apply(value), validators)
         .foldMap(
             _ -> success(value),
             result -> Validation.combine(result).fold(() -> success(value), Program::failure));
@@ -1377,15 +1292,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <T> ElapsedTime<T> end(long start, T value) {
     return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
-  }
-
-  private static <S, E, R> Program<S, E, Collection<R>> append(Program<S, E, Collection<R>> acc, Program<S, E, R> value) {
-    return Combine.zip(acc, value, Program::append);
-  }
-
-  private static <T> Collection<T> append(Collection<T> list, T value) {
-    list.add(value);
-    return list;
   }
 
   // XXX: https://www.baeldung.com/java-sneaky-throws

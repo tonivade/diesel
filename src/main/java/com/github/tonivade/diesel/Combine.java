@@ -4,6 +4,10 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Program.supply;
+import static com.github.tonivade.diesel.Program.unit;
+import static java.util.function.Function.identity;
+
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
 import com.github.tonivade.diesel.function.Finisher4;
@@ -13,6 +17,9 @@ import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -836,5 +843,98 @@ public final class Combine {
     p7.flatMap(_7 ->
     p8.map(_8 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7, _8))
         ))))))));
+  }
+
+  /**
+   * Chains all the given programs sequentially ignoring all their results.
+   *
+   * @param programs the programs to be chained
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing the chained computation
+   */
+  @SafeVarargs
+  public static <S, E> Program<S, E, Void> chainAll(Program<S, E, ?>... programs) {
+    Program<S, E, Void> result = unit();
+    for (int i = programs.length - 1; i >= 0; i--) {
+      result = programs[i].andThen(result);
+    }
+    return result;
+  }
+
+  /**
+   * Sequences a collection of programs into a single program containing a collection of success values.
+   *
+   * @param programs the programs to be forked
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a collection of forked programs
+   */
+  @SafeVarargs
+  public static <S, E, T> Program<S, E, Collection<T>> sequence(Program<S, E, T>... programs) {
+    return sequence(List.of(programs));
+  }
+
+  /**
+   * Sequences a collection of programs into a single program containing a collection of success values.
+   *
+   * @param programs the programs to be forked
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a collection of forked programs
+   */
+  public static <S, E, T> Program<S, E, Collection<T>> sequence(Collection<Program<S, E, T>> programs) {
+    return traverse(identity(), programs);
+  }
+
+  /**
+   * Traverses a collection of values, applying the provided function to each value
+   * and sequencing the results into a single program containing a collection of success values.
+   *
+   * @param function the function used to map each value to a program
+   * @param values the values to be traversed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input values
+   * @param <R> the type of the result
+   * @return a new program representing the traversed computation with sequenced results
+   */
+  @SafeVarargs
+  public static <S, E, T, R> Program<S, E, Collection<R>> traverse(
+      Function<? super T, ? extends Program<S, E, R>> function, T... values) {
+    return traverse(function, List.of(values));
+  }
+
+  /**
+   * Traverses a collection of values, applying the provided function to each value
+   * and sequencing the results into a single program containing a collection of success values.
+   *
+   * @param function the function used to map each value to a program
+   * @param values the values to be traversed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input values
+   * @param <R> the type of the result
+   * @return a new program representing the traversed computation with sequenced results
+   */
+  public static <S, E, T, R> Program<S, E, Collection<R>> traverse(
+      Function<? super T, ? extends Program<S, E, R>> function, Collection<T> values) {
+    // the accumulator is created on each evaluation, so the program can be evaluated more than once
+    Program<S, E, Collection<R>> acc = supply(ArrayList::new);
+    for (T t : values) {
+      acc = append(acc, function.apply(t));
+    }
+    return acc;
+  }
+
+  private static <S, E, R> Program<S, E, Collection<R>> append(Program<S, E, Collection<R>> acc, Program<S, E, R> value) {
+    return zip(acc, value, Combine::append);
+  }
+
+  private static <T> Collection<T> append(Collection<T> list, T value) {
+    list.add(value);
+    return list;
   }
 }

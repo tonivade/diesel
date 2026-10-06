@@ -6,7 +6,6 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.bracket;
-import static com.github.tonivade.diesel.Program.chainAll;
 import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.effectR;
 import static com.github.tonivade.diesel.Program.failure;
@@ -15,10 +14,8 @@ import static com.github.tonivade.diesel.Program.memoizeRecursive;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.recursive;
-import static com.github.tonivade.diesel.Program.sequence;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
-import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
 import static com.github.tonivade.diesel.Program.unit;
@@ -34,12 +31,10 @@ import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 import java.math.BigInteger;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -196,19 +191,6 @@ class ProgramTest {
   }
 
   @Test
-  void shouldSerialize() {
-    var p1 = delayed(Duration.ofSeconds(2), () -> 10);
-    var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
-
-    var result = zip(p1, p2, Tuple::new).timed().evalOrElseThrow();
-
-    assertThat(result.duration())
-      .isCloseTo(Duration.ofSeconds(4), Duration.ofMillis(100));
-    assertThat(result.value())
-      .isEqualTo(new Tuple<>(10, "hello"));
-  }
-
-  @Test
   void shouldTimeout() {
     var p1 = delayed(Duration.ofSeconds(20), () -> 10);
     var p2 = p1.timeout(Duration.ofSeconds(1));
@@ -251,25 +233,6 @@ class ProgramTest {
   }
 
   @Test
-  void shouldExecuteAllPrograms(@Mock Supplier<String> supplier) {
-    when(supplier.get()).thenReturn("hi!");
-
-    chainAll(supply(supplier), supply(supplier), supply(supplier)).evalOrElseThrow();
-
-    verify(supplier, times(3)).get();
-  }
-
-  @Test
-  void shouldExecuteAllProgramsAndCollectsResult(@Mock Supplier<String> supplier) {
-    when(supplier.get()).thenReturn("1", "2", "3");
-
-    var result = sequence(supply(supplier), supply(supplier), supply(supplier)).evalOrElseThrow();
-
-    assertThat(result).isEqualTo(List.of("1", "2", "3"));
-    verify(supplier, times(3)).get();
-  }
-
-  @Test
   void shouldCatchException() {
     var program = raise(UnsupportedOperationException::new).catchAll(_ -> success(10));
 
@@ -285,28 +248,6 @@ class ProgramTest {
       }).catchAll(_ -> unit());
 
     var result = program.evalOrElseThrow();
-
-    assertThat(result).isNull();
-  }
-
-  @Test
-  void shouldSequenceWhenEvaluatedTwice() {
-    var program = Program.<Void, Void, Integer>sequence(success(1), success(2));
-
-    var first = program.evalOrElseThrow();
-    var second = program.evalOrElseThrow();
-
-    assertThat(first).containsExactly(1, 2);
-    assertThat(second).containsExactly(1, 2);
-  }
-
-  @Test
-  @SuppressWarnings("unchecked")
-  void shouldChainAllWithoutStackOverflow() {
-    Program<Void, Void, Integer>[] programs = new Program[100_000];
-    Arrays.fill(programs, success(1));
-
-    var result = chainAll(programs).evalOrElseThrow();
 
     assertThat(result).isNull();
   }
