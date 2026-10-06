@@ -532,6 +532,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents an either of two programs executed in parallel using the common fork-join pool.
    *
+   * <p>First without error/exception wins
+   *
    * @param p1 the first program
    * @param p2 the second program
    * @param <S> the type of the state
@@ -547,6 +549,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents an either of two programs executed in parallel using the provided executor.
    *
+   * <p>First without error/exception wins
+   *
    * @param p1 the first program
    * @param p2 the second program
    * @param executor the executor used to execute the programs in parallel
@@ -559,6 +563,43 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   static <S, E, T, U> Program<S, E, Either<T, U>> either(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
     return zip(p1.fork(executor), p2.fork(executor), Program::either)
+        .flatMap(Program::from);
+  }
+
+  /**
+   * Creates a new program that represents an race of two programs executed in parallel using the common fork-join pool.
+   *
+   * <p>First to finish wins
+   *
+   * @param p1 the first program
+   * @param p2 the second program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result of the first program
+   * @param <U> the type of the result of the second program
+   * @return a new program representing an either of the two programs
+   */
+  static <S, E, T, U> Program<S, E, Either<T, U>> race(Program<S, E, T> p1, Program<S, E, U> p2) {
+    return either(p1, p2, ForkJoinPool.commonPool());
+  }
+
+  /**
+   * Creates a new program that represents an race of two programs executed in parallel using the provided executor.
+   *
+   * <p>First to finish wins
+   *
+   * @param p1 the first program
+   * @param p2 the second program
+   * @param executor the executor used to execute the programs in parallel
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result of the first program
+   * @param <U> the type of the result of the second program
+   * @return a new program representing an either of the two programs
+   */
+  static <S, E, T, U> Program<S, E, Either<T, U>> race(
+      Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
+    return zip(p1.fork(executor), p2.fork(executor), Program::race)
         .flatMap(Program::from);
   }
 
@@ -987,8 +1028,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with timeout
    */
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
-    return zip(Program.<S, E>sleep(duration, executor).fork(executor), fork(executor), Program::race)
-        .flatMap(Program::from)
+    return race(sleep(duration, executor), this, executor)
         .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
   }
 
