@@ -170,7 +170,7 @@ For example:
   );
 ```
 
-There's a variant of `zip` called `parZip`. This variant will execute all operations in parallel using
+There's a variant of `zip` called `parZip`, available in the `Concurrent` class. This variant will execute all operations in parallel using
 an `Executor`. It will wait until all the operations are completed and after that, the finisher will be
 called.
 
