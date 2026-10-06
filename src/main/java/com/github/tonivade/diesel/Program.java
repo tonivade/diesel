@@ -43,7 +43,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
 
@@ -580,7 +579,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing an either of the two programs
    */
   static <S, E, T, U> Program<S, E, Either<T, U>> race(Program<S, E, T> p1, Program<S, E, U> p2) {
-    return either(p1, p2, ForkJoinPool.commonPool());
+    return race(p1, p2, ForkJoinPool.commonPool());
   }
 
   /**
@@ -1284,7 +1283,44 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   @SafeVarargs
   static <S, E> Program<S, E, Void> parAll(Executor executor, Program<S, E, ?>... programs) {
-    if (programs.length == 0) {
+    return parAll(executor, List.of(programs));
+  }
+
+  /**
+   * Executes all the given programs in parallel using the common fork-join pool and ignores all their results.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing the parallel computation
+   */
+  static <S, E> Program<S, E, Void> parAll(Collection<? extends Program<S, E, ?>> programs) {
+    return parAll(ForkJoinPool.commonPool(), programs);
+  }
+
+  /**
+   * Executes all the given programs in parallel using the provided executor.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param executor the executor used to execute the programs in parallel
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing the parallel computation
+   */
+  static <S, E> Program<S, E, Void> parAll(Executor executor, Collection<? extends Program<S, E, ?>> programs) {
+    if (programs.isEmpty()) {
       return unit();
     }
 
@@ -1294,6 +1330,103 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         (state, future) -> {
           try {
             var result = evalAll(state, forked).map(Program::parAllFailFast);
+            future.complete(result);
+          } catch (RuntimeException e) {
+            future.completeExceptionally(e);
+          }
+        })
+        .flatMap(Program::from);
+  }
+
+  /**
+   * Executes all the given programs in parallel using the common fork-join pool and returns the
+   * result of the first one that finishes successfully.
+   *
+   * <p>
+   * Programs that fail, with an error or an exception, are ignored as long as there are other
+   * programs still running. When a program succeeds the remaining programs are cancelled. If all
+   * the programs fail, the resulting program fails with the last error to happen in time.
+   *
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the first successful computation
+   */
+  @SafeVarargs
+  static <S, E, T> Program<S, E, T> parAny(Program<S, E, T>... programs) {
+    return parAny(List.of(programs));
+  }
+
+  /**
+   * Executes all the given programs in parallel using the provided executor and returns the
+   * result of the first one that finishes successfully.
+   *
+   * <p>
+   * Programs that fail, with an error or an exception, are ignored as long as there are other
+   * programs still running. When a program succeeds the remaining programs are cancelled. If all
+   * the programs fail, the resulting program fails with the last error to happen in time.
+   *
+   * @param executor the executor used to execute the programs in parallel
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the first successful computation
+   */
+  @SafeVarargs
+  static <S, E, T> Program<S, E, T> parAny(Executor executor, Program<S, E, T>... programs) {
+    return parAny(executor, List.of(programs));
+  }
+
+  /**
+   * Executes all the given programs in parallel using the common fork-join pool and returns the
+   * result of the first one that finishes successfully.
+   *
+   * <p>
+   * Programs that fail, with an error or an exception, are ignored as long as there are other
+   * programs still running. When a program succeeds the remaining programs are cancelled. If all
+   * the programs fail, the resulting program fails with the last error to happen in time.
+   *
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the first successful computation
+   * @throws NoSuchElementException when evaluated if no programs are given
+   */
+  static <S, E, T> Program<S, E, T> parAny(Collection<? extends Program<S, E, T>> programs) {
+    return parAny(ForkJoinPool.commonPool(), programs);
+  }
+
+  /**
+   * Executes all the given programs in parallel using the provided executor and returns the
+   * result of the first one that finishes successfully.
+   *
+   * <p>
+   * Programs that fail, with an error or an exception, are ignored as long as there are other
+   * programs still running. When a program succeeds the remaining programs are cancelled. If all
+   * the programs fail, the resulting program fails with the last error to happen in time.
+   *
+   * @param executor the executor used to execute the programs in parallel
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the first successful computation
+   * @throws NoSuchElementException when evaluated if no programs are given
+   */
+  static <S, E, T> Program<S, E, T> parAny(Executor executor, Collection<? extends Program<S, E, T>> programs) {
+    if (programs.size() == 0) {
+      return raise(NoSuchElementException::new);
+    }
+
+    var forked = forkAll(executor, programs);
+
+    return Program.<S, E, CompletableFuture<Result<E, T>>>async(
+        (state, future) -> {
+          try {
+            var result = evalAll(state, forked).map(Program::parAnySuccess);
             future.complete(result);
           } catch (RuntimeException e) {
             future.completeExceptionally(e);
@@ -1368,7 +1501,49 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   @SafeVarargs
   static <S, E, T> Program<S, E, Collection<T>> parSequence(Executor executor, Program<S, E, T>... programs) {
-    if (programs.length == 0) {
+    return parSequence(executor, List.of(programs));
+  }
+
+  /**
+   * Executes a collection of programs in parallel using the common fork-join pool and sequences
+   * their results into a single program containing a collection of success values.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the parallel computation with sequenced results
+   */
+  static <S, E, T> Program<S, E, Collection<T>> parSequence(Collection<? extends Program<S, E, T>> programs) {
+    return parSequence(ForkJoinPool.commonPool(), programs);
+  }
+
+  /**
+   * Executes a collection of programs in parallel using the provided executor
+   * and sequences their results into a single program containing a collection of success values.
+   *
+   * <p>
+   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
+   * that error without waiting for the rest. If several programs fail, the error returned is the
+   * first one to happen in time, not the first by position. The remaining programs are not
+   * cancelled and keep running in the background.
+   *
+   * @param executor the executor used to execute the programs in parallel
+   * @param programs the programs to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the parallel computation with sequenced results
+   */
+  static <S, E, T> Program<S, E, Collection<T>> parSequence(
+      Executor executor, Collection<? extends Program<S, E, T>> programs) {
+    if (programs.isEmpty()) {
       return success(List.of());
     }
 
@@ -3108,10 +3283,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
   }
 
-  @SafeVarargs
   private static <S, E, T> Collection<Program<S, E, CompletableFuture<Result<E, T>>>> forkAll(
-      Executor executor, Program<S, E, ? extends T>... programs) {
-    return Stream.of(programs)
+      Executor executor, Collection<? extends Program<S, E, ? extends T>> programs) {
+    return programs.stream()
         .map(Program::<S, E, T>narrow)
         .map(p -> p.fork(executor))
         .toList();
@@ -3171,29 +3345,35 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
       CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
-    var result = new CompletableFuture<Result<E, Either<T, U>>>();
-    var remaining = new AtomicInteger(2);
-
-    f1.whenComplete((value, error) -> eitherComplete(result, remaining, value, error, Either::<T, U>left));
-    f2.whenComplete((value, error) -> eitherComplete(result, remaining, value, error, Either::<T, U>right));
-
-    return result.whenComplete((_, _) -> cancelBoth(f1, f2));
+    return parAnySuccess(List.of(
+            f1.thenApply(t -> t.map(Either::<T, U>left)),
+            f2.thenApply(u -> u.map(Either::<T, U>right))))
+        .whenComplete((_, _) -> cancelBoth(f1, f2));
   }
 
-  private static <E, T, R> void eitherComplete(CompletableFuture<Result<E, R>> result, AtomicInteger remaining,
-      @Nullable Result<E, T> value, @Nullable Throwable error, Function<T, R> mapper) {
-    // only fail when both programs have failed, otherwise wait for the other one
-    if (error != null) {
-      if (remaining.decrementAndGet() == 0) {
-        result.completeExceptionally(error);
-      }
-    } else if (value instanceof Failure(var fail)) {
-      if (remaining.decrementAndGet() == 0) {
-        result.complete(Result.failure(fail));
-      }
-    } else if (value != null) {
-      result.complete(value.map(mapper));
+  private static <E, T> CompletableFuture<Result<E, T>> parAnySuccess(
+      Collection<? extends CompletableFuture<Result<E, T>>> futures) {
+    var result = new CompletableFuture<Result<E, T>>();
+    var remaining = new AtomicInteger(futures.size());
+
+    for (var future : futures) {
+      future.whenComplete((value, error) -> {
+        // only fail when all programs have failed, otherwise wait for the others
+        if (error != null) {
+          if (remaining.decrementAndGet() == 0) {
+            result.completeExceptionally(error);
+          }
+        } else if (value instanceof Failure(var fail)) {
+          if (remaining.decrementAndGet() == 0) {
+            result.complete(Result.failure(fail));
+          }
+        } else {
+          result.complete(value);
+        }
+      });
     }
+
+    return result.whenComplete((_, _) -> futures.forEach(f -> f.cancel(true)));
   }
 
   // XXX: https://www.baeldung.com/java-sneaky-throws

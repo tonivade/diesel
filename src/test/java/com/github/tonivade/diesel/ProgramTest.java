@@ -13,6 +13,7 @@ import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.memoize;
 import static com.github.tonivade.diesel.Program.memoizeRecursive;
 import static com.github.tonivade.diesel.Program.parAll;
+import static com.github.tonivade.diesel.Program.parAny;
 import static com.github.tonivade.diesel.Program.parSequence;
 import static com.github.tonivade.diesel.Program.parZip;
 import static com.github.tonivade.diesel.Program.raise;
@@ -309,6 +310,36 @@ class ProgramTest {
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
     assertThat(result.value())
       .isEqualTo(Either.left(10));
+  }
+
+  @Test
+  void shouldReturnFirstSuccess() {
+    var p1 = Program.<Void, String, Integer>delayed(Duration.ofSeconds(3), () -> 10);
+    var p2 = Program.<Void, String, Integer>delayed(Duration.ofSeconds(2), () -> 20);
+    var p3 = Program.<Void, String>sleep(Duration.ofSeconds(1)).<Integer>andThen(failure("error"));
+    var p4 = Program.<Void, String>sleep(Duration.ofSeconds(1)).<Integer>andThen(raise(UnsupportedOperationException::new));
+
+    var result = parAny(p1, p2, p3, p4).timed().evalOrElseThrow();
+
+    assertThat(result.duration())
+      .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
+    assertThat(result.value())
+      .isEqualTo(20);
+  }
+
+  @Test
+  void shouldFailWhenAllFail() {
+    var p1 = Program.<Void, String>sleep(Duration.ofSeconds(1)).<Integer>andThen(failure("error1"));
+    var p2 = Program.<Void, String>sleep(Duration.ofSeconds(2)).<Integer>andThen(failure("error2"));
+
+    var start = System.nanoTime();
+    var result = parAny(p1, p2).eval();
+    var duration = Duration.ofNanos(System.nanoTime() - start);
+
+    assertThat(duration)
+      .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
+    assertThat(result)
+      .isEqualTo(Result.failure("error2"));
   }
 
   @Test
