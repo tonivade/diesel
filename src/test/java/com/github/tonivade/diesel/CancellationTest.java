@@ -13,7 +13,6 @@ import static com.github.tonivade.diesel.Concurrent.race;
 import static com.github.tonivade.diesel.Program.bracket;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.raise;
-import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.task;
 import static org.assertj.core.api.Assertions.assertThat;

@@ -4,11 +4,17 @@
  */
 package com.github.tonivade.diesel;
 
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FinalizerFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.purefun.Kind;
 
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
@@ -197,10 +203,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
      */
     public Memoized(Program<S, E, T> current) {
       this.current = current;
-    }
-
-    Program<S, E, T> current() {
-      return current;
     }
 
     /**
@@ -561,9 +563,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default T evalOrElseThrow() {
     return evalOrElseThrow(e -> {
       if (e instanceof Throwable throwable) {
-        return Interpreter.sneakyThrow(throwable);
+        return sneakyThrow(throwable);
       }
-      return Interpreter.sneakyThrow(new NoSuchElementException());
+      return sneakyThrow(new NoSuchElementException());
     });
   }
 
@@ -594,7 +596,160 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return the result of the evaluation
    */
   default Result<E, T> eval(@Nullable S state) {
-    return Interpreter.eval(this, state);
+    return run(state, CancelToken.current());
+  }
+
+  @SuppressWarnings("unchecked")
+  private Result<E, T> run(@Nullable S state, CancelToken token) {
+    Program<S, ?, ?> current = this;
+    Deque<Frame<S>> stack = new ArrayDeque<>();
+    // depth of nested uncancelable regions, a cancellation only takes effect outside of them
+    int masked = 0;
+
+    while (true) {
+      try {
+        // installing a finalizer never observes a cancellation, see bracket
+        if (masked == 0 && !(current instanceof Ensuring) && token.isCancelled()) {
+          throw new CancelToken.Cancelled();
+        }
+        if (current instanceof Pure(var result)) {
+          var resumed = false;
+          while (!resumed) {
+            var frame = stack.poll();
+            if (frame == null) {
+              return (Result<E, T>) result;
+            }
+            if (frame instanceof FoldFrame(var onFailure, var onSuccess)) {
+              current = result.fold(onFailure, onSuccess);
+              resumed = true;
+            } else if (frame instanceof FinalizerFrame(var finalizer)) {
+              // run the finalizer and then continue with the result, unless the finalizer fails
+              stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
+              masked = enterUncancelable(stack, masked);
+              current = finalizer;
+              resumed = true;
+            } else if (frame instanceof UnmaskFrame) {
+              masked--;
+            }
+            // leaving a catchAll scope normally, its handler no longer applies
+          }
+        } else if (current instanceof Effect(var mapper)) {
+          current = mapper.apply(state);
+        } else if (current instanceof Async(var callback)) {
+          var future = new CompletableFuture<Result<?, ?>>();
+          // wake up the wait if the program is cancelled
+          var registration = masked == 0
+              ? token.onCancel(() -> future.completeExceptionally(new CancelToken.Cancelled()))
+              : null;
+          try {
+            ((BiConsumer<S, CompletableFuture<?>>) callback).accept(state, future);
+            current = from(future.join());
+          } finally {
+            if (registration != null) {
+              registration.remove();
+            }
+          }
+        } else if (current instanceof Ensuring(var source, var finalizer)) {
+          stack.push(Frame.finalizer(finalizer));
+          current = source;
+        } else if (current instanceof Uncancelable(var source)) {
+          masked = enterUncancelable(stack, masked);
+          current = source;
+        } else if (current instanceof Forked forked) {
+          current = success(startFork(state, token, forked.current, forked.executor));
+        } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
+          stack.push(Frame.fold(onFailure, onSuccess));
+          current = source;
+        } else if (current instanceof Raise(var throwable)) {
+          return sneakyThrow(throwable.get());
+        } else if (current instanceof Catch(var source, var recover)) {
+          stack.push(Frame.catch_(recover));
+          current = source;
+        } else if (current instanceof Suspend(var supplier)) {
+          current = supplier.get();
+        } else if (current instanceof Memoized memoized) {
+          var result = memoized.get();
+          if (result != null) {
+            current = Program.from(result);
+          } else {
+            stack.push(Frame.fold(
+                error -> {
+                  memoized.set(Result.failure(error));
+                  return Program.failure(error);
+                },
+                value -> {
+                  memoized.set(Result.success(value));
+                  return Program.success(value);
+                }));
+            current = memoized.current;
+          }
+        } else {
+          // every subtype is handled above, so only a null program can reach here
+          throw new NullPointerException("program cannot be null");
+        }
+      } catch (Throwable e) {
+        // unwind to the nearest catchAll, discarding the continuations inside its scope and
+        // running the finalizers found on the way. A cancellation can't be caught, so it unwinds
+        // the whole stack
+        var cancelled = e instanceof CancelToken.Cancelled;
+        var resumed = false;
+        while (!resumed) {
+          var frame = stack.poll();
+          if (frame == null) {
+            // when frame is null
+            return sneakyThrow(e);
+          }
+          if (frame instanceof CatchFrame(var recover) && !cancelled) {
+            // run the handler inside the loop so an exception it throws reaches an outer catchAll
+            current = suspend(() -> recover.apply(e));
+            resumed = true;
+          } else if (frame instanceof FinalizerFrame(var finalizer)) {
+            // keep unwinding with the same exception once the finalizer is done
+            stack.push(Frame.fold(
+                _ -> raise(() -> e),
+                _ -> raise(() -> e)));
+            masked = enterUncancelable(stack, masked);
+            current = finalizer;
+            resumed = true;
+          } else if (frame instanceof UnmaskFrame) {
+            masked--;
+          }
+        }
+      }
+    }
+  }
+
+  // the region ends when the UnmaskFrame is popped
+  private static <S> int enterUncancelable(Deque<Frame<S>> stack, int masked) {
+    stack.push(Frame.unmask());
+    return masked + 1;
+  }
+
+  private static <S, E, T> CompletableFuture<Result<E, T>> startFork(
+      @Nullable S state, CancelToken parent, Program<S, E, T> program, Executor executor) {
+    var token = parent.child();
+    var future = new CancelableFuture<Result<E, T>>(token);
+    parent.track(future);
+    executor.execute(() -> {
+      Result<E, T> result = null;
+      Throwable error = null;
+      try {
+        result = ScopedValue.where(CancelToken.CURRENT, token).call(() -> program.run(state, token));
+      } catch (Throwable e) {
+        error = e;
+      }
+      if (token.isCancelled()) {
+        // the forks of a cancelled program have been cancelled too, wait for them to stop
+        token.awaitForks();
+      }
+      token.detach();
+      if (error != null) {
+        future.completeExceptionally(error);
+      } else {
+        future.complete(result);
+      }
+    });
+    return future;
   }
 
   /**
@@ -1252,5 +1407,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <T> ElapsedTime<T> end(long start, T value) {
     return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
+  }
+
+  // XXX: https://www.baeldung.com/java-sneaky-throws
+  @SuppressWarnings("unchecked")
+  private static <X extends Throwable, R> R sneakyThrow(Throwable t) throws X {
+    throw (X) t;
   }
 }

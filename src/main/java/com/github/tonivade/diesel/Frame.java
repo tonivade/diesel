@@ -7,7 +7,7 @@ package com.github.tonivade.diesel;
 import java.util.function.Function;
 
 /**
- * Continuation frames used by the {@link Interpreter}.
+ * Continuation frames used by {@link Program#eval(Object)}.
  */
 sealed interface Frame<S> {
 
