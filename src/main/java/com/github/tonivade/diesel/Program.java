@@ -461,6 +461,21 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
+   * Creates a new program that represent a program that never ends.
+   *
+   * @param <S>
+   * @param <E>
+   * @param <T>
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a program that never ends
+   */
+  static <S, E, T> Program<S, E, T> never() {
+    return async((_, _) -> {});
+  }
+
+  /**
    * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
    * sing the provided function.
    *

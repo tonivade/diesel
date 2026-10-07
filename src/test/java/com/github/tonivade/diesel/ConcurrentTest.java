@@ -11,6 +11,7 @@ import static com.github.tonivade.diesel.Concurrent.parSequence;
 import static com.github.tonivade.diesel.Concurrent.parZip;
 import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.never;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -78,7 +79,7 @@ class ConcurrentTest {
 
   @Test
   void shouldRace() {
-    var p1 = delayed(Duration.ofSeconds(20), () -> 10);
+    var p1 = never();
     var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
 
     var result = either(p1, p2).timed().evalOrElseThrow();
