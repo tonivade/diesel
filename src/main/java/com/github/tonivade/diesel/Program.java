@@ -642,7 +642,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
               ? token.onCancel(() -> future.completeExceptionally(new CancelToken.Cancelled()))
               : null;
           try {
-            ((BiConsumer<S, CompletableFuture<?>>) callback).accept(state, future);
+            var accept = (BiConsumer<S, CompletableFuture<?>>) callback;
+            if (masked == 0) {
+              accept.accept(state, future);
+            } else {
+              // programs evaluated by the callback, like the forks of par*, can't be cancelled either
+              ScopedValue.where(CancelToken.CURRENT, CancelToken.NONE).run(() -> accept.accept(state, future));
+            }
             current = from(future.join());
           } finally {
             if (registration != null) {
@@ -656,7 +662,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           masked = enterUncancelable(stack, masked);
           current = source;
         } else if (current instanceof Forked forked) {
-          current = success(startFork(state, token, forked.current, forked.executor));
+          // a fork started in an uncancelable region, like a finalizer, can't be cancelled either
+          var parent = masked == 0 ? token : CancelToken.NONE;
+          current = success(startFork(state, parent, forked.current, forked.executor));
         } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
           stack.push(Frame.fold(onFailure, onSuccess));
           current = source;
@@ -691,7 +699,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         // unwind to the nearest catchAll, discarding the continuations inside its scope and
         // running the finalizers found on the way. A cancellation can't be caught, so it unwinds
         // the whole stack
-        var cancelled = e instanceof CancelToken.Cancelled;
+        // decided by the token and not by the exception: join() wraps a CancellationException in a
+        // new one, and a cancelled child joined by this program is an ordinary exception
+        var cancelled = masked == 0 && token.isCancelled();
         var resumed = false;
         while (!resumed) {
           var frame = stack.poll();
@@ -730,7 +740,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     var token = parent.child();
     var future = new CancelableFuture<Result<E, T>>(token);
     parent.track(future);
-    executor.execute(() -> {
+    Runnable task = () -> {
       Result<E, T> result = null;
       Throwable error = null;
       try {
@@ -748,7 +758,15 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       } else {
         future.complete(result);
       }
-    });
+    };
+    try {
+      executor.execute(task);
+    } catch (RuntimeException | Error e) {
+      // the program never runs, complete its future so the parent doesn't wait for it forever
+      token.detach();
+      future.completeExceptionally(e);
+      throw e;
+    }
     return future;
   }
 

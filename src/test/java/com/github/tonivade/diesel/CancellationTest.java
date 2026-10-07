@@ -21,9 +21,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -154,6 +157,75 @@ class CancellationTest {
 
     assertThat(result).isEqualTo(Result.failure("error"));
     assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void finalizerThatForksCannotBeCancelled() {
+    // timeout forks the program and a sleep
+    var finalizer = Program.<Void, String>sleep(Duration.ofMillis(50))
+        .timeout(Duration.ofSeconds(5))
+        .andThen(run(released::incrementAndGet));
+    var program = start().andThen(never()).ensuring(finalizer);
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void finalizerThatRunsInParallelCannotBeCancelled() {
+    var finalizer = parAll(run(released::incrementAndGet), run(released::incrementAndGet));
+    var program = start().andThen(never()).ensuring(finalizer);
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(2);
+  }
+
+  @Test
+  void finalizerCanRecoverFromAnExceptionWhenCancelled() {
+    var finalizer = Program.<Void, String, Void>raise(IllegalStateException::new)
+        .catchAll(_ -> run(released::incrementAndGet));
+    var program = start().andThen(never()).ensuring(finalizer);
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void joiningACancelledForkIsAnOrdinaryException() {
+    // the program that joins is not cancelled, so it can recover from it
+    var program = never().fork()
+        .flatMap(fork -> run(() -> fork.cancel(true)).andThen(Program.from(fork)))
+        .map(_ -> "joined")
+        .catchAll(_ -> success("recovered"));
+
+    var result = program.eval();
+
+    assertThat(result).isEqualTo(Result.success("recovered"));
+  }
+
+  @Test
+  void rejectedForkDoesNotBlockTheCancellation() throws Exception {
+    expected = 1;
+    var error = new AtomicReference<Throwable>();
+    Executor rejecting = _ -> {
+      throw new RejectedExecutionException();
+    };
+    var program = never().fork(rejecting).andThen(never())
+        .catchAll(e -> run(() -> error.set(e)).andThen(start()).andThen(never()));
+
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+
+    // get with a timeout: join can't be interrupted, so a regression would hang instead of failing
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(error.get()).isInstanceOf(RejectedExecutionException.class);
   }
 
   @Test
