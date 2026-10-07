@@ -626,7 +626,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
               }
               case FinalizerFrame(var finalizer) -> {
                 // run the finalizer and then continue with the result, unless the finalizer fails
-                stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
+                stack.push(Frame.fold(Program::failure, _ -> from(result)));
                 masked = enterUncancelable(stack, masked);
                 current = finalizer;
                 resumed = true;
@@ -666,16 +666,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         } else if (current instanceof Memoized memoized) {
           var result = memoized.get();
           if (result != null) {
-            current = Program.from(result);
+            current = from(result);
           } else {
             stack.push(Frame.fold(
                 error -> {
                   memoized.set(Result.failure(error));
-                  return Program.failure(error);
+                  return failure(error);
                 },
                 value -> {
                   memoized.set(Result.success(value));
-                  return Program.success(value);
+                  return success(value);
                 }));
             current = memoized.current;
           }
