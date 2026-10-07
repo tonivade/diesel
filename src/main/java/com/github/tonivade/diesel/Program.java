@@ -10,6 +10,10 @@ import com.github.tonivade.diesel.Frame.FoldFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.purefun.Kind;
 
+import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Combine.traverse;
+import static com.github.tonivade.diesel.Concurrent.race;
+
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -976,7 +980,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with elapsed time measurement
    */
   default Program<S, E, ElapsedTime<T>> timed() {
-    return Combine.pipe(
+    return pipe(
         start(),
         start -> map(value -> end(start, value))
         );
@@ -1131,7 +1135,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with timeout
    */
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
-    return Concurrent.race(sleep(duration, executor), this, executor)
+    return race(sleep(duration, executor), this, executor)
         .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
   }
 
@@ -1304,7 +1308,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the delayed computation
    */
   static <S, E, T> Program<S, E, T> delayed(Duration duration, Program<S, E, T> program, Executor executor) {
-    return Combine.pipe(
+    return pipe(
         sleep(duration, executor),
         _ -> program
         );
@@ -1362,7 +1366,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   @SafeVarargs
   static <S, E, T> Program<S, Collection<E>, T> validate(T value, Validator<S, E, T>... validators) {
-    return Combine.traverse(v -> v.apply(value), validators)
+    return traverse(v -> v.apply(value), validators)
         .foldMap(
             _ -> success(value),
             result -> Validation.combine(result).fold(() -> success(value), Program::failure));
@@ -1464,7 +1468,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Function<? super T, ? extends Program<S, E, Void>> release) {
     // installing the finalizer never observes a cancellation, so there is no gap between
     // acquiring the resource and guaranteeing its release
-    return Combine.pipe(
+    return pipe(
         new Uncancelable<>(acquire),
         resource -> use.apply(resource).ensuring(release.apply(resource))
         );
