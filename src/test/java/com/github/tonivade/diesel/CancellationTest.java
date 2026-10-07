@@ -6,8 +6,10 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Concurrent.either;
 import static com.github.tonivade.diesel.Concurrent.parAll;
+import static com.github.tonivade.diesel.Concurrent.parAny;
 import static com.github.tonivade.diesel.Concurrent.parSequence;
 import static com.github.tonivade.diesel.Concurrent.parZip;
+import static com.github.tonivade.diesel.Concurrent.race;
 import static com.github.tonivade.diesel.Program.bracket;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.raise;
@@ -76,6 +78,26 @@ class CancellationTest {
 
     assertThat(result).isEqualTo(Result.success(Either.right("winner")));
     assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void raceCancelsTheLoser() {
+    var winner = whenStarted(1).andThen(success("winner"));
+
+    var result = race(blocked(), winner).eval();
+
+    assertThat(result).isEqualTo(Result.success(Either.right("winner")));
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void parAnyCancelsTheOtherProgramsOnSuccess() {
+    var winner = whenStarted(2).andThen(Program.<Void, String>unit());
+
+    var result = parAny(blocked(), blocked(), winner).eval();
+
+    assertThat(result).isEqualTo(Result.success(null));
+    assertThat(released).hasValue(2);
   }
 
   @Test
