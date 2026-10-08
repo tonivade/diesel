@@ -1143,6 +1143,29 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
+   * Makes the program uncancelable: it always runs to completion.
+   *
+   * <p>A cancellation requested while the program runs is not ignored, it is deferred: it takes
+   * effect at the first step after the program finishes. Use it for steps that must not be
+   * interrupted half-way, like committing a transaction.
+   *
+   * <p>Keep in mind that:
+   * <ul>
+   *   <li>The concurrent combinators, like {@code parZip}, {@code either}, {@code race} or
+   *   {@link #timeout(Duration)}, complete only once their cancelled programs have stopped, so they
+   *   wait for an uncancelable program to finish. For example, {@code commit.uncancelable().timeout(d)}
+   *   fails with a timeout, but only once the commit is done.</li>
+   *   <li>The programs forked while it runs can't be cancelled either, and a cancelled program doesn't
+   *   wait for them.</li>
+   * </ul>
+   *
+   * @return a new program representing the uncancelable computation
+   */
+  default Program<S, E, T> uncancelable() {
+    return new Uncancelable<>(this);
+  }
+
+  /**
    * Ensures that the finalizer program is executed after the current program, regardless of success or failure.
    *
    * <p>The finalizer also runs when the program throws an exception or is cancelled, and it can't be
@@ -1472,7 +1495,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     // installing the finalizer never observes a cancellation, so there is no gap between
     // acquiring the resource and guaranteeing its release
     return pipe(
-        new Uncancelable<>(acquire),
+        acquire.uncancelable(),
         resource -> use.apply(resource).ensuring(release.apply(resource))
         );
   }

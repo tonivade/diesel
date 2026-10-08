@@ -47,6 +47,8 @@ class CancellationTest {
   private final AtomicInteger started = new AtomicInteger();
   private final CompletableFuture<Result<String, Void>> allStarted = new CompletableFuture<>();
   private int expected;
+  // keeps a program waiting until the test opens it
+  private final CompletableFuture<Result<String, Void>> gate = new CompletableFuture<>();
 
   @Test
   void parZipCancelsTheOtherProgramsOnFailure() {
@@ -270,6 +272,59 @@ class CancellationTest {
     assertThat(result).isEqualTo(Result.success("done"));
     assertThat(executed).hasValue(2);
     assertThat(released).hasValue(2);
+  }
+
+  @Test
+  void uncancelableDefersTheCancellation() throws Exception {
+    expected = 1;
+    var after = new AtomicInteger();
+    var program = start().andThen(Program.from(gate)).andThen(run(executed::incrementAndGet))
+        .uncancelable()
+        .andThen(run(after::incrementAndGet));
+
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+    gate.complete(Result.unit());
+
+    // the uncancelable part runs to completion, and the cancellation stops the program right after
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(1);
+    assertThat(after).hasValue(0);
+  }
+
+  @Test
+  void combinatorsWaitForUncancelablePrograms() throws Exception {
+    var failed = new CompletableFuture<Void>();
+    var program = start().andThen(Program.from(gate)).andThen(run(executed::incrementAndGet)).uncancelable();
+    var failing = whenStarted(1).andThen(run(() -> failed.complete(null))).andThen(Program.<Void, String, Void>failure("error"));
+
+    var future = parZip(program, failing, (_, _) -> "done").fork().evalOrElseThrow();
+    failed.get(5, TimeUnit.SECONDS);
+
+    // parZip can't complete while the uncancelable program is still running
+    assertThatThrownBy(() -> future.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+    gate.complete(Result.unit());
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.failure("error"));
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void forksInsideUncancelableAreNotCancelled() throws Exception {
+    var forked = new CompletableFuture<CompletableFuture<Result<String, Void>>>();
+    var child = Program.<Void, String, Void>from(gate).andThen(run(executed::incrementAndGet));
+    var program = child.fork().flatMap(f -> run(() -> forked.complete(f))).uncancelable()
+        .andThen(start()).andThen(never());
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    // the parent has been cancelled, but the fork it started in the uncancelable part is still running
+    var fork = forked.get(5, TimeUnit.SECONDS);
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(fork.isDone()).isFalse();
+    gate.complete(Result.unit());
+    assertThat(fork.get(5, TimeUnit.SECONDS)).isEqualTo(Result.success(null));
+    assertThat(executed).hasValue(1);
   }
 
   /**
