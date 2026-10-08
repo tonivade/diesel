@@ -4,15 +4,15 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Combine.traverse;
+import static com.github.tonivade.diesel.Concurrent.race;
+
 import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.purefun.Kind;
-
-import static com.github.tonivade.diesel.Combine.pipe;
-import static com.github.tonivade.diesel.Combine.traverse;
-import static com.github.tonivade.diesel.Concurrent.race;
 
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
@@ -477,12 +477,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Creates a new program that represent a program that never ends.
+   * Creates a program that never completes.
    *
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
-   * @return a new program representing a program that never ends
+   * @return a program that never completes
    */
   static <S, E, T> Program<S, E, T> never() {
     return async((_, _) -> {});
