@@ -654,7 +654,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           masked = enterUncancelable(stack, masked);
           current = source;
         } else if (current instanceof Forked forked) {
-          // a fork started in an uncancelable region, like a finalizer, can't be cancelled either
+          // a fork started in an uncancelable region, like a finalizer, can't be cancelled either.
+          // It isn't tracked by the parent either, so a cancelled parent doesn't wait for it: the
+          // programs that wait for their forks, like timeout or par*, are not affected
           var parent = masked == 0 ? token : CancelToken.NONE;
           current = success(startFork(state, parent, forked.current, forked.executor));
         } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
@@ -826,7 +828,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       error = e;
     }
     if (token.isCancelled()) {
-      // only when cancelled: a program that finishes normally can leave forks running
+      // only when cancelled: a program that finishes normally can leave forks running, and they
+      // are not awaited even if a cancellation arrives right after the program has finished
       token.awaitForks();
     }
     // otherwise the parent keeps a callback for each program it has ever forked
