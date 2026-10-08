@@ -463,9 +463,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represent a program that never ends.
    *
-   * @param <S>
-   * @param <E>
-   * @param <T>
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
