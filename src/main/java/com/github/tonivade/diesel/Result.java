@@ -58,7 +58,7 @@ public sealed interface Result<F, S> {
    * @param <S> The type of the success value.
    * @return A new failure result.
    */
-  static <F, S> Result<F, S> failure(F error) {
+  static <F, S> Result<F, S> failure(@Nullable F error) {
     return new Failure<>(error);
   }
 
@@ -398,7 +398,7 @@ public sealed interface Result<F, S> {
    * @param <F> The type of the failure value.
    * @param <S> The type of the success value.
    */
-  record Failure<F, S>(F error) implements Result<F, S> {}
+  record Failure<F, S>(@Nullable F error) implements Result<F, S> {}
 
   /**
    * A record representing a success result.

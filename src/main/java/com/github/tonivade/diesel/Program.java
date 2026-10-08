@@ -307,7 +307,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing a failed computation
    */
-  static <S, E, T> Program<S, E, T> failure(E error) {
+  static <S, E, T> Program<S, E, T> failure(@Nullable E error) {
     return from(Result.failure(error));
   }
 
