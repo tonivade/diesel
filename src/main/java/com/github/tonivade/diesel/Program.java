@@ -795,13 +795,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   private static <S, E, T> CompletableFuture<Result<E, T>> startFork(
       @Nullable S state, CancelToken parent, Program<S, E, T> program, Executor executor) {
-    var token = parent.child();
+    var token = parent.newChild();
     var future = new CancelableFuture<Result<E, T>>(token);
-    parent.track(future);
+    parent.trackFork(future);
     try {
       executor.execute(() -> runForked(state, token, program, future));
     } catch (RuntimeException | Error e) {
-      token.detach();
+      token.detachFromParent();
       future.completeExceptionally(e);
       throw e;
     }
@@ -833,7 +833,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       token.awaitForks();
     }
     // otherwise the parent keeps a callback for each program it has ever forked
-    token.detach();
+    token.detachFromParent();
     if (error != null) {
       future.completeExceptionally(error);
     } else {

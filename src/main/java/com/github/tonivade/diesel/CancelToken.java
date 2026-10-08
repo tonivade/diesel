@@ -33,7 +33,7 @@ final class CancelToken {
   private final AtomicBoolean cancelled = new AtomicBoolean();
   private final Set<Callback> callbacks = ConcurrentHashMap.newKeySet();
   private final Set<CompletableFuture<?>> forks = ConcurrentHashMap.newKeySet();
-  private Registration parent = NOOP;
+  private Registration parentRegistration = NOOP;
 
   private CancelToken() {}
 
@@ -48,17 +48,17 @@ final class CancelToken {
   /**
    * Creates a token that is cancelled when this one is cancelled.
    */
-  CancelToken child() {
+  CancelToken newChild() {
     var child = new CancelToken();
-    child.parent = onCancel(child::cancel);
+    child.parentRegistration = onCancel(child::cancel);
     return child;
   }
 
   /**
    * Stops listening to the parent token, call it once the program using this token has finished.
    */
-  void detach() {
-    parent.remove();
+  void detachFromParent() {
+    parentRegistration.remove();
   }
 
   /**
@@ -66,7 +66,7 @@ final class CancelToken {
    */
   // futures are compared by identity, which is what is needed to track each fork
   @SuppressWarnings("CollectionUndefinedEquality")
-  void track(CompletableFuture<?> fork) {
+  void trackFork(CompletableFuture<?> fork) {
     if (this == NONE) {
       // never cancelled, so there is never anything to wait for
       return;

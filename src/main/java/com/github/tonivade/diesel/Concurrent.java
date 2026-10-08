@@ -1232,11 +1232,13 @@ public final class Concurrent {
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
       CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
+    // parAnySuccess only cancels the mapped futures it receives, and cancelling a future doesn't
+    // reach the future it was mapped from: the forked programs have to be cancelled through f1
+    // and f2, and waited for through them too
     var outcome = parAnySuccess(List.of(
             f1.thenApply(t -> t.map(Either::<T, U>left)),
             f2.thenApply(u -> u.map(Either::<T, U>right))))
         .whenComplete((_, _) -> cancelBoth(f1, f2));
-    // wait for the forked programs, cancelling the mapped futures doesn't stop them
     return afterAll(List.of(f1, f2), outcome);
   }
 
