@@ -301,7 +301,7 @@ class CancellationTest {
   }
 
   private static Program<Void, String, Void> never() {
-    return Program.async((_, _) -> {});
+    return Program.never();
   }
 
   private static Program<Void, String, Void> run(Runnable runnable) {
