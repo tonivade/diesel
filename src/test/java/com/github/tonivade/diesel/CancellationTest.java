@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -43,6 +44,8 @@ import org.junit.jupiter.api.Timeout;
  */
 @Timeout(value = 10, unit = TimeUnit.SECONDS)
 class CancellationTest {
+
+  private static final Duration LONG_DELAY = Duration.ofMinutes(30);
 
   private final AtomicInteger executed = new AtomicInteger();
   private final AtomicInteger released = new AtomicInteger();
@@ -554,25 +557,32 @@ class CancellationTest {
 
   @Test
   void cancellingASleepRemovesItsDelay() throws Exception {
-    var before = DelayScheduler.pending();
-
     var future = Program.<Void, String>sleep(Duration.ofHours(1)).fork().evalOrElseThrow();
-    awaitPendingDelays(before + 1);
+    awaitLongDelays(1);
     future.cancel(true);
 
     assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
-    assertThat(DelayScheduler.pending()).isEqualTo(before);
+    assertThat(DelayScheduler.pendingLongerThan(LONG_DELAY)).isZero();
+  }
+
+  @Test
+  void sleepingForeverCanBeCancelled() throws Exception {
+    // too long to fit in nanoseconds, it's scheduled as a delay that never expires
+    var future = Program.<Void, String>sleep(ChronoUnit.FOREVER.getDuration()).fork().evalOrElseThrow();
+    awaitLongDelays(1);
+    future.cancel(true);
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(DelayScheduler.pendingLongerThan(LONG_DELAY)).isZero();
   }
 
   @Test
   void timeoutRemovesItsDelayWhenTheProgramFinishesFirst() {
-    var before = DelayScheduler.pending();
-
     var result = Program.<Void, String, String>success("done").timeout(Duration.ofHours(1)).eval();
 
     // the sleep of the timeout has been cancelled, it doesn't wait an hour to expire
     assertThat(result).isEqualTo(Result.success("done"));
-    assertThat(DelayScheduler.pending()).isEqualTo(before);
+    assertThat(DelayScheduler.pendingLongerThan(LONG_DELAY)).isZero();
   }
 
   /**
@@ -605,9 +615,10 @@ class CancellationTest {
     }
   }
 
-  private static void awaitPendingDelays(int count) {
+  // only the sleep tests use delays this long, so they only see their own delays
+  private static void awaitLongDelays(int count) {
     var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-    while (DelayScheduler.pending() < count) {
+    while (DelayScheduler.pendingLongerThan(LONG_DELAY) < count) {
       if (System.nanoTime() > deadline) {
         throw new AssertionError("the delay of the sleep was never scheduled");
       }

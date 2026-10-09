@@ -1100,18 +1100,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Retries the program a specified number of times with a delay using the provided executor in case of failure.
-   *
-   * @param retries the number of retries
-   * @param delay the delay between retries
-   * @param executor the executor used to execute the delay
-   * @return a new program representing the computation with retries and delay
-   */
-  default Program<S, E, T> retry(int retries, Duration delay, Executor executor) {
-    return retry(retries, sleep(delay, executor));
-  }
-
-  /**
    * Retries the program a specified number of times with a delay program in case of failure.
    *
    * @param retries the number of retries
@@ -1146,18 +1134,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   default Program<S, E, T> repeat(int times, Duration delay) {
     return repeat(times, sleep(delay));
-  }
-
-  /**
-   * Repeats the program a specified number of times with a delay using the provided executor.
-   *
-   * @param times the number of times to repeat
-   * @param delay the delay between repetitions
-   * @param executor the executor used to execute the delay
-   * @return a new program representing the computation repeated with delay
-   */
-  default Program<S, E, T> repeat(int times, Duration delay, Executor executor) {
-    return repeat(times, sleep(delay, executor));
   }
 
   /**
@@ -1247,11 +1223,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
    *
    * @param duration the duration of the timeout
-   * @param executor the executor used to execute the timeout
+   * @param executor the executor used to run the program and its timeout in parallel
    * @return a new program representing the computation with timeout
    */
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
-    return race(sleep(duration, executor), this, executor)
+    return race(sleep(duration), this, executor)
         .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
   }
 
@@ -1414,7 +1390,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Delays the execution of the program using the provided duration and supplier, and the common fork-join pool.
+   * Delays the execution of the program using the provided duration and supplier.
    *
    * @param duration the duration of the delay
    * @param supplier the supplier of the value to be returned after the delay
@@ -1428,7 +1404,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Delays the execution of the program using the provided duration and the common fork-join pool.
+   * Delays the execution of the program using the provided duration.
    *
    * @param duration the duration of the delay
    * @param program the next program to be executed after the delay
@@ -1438,44 +1414,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the delayed computation
    */
   static <S, E, T> Program<S, E, T> delayed(Duration duration, Program<S, E, T> program) {
-    return delayed(duration, program, ForkJoinPool.commonPool());
-  }
-
-  /**
-   * Delays the execution of the program using the provided duration, supplier, and executor.
-   *
-   * @param duration the duration of the delay
-   * @param supplier the supplier of the value to be returned after the delay
-   * @param executor the executor used to execute the delay
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a new program representing the delayed computation
-   */
-  static <S, E, T> Program<S, E, T> delayed(Duration duration, Supplier<T> supplier, Executor executor) {
-    return delayed(duration, supply(supplier), executor);
-  }
-
-  /**
-   * Delays the execution of the program using the provided duration, next program, and executor.
-   *
-   * @param duration the duration of the delay
-   * @param program the next program to be executed after the delay
-   * @param executor the executor used to execute the delay
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a new program representing the delayed computation
-   */
-  static <S, E, T> Program<S, E, T> delayed(Duration duration, Program<S, E, T> program, Executor executor) {
     return pipe(
-        sleep(duration, executor),
+        sleep(duration),
         _ -> program
         );
   }
 
   /**
-   * Creates a new program that represents a sleep for the given duration using the common fork-join pool.
+   * Creates a new program that represents a sleep for the given duration.
+   *
+   * <p>Cancelling the sleep cancels its delay too, so a cancelled sleep, like the one of a
+   * {@link #timeout(Duration)} that didn't expire, doesn't stay scheduled until the delay expires.
    *
    * @param duration the duration of the sleep
    * @param <S> the type of the state
@@ -1483,32 +1432,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a sleep
    */
   static <S, E> Program<S, E, Void> sleep(Duration duration) {
-    return sleep(duration, ForkJoinPool.commonPool());
-  }
-
-  /**
-   * Creates a new program that represents a sleep for the given duration using the provided executor.
-   *
-   * <p>Cancelling the sleep cancels its delay too, so a cancelled sleep, like the one of a
-   * {@link #timeout(Duration)} that didn't expire, doesn't stay scheduled until the delay expires.
-   *
-   * @param duration the duration of the sleep
-   * @param executor the executor used to execute the sleep
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @return a new program representing a sleep
-   */
-  static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
     return asyncCancelable((_, callback) -> {
-      // the scheduler only waits for the delay, the program continues on the executor
-      var delay = DelayScheduler.schedule(duration, () -> {
-        try {
-          executor.execute(() -> callback.complete(Result.unit()));
-        } catch (RuntimeException e) {
-          // the executor refused it, fail the sleep instead of leaving it waiting forever
-          callback.completeExceptionally(e);
-        }
-      });
+      // completed directly on the scheduler thread: the program continues on the thread that waits
+      // for it, not on an executor, and handing the completion to the executor of a fork could
+      // queue it behind that waiting thread forever
+      var delay = DelayScheduler.schedule(duration, () -> callback.complete(Result.unit()));
       return task(() -> delay.cancel(false));
     });
   }

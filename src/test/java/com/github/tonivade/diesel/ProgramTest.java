@@ -33,8 +33,9 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
@@ -181,17 +182,6 @@ class ProgramTest {
   }
 
   @Test
-  void shouldFailSleepWhenTheExecutorRejectsIt() {
-    Executor rejecting = _ -> {
-      throw new RejectedExecutionException();
-    };
-
-    var program = Program.<Void, String>sleep(Duration.ofMillis(1), rejecting);
-
-    assertThatThrownBy(program::evalOrElseThrow).isInstanceOf(RejectedExecutionException.class);
-  }
-
-  @Test
   void shouldDelay() {
     var duration = Duration.ofSeconds(2);
 
@@ -201,6 +191,25 @@ class ProgramTest {
       .isCloseTo(duration, Duration.ofMillis(100));
     assertThat(result.value())
       .isEqualTo(10);
+  }
+
+  @Test
+  void shouldTimeoutOnASingleThreadExecutor() throws Exception {
+    // the sleep of the timeout used to complete on the executor, queued behind the thread that
+    // waits for it
+    var executor = Executors.newSingleThreadExecutor();
+    try {
+      var program = Program.<Void, String, Integer>never().timeout(Duration.ofMillis(100), executor);
+
+      var future = program.fork().evalOrElseThrow();
+
+      // the program fails with a timeout; a deadlock would make get itself throw a bare TimeoutException
+      assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS))
+        .isInstanceOf(ExecutionException.class)
+        .hasCauseInstanceOf(TimeoutException.class);
+    } finally {
+      executor.shutdownNow();
+    }
   }
 
   @Test
