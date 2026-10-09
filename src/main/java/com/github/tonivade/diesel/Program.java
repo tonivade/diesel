@@ -506,6 +506,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * request to an external system. With {@link #async(BiConsumer)} the program stops waiting, but
    * the operation keeps running.
    *
+   * <p>If {@code register} throws, the program fails with that exception and no canceler is
+   * installed: if the operation was already started, {@code register} has to stop it before
+   * throwing. {@code register} must not return {@code null}.
+   *
    * @param register the function that starts the operation and returns the canceler
    * @param <S> the type of the state
    * @param <E> the type of the error
