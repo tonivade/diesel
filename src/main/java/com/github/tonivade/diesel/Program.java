@@ -22,6 +22,7 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -757,7 +758,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     var wakeUpOnCancel = token.onCancel(() -> future.completeExceptionally(new CancelToken.Cancelled()));
     try {
       async.accept(state, future);
-      return future.join();
+      return join(future);
     } finally {
       // the wait is over, so stop listening, otherwise the token keeps a callback for each wait
       wakeUpOnCancel.remove();
@@ -772,7 +773,22 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   private static <S> Result<?, ?> awaitUncancelable(@Nullable S state, BiConsumer<S, CompletableFuture<?>> async) {
     var future = new CompletableFuture<Result<?, ?>>();
     ScopedValue.where(CancelToken.CURRENT, CancelToken.NONE).run(() -> async.accept(state, future));
-    return future.join();
+    return join(future);
+  }
+
+  /**
+   * Waits for the future and throws the original exception if it fails.
+   *
+   * <p>The futures of the forked programs are combined with methods like {@code thenApply}, which
+   * wrap the exception of a failed future in a {@link CompletionException}. Without unwrapping it,
+   * a {@code catchAll} would receive the wrapper instead of the exception the program raised.
+   */
+  private static Result<?, ?> join(CompletableFuture<Result<?, ?>> future) {
+    try {
+      return future.join();
+    } catch (CompletionException e) {
+      return sneakyThrow(e.getCause() != null ? e.getCause() : e);
+    }
   }
 
   // the region ends when the UnmaskFrame is popped
