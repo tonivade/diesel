@@ -515,7 +515,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T> Program<S, E, T> asyncCancelable(
       BiFunction<? super S, ? super CompletableFuture<Result<E, T>>, ? extends Program<S, E, Void>> register) {
-    // effectP defers all this to evaluation time: the operation has to start when the program
+    // accessProgram defers all this to evaluation time: the operation has to start when the program
     // runs, not when it's built, with the state of that evaluation, and once per evaluation, so
     // each one has its own future and canceler. suspend would defer it too, but without the state.
     // The canceler is installed in the step right after the operation starts: installing an
