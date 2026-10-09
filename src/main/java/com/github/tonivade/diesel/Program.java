@@ -480,6 +480,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents an asynchronous computation.
    *
+   * <p>If the program is cancelled while it waits, it stops waiting, but the asynchronous operation
+   * keeps running. Use {@link #asyncCancelable(BiFunction)} to stop the operation too.
+   *
    * @param callback the callback to be executed asynchronously
    * @param <S> the type of the state
    * @param <E> the type of the error
@@ -488,6 +491,39 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T> Program<S, E, T> async(BiConsumer<? super S, ? super CompletableFuture<Result<E, T>>> callback) {
     return new Async<>(callback);
+  }
+
+  /**
+   * Creates a new program that represents an asynchronous computation that can be cancelled.
+   *
+   * <p>The register function starts the asynchronous operation, completes the future when it
+   * finishes, and returns a canceler: a program that stops the operation. If the program is
+   * cancelled while it waits for the operation, the canceler runs before the cancellation goes on,
+   * and it can't be cancelled itself. It doesn't run when the operation completes, nor when the
+   * program runs in an uncancelable region, which waits for the operation to finish instead.
+   *
+   * <p>Use it when cancelling the program has to stop the operation too, like a scheduled task or a
+   * request to an external system. With {@link #async(BiConsumer)} the program stops waiting, but
+   * the operation keeps running.
+   *
+   * @param register the function that starts the operation and returns the canceler
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a cancelable asynchronous computation
+   */
+  static <S, E, T> Program<S, E, T> asyncCancelable(
+      BiFunction<? super S, ? super CompletableFuture<Result<E, T>>, ? extends Program<S, E, Void>> register) {
+    // effectP defers all this to evaluation time: the operation has to start when the program
+    // runs, not when it's built, with the state of that evaluation, and once per evaluation, so
+    // each one has its own future and canceler. suspend would defer it too, but without the state.
+    // The canceler is installed in the step right after the operation starts: installing an
+    // onCancel never stops for a cancellation, so a started operation always has its canceler
+    return effectP(state -> {
+      var future = new CompletableFuture<Result<E, T>>();
+      Program<S, E, Void> canceler = register.apply(state, future);
+      return Program.<S, E, T>from(future).onCancel(canceler);
+    });
   }
 
   /**

@@ -22,7 +22,9 @@ import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -406,6 +408,92 @@ class CancellationTest {
     assertThat(executed).hasValue(1);
   }
 
+  @Test
+  void asyncCancelableStopsTheOperationWhenCancelled() throws Exception {
+    var scheduler = Executors.newSingleThreadScheduledExecutor();
+    try {
+      var scheduled = new CompletableFuture<ScheduledFuture<?>>();
+      var operation = Program.<Void, String, String>asyncCancelable((_, future) -> {
+        var task = scheduler.schedule(() -> future.complete(Result.success("late")), 1, TimeUnit.HOURS);
+        scheduled.complete(task);
+        signalStarted();
+        return run(() -> task.cancel(false));
+      });
+
+      var result = parZip(operation, failingWhenStarted(1), (_, _) -> "done").eval();
+
+      assertThat(result).isEqualTo(Result.failure("error"));
+      assertThat(scheduled.get(5, TimeUnit.SECONDS).isCancelled()).isTrue();
+    } finally {
+      scheduler.shutdownNow();
+    }
+  }
+
+  @Test
+  void asyncCancelableDoesNotRunTheCancelerWhenTheOperationCompletes() {
+    var operation = Program.<Void, String, String>asyncCancelable((_, future) -> {
+      future.complete(Result.success("done"));
+      return run(released::incrementAndGet);
+    });
+
+    var result = operation.eval();
+
+    assertThat(result).isEqualTo(Result.success("done"));
+    assertThat(released).hasValue(0);
+  }
+
+  @Test
+  void asyncCancelableDoesNotRunTheCancelerWhenTheOperationFails() {
+    var failing = Program.<Void, String, String>asyncCancelable((_, future) -> {
+      future.complete(Result.failure("error"));
+      return run(released::incrementAndGet);
+    });
+    var throwing = Program.<Void, String, String>asyncCancelable((_, future) -> {
+      future.completeExceptionally(new IllegalStateException());
+      return run(released::incrementAndGet);
+    });
+
+    assertThat(failing.eval()).isEqualTo(Result.failure("error"));
+    assertThatThrownBy(throwing::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(released).hasValue(0);
+  }
+
+  @Test
+  void asyncCancelableCancelerCannotBeCancelled() {
+    var canceler = Program.<Void, String>sleep(Duration.ofMillis(50)).andThen(run(released::incrementAndGet));
+    var operation = Program.<Void, String, String>asyncCancelable((_, _) -> {
+      signalStarted();
+      return canceler;
+    });
+
+    var result = parZip(operation, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void asyncCancelableWaitsForTheOperationInAnUncancelableRegion() throws Exception {
+    expected = 1;
+    var operation = Program.<Void, String, Void>asyncCancelable((_, future) -> {
+      var _ = gate.whenComplete((_, _) -> future.complete(Result.unit()));
+      signalStarted();
+      return run(released::incrementAndGet);
+    });
+    var program = operation.andThen(run(executed::incrementAndGet)).uncancelable();
+
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+    gate.complete(Result.unit());
+
+    // the operation isn't cancelled, the region waits for it instead. The whole program is the
+    // region, so there is no step left where the cancellation could stop it: it completes normally
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.success(null));
+    assertThat(executed).hasValue(1);
+    assertThat(released).hasValue(0);
+  }
+
   /**
    * A program that installs its finalizer, signals that it has started and then waits forever,
    * so it only finishes when it is cancelled.
@@ -427,11 +515,13 @@ class CancellationTest {
   }
 
   private Program<Void, String, Void> start() {
-    return run(() -> {
-      if (started.incrementAndGet() == expected) {
-        allStarted.complete(Result.unit());
-      }
-    });
+    return run(this::signalStarted);
+  }
+
+  private void signalStarted() {
+    if (started.incrementAndGet() == expected) {
+      allStarted.complete(Result.unit());
+    }
   }
 
   private static Program<Void, String, Void> never() {
