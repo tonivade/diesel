@@ -40,8 +40,6 @@ import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
 
 /**
- *
- *
  * A {@code Program} represents a computation that can be executed in a specific context.
  * It is a functional programming construct that allows for the composition of computations
  * and error handling.
