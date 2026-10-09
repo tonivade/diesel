@@ -4,9 +4,15 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Combine.traverse;
+import static com.github.tonivade.diesel.Concurrent.race;
+
 import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Frame.OnCancelFrame;
+import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.purefun.Kind;
 
 import java.lang.reflect.UndeclaredThrowableException;
@@ -17,6 +23,7 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -33,8 +40,6 @@ import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
 
 /**
- *
- *
  * A {@code Program} represents a computation that can be executed in a specific context.
  * It is a functional programming construct that allows for the composition of computations
  * and error handling.
@@ -184,6 +189,18 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record Ensuring<S, E, T>(Program<S, E, T> current, Program<S, E, ?> finalizer) implements Program<S, E, T> {}
 
   /**
+   * Represents a computation that runs a finalizer only when the program is cancelled. The
+   * finalizer can't be cancelled.
+   *
+   * @param current the current program
+   * @param finalizer the program to be executed if the program is cancelled
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record OnCancel<S, E, T>(Program<S, E, T> current, Program<S, E, ?> finalizer) implements Program<S, E, T> {}
+
+  /**
    * Represents a memoized computation that caches the result of the program.
    *
    * @param <S> the type of the state
@@ -223,6 +240,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       cache.compareAndSet(null, result);
     }
   }
+
+  /**
+   * Represents a computation that can't be cancelled, a cancellation requested while it runs
+   * takes effect after it finishes.
+   *
+   * @param current the current program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Uncancelable<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {}
 
   /**
    * Creates a new program that represents a computation that can be executed in a specific context.
@@ -450,6 +478,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents an asynchronous computation.
    *
+   * <p>If the program is cancelled while it waits, it stops waiting, but the asynchronous operation
+   * keeps running. Use {@link #asyncCancelable(BiFunction)} to stop the operation too.
+   *
    * @param callback the callback to be executed asynchronously
    * @param <S> the type of the state
    * @param <E> the type of the error
@@ -461,12 +492,49 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Creates a new program that represent a program that never ends.
+   * Creates a new program that represents an asynchronous computation that can be cancelled.
+   *
+   * <p>The register function starts the asynchronous operation, completes the future when it
+   * finishes, and returns a canceler: a program that stops the operation. If the program is
+   * cancelled while it waits for the operation, the canceler runs before the cancellation goes on,
+   * and it can't be cancelled itself. It doesn't run when the operation completes, nor when the
+   * program runs in an uncancelable region, which waits for the operation to finish instead.
+   *
+   * <p>Use it when cancelling the program has to stop the operation too, like a scheduled task or a
+   * request to an external system. With {@link #async(BiConsumer)} the program stops waiting, but
+   * the operation keeps running.
+   *
+   * <p>If {@code register} throws, the program fails with that exception and no canceler is
+   * installed: if the operation was already started, {@code register} has to stop it before
+   * throwing. {@code register} must not return {@code null}.
+   *
+   * @param register the function that starts the operation and returns the canceler
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a cancelable asynchronous computation
+   */
+  static <S, E, T> Program<S, E, T> asyncCancelable(
+      BiFunction<? super S, ? super CompletableFuture<Result<E, T>>, ? extends Program<S, E, Void>> register) {
+    // effectP defers all this to evaluation time: the operation has to start when the program
+    // runs, not when it's built, with the state of that evaluation, and once per evaluation, so
+    // each one has its own future and canceler. suspend would defer it too, but without the state.
+    // The canceler is installed in the step right after the operation starts: installing an
+    // onCancel never stops for a cancellation, so a started operation always has its canceler
+    return effectP(state -> {
+      var future = new CompletableFuture<Result<E, T>>();
+      Program<S, E, Void> canceler = register.apply(state, future);
+      return Program.<S, E, T>from(future).onCancel(canceler);
+    });
+  }
+
+  /**
+   * Creates a program that never completes.
    *
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
-   * @return a new program representing a program that never ends
+   * @return a program that never completes
    */
   static <S, E, T> Program<S, E, T> never() {
     return async((_, _) -> {});
@@ -583,41 +651,72 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param state the state used to evaluate the program
    * @return the result of the evaluation
    */
-  @SuppressWarnings("unchecked")
   default Result<E, T> eval(@Nullable S state) {
+    return run(state, CancelToken.current());
+  }
+
+  @SuppressWarnings("unchecked")
+  private Result<E, T> run(@Nullable S state, CancelToken token) {
     Program<S, ?, ?> current = this;
     Deque<Frame<S>> stack = new ArrayDeque<>();
+    // depth of nested uncancelable regions, a cancellation only takes effect outside of them
+    int masked = 0;
 
     while (true) {
       try {
+        // a cancelled program stops at the start of its next step, unwinding the stack like an
+        // exception so the finalizers run
+        if (shouldStop(token, masked, current)) {
+          throw new CancelToken.Cancelled();
+        }
         if (current instanceof Pure(var result)) {
-          var frame = stack.poll();
-          // leaving a catchAll scope normally, its handler no longer applies
-          while (frame instanceof CatchFrame) {
-            frame = stack.poll();
-          }
-          if (frame instanceof FoldFrame(var onFailure, var onSuccess)) {
-            current = result.fold(onFailure, onSuccess);
-          } else if (frame instanceof FinalizerFrame(var finalizer)) {
-            // run the finalizer and then continue with the result, unless the finalizer fails
-            stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
-            current = finalizer;
-          } else {
-            // when frame is null
-            return (Result<E, T>) result;
+          var resumed = false;
+          while (!resumed) {
+            switch (stack.poll()) {
+              case null -> {
+                return (Result<E, T>) result;
+              }
+              case FoldFrame(var onFailure, var onSuccess) -> {
+                current = result.fold(onFailure, onSuccess);
+                resumed = true;
+              }
+              case FinalizerFrame(var finalizer) -> {
+                // run the finalizer and then continue with the result, unless the finalizer fails
+                stack.push(Frame.fold(Program::failure, _ -> from(result)));
+                masked = enterUncancelable(stack, masked);
+                current = finalizer;
+                resumed = true;
+              }
+              case UnmaskFrame<S> _ -> masked--;
+              case OnCancelFrame<S> _ -> {
+                // the program completed, so it wasn't cancelled
+              }
+              case CatchFrame<S> _ -> {
+                // leaving a catchAll scope normally, its handler no longer applies
+              }
+            }
           }
         } else if (current instanceof Effect(var mapper)) {
           current = mapper.apply(state);
         } else if (current instanceof Async(var callback)) {
-          var future = new CompletableFuture<Result<?, ?>>();
-          ((BiConsumer<S, CompletableFuture<?>>) callback).accept(state, future);
-          current = from(future.join());
+          var async = (BiConsumer<S, CompletableFuture<?>>) callback;
+          var result = masked == 0 ? awaitCancelable(state, async, token) : awaitUncancelable(state, async);
+          current = from(result);
         } else if (current instanceof Ensuring(var source, var finalizer)) {
           stack.push(Frame.finalizer(finalizer));
           current = source;
+        } else if (current instanceof OnCancel(var source, var finalizer)) {
+          stack.push(Frame.onCancel(finalizer));
+          current = source;
+        } else if (current instanceof Uncancelable(var source)) {
+          masked = enterUncancelable(stack, masked);
+          current = source;
         } else if (current instanceof Forked forked) {
-          var future = CompletableFuture.supplyAsync(() -> forked.current.eval(state), forked.executor);
-          current = success(future);
+          // a fork started in an uncancelable region, like a finalizer, can't be cancelled either.
+          // It isn't tracked by the parent either, so a cancelled parent doesn't wait for it: the
+          // programs that wait for their forks, like timeout or par*, are not affected
+          var parent = masked == 0 ? token : CancelToken.NONE;
+          current = success(startFork(state, parent, forked.current, forked.executor));
         } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
           stack.push(Frame.fold(onFailure, onSuccess));
           current = source;
@@ -631,16 +730,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         } else if (current instanceof Memoized memoized) {
           var result = memoized.get();
           if (result != null) {
-            current = Program.from(result);
+            current = from(result);
           } else {
             stack.push(Frame.fold(
                 error -> {
                   memoized.set(Result.failure(error));
-                  return Program.failure(error);
+                  return failure(error);
                 },
                 value -> {
                   memoized.set(Result.success(value));
-                  return Program.success(value);
+                  return success(value);
                 }));
             current = memoized.current;
           }
@@ -649,25 +748,186 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           throw new NullPointerException("program cannot be null");
         }
       } catch (Throwable e) {
-        // unwind to the nearest catchAll, discarding the continuations inside its scope
-        var frame = stack.poll();
-        while (frame instanceof FoldFrame) {
-          frame = stack.poll();
-        }
-        if (frame instanceof CatchFrame(var recover)) {
-          // run the handler inside the loop so an exception it throws reaches an outer catchAll
-          current = suspend(() -> recover.apply(e));
-        } else if (frame instanceof FinalizerFrame(var finalizer)) {
-          // keep unwinding with the same exception once the finalizer is done
-          stack.push(Frame.fold(
-              _ -> raise(() -> e),
-              _ -> raise(() -> e)));
-          current = finalizer;
-        } else {
-          // when frame is null
-          return sneakyThrow(e);
+        // unwind to the nearest catchAll, discarding the continuations inside its scope and
+        // running the finalizers found on the way
+        var resumed = false;
+        while (!resumed) {
+          switch (stack.poll()) {
+            case null -> {
+              return sneakyThrow(e);
+            }
+            case CatchFrame(var recover) -> {
+              // run the handler inside the loop so an exception it throws reaches an outer catchAll.
+              // A cancelled program never runs it: shouldStop stops it before the next step, and the
+              // unwinding goes on, so a cancellation can't be caught
+              current = suspend(() -> recover.apply(e));
+              resumed = true;
+            }
+            case FinalizerFrame(var finalizer) -> {
+              // keep unwinding with the same exception once the finalizer is done
+              stack.push(Frame.fold(
+                  _ -> raise(() -> e),
+                  _ -> raise(() -> e)));
+              masked = enterUncancelable(stack, masked);
+              current = finalizer;
+              resumed = true;
+            }
+            case OnCancelFrame(var finalizer) -> {
+              // only when this program is being cancelled, not for an ordinary exception or a
+              // cancelled fork joined by this program
+              if (masked == 0 && token.isCancelled()) {
+                // run the finalizer, then keep unwinding with the same exception
+                stack.push(Frame.fold(
+                    _ -> raise(() -> e),
+                    _ -> raise(() -> e)));
+                masked = enterUncancelable(stack, masked);
+                current = finalizer;
+                resumed = true;
+              }
+            }
+            case UnmaskFrame<S> _ -> masked--;
+            case FoldFrame<S> _ -> {
+              // a continuation inside the catchAll scope, discarded
+            }
+          }
         }
       }
+    }
+  }
+
+  /**
+   * Whether a cancelled program has to stop before running the current step.
+   *
+   * <p>A cancelled program stops at its next step, except in two cases:
+   * <ul>
+   *   <li>Inside an uncancelable region ({@code masked > 0}), like a finalizer: the cleanup has to
+   *   run to completion.</li>
+   *   <li>When the step installs a finalizer ({@link Ensuring} or {@link OnCancel}). {@code bracket} acquires the resource
+   *   in an uncancelable region, and the step right after it installs the release. Stopping there
+   *   would leave the resource acquired with no release to run, so a finalizer is always installed
+   *   and the program stops at the step after it, running the finalizer while it unwinds.</li>
+   * </ul>
+   */
+  private static boolean shouldStop(CancelToken token, int masked, Program<?, ?, ?> current) {
+    if (masked > 0 || current instanceof Ensuring || current instanceof OnCancel) {
+      return false;
+    }
+    return token.isCancelled();
+  }
+
+  /**
+   * Waits for an async computation, like a sleep or a future, that can be cancelled.
+   *
+   * <p>A waiting program doesn't reach the cancellation check of the next step, so the wait has to
+   * be woken up: until the wait is over, a cancellation of the program fails the future it is
+   * waiting on, and {@code join()} throws right away.
+   */
+  private static <S> Result<?, ?> awaitCancelable(
+      @Nullable S state, BiConsumer<S, CompletableFuture<?>> async, CancelToken token) {
+    var future = new CompletableFuture<Result<?, ?>>();
+    var wakeUpOnCancel = token.onCancel(() -> future.completeExceptionally(new CancelToken.Cancelled()));
+    try {
+      async.accept(state, future);
+      return join(future);
+    } finally {
+      // the wait is over, so stop listening, otherwise the token keeps a callback for each wait
+      wakeUpOnCancel.remove();
+    }
+  }
+
+  /**
+   * Waits for an async computation in an uncancelable region, like a finalizer: the wait isn't
+   * woken up by a cancellation, and the programs the computation evaluates, like the forks of
+   * {@code par*}, can't be cancelled either.
+   */
+  private static <S> Result<?, ?> awaitUncancelable(@Nullable S state, BiConsumer<S, CompletableFuture<?>> async) {
+    var future = new CompletableFuture<Result<?, ?>>();
+    ScopedValue.where(CancelToken.CURRENT, CancelToken.NONE).run(() -> async.accept(state, future));
+    return join(future);
+  }
+
+  /**
+   * Waits for the future and throws the original exception if it fails.
+   *
+   * <p>The futures of the forked programs are combined with methods like {@code thenApply}, which
+   * wrap the exception of a failed future in a {@link CompletionException}. Without unwrapping it,
+   * a {@code catchAll} would receive the wrapper instead of the exception the program raised.
+   */
+  private static Result<?, ?> join(CompletableFuture<Result<?, ?>> future) {
+    try {
+      return future.join();
+    } catch (CompletionException e) {
+      return sneakyThrow(e.getCause() != null ? e.getCause() : e);
+    }
+  }
+
+  // the region ends when the UnmaskFrame is popped
+  private static <S> int enterUncancelable(Deque<Frame<S>> stack, int masked) {
+    stack.push(Frame.unmask());
+    return masked + 1;
+  }
+
+  /**
+   * Starts a forked program on the executor and returns the future of its result.
+   *
+   * <p>The forked program gets its own token, a child of {@code parent}: cancelling the parent
+   * cancels it, but cancelling it doesn't affect the parent. The returned future cancels that token
+   * when it is cancelled, and it only completes once the program has stopped, see
+   * {@link #runForked}.
+   *
+   * <p>The future is tracked by the parent from the start, so a cancelled parent can wait for it
+   * to stop. If the executor refuses to run the program, the future fails with the same error
+   * that is thrown, otherwise the parent would wait for it forever.
+   */
+  private static <S, E, T> CompletableFuture<Result<E, T>> startFork(
+      @Nullable S state, CancelToken parent, Program<S, E, T> program, Executor executor) {
+    var token = parent.newChild();
+    var future = new CancelableFuture<Result<E, T>>(token);
+    parent.trackFork(future);
+    try {
+      executor.execute(() -> runForked(state, token, program, future));
+    } catch (RuntimeException | Error e) {
+      token.detachFromParent();
+      future.completeExceptionally(e);
+      throw e;
+    }
+    return future;
+  }
+
+  /**
+   * Runs a forked program and completes its future.
+   *
+   * <p>The token is bound to {@link CancelToken#CURRENT} while the program runs, so the programs
+   * evaluated in a nested {@code eval}, like the forks of {@code par*}, are its children too.
+   *
+   * <p>The future is completed last, so whoever waits for it continues only when everything
+   * related to the program is done: if it was cancelled, the forks it started, cancelled through
+   * the token, have stopped too; and its token doesn't listen to the parent anymore.
+   */
+  private static <S, E, T> void runForked(
+      @Nullable S state, CancelToken token, Program<S, E, T> program, CancelableFuture<Result<E, T>> future) {
+    if (!future.start()) {
+      // cancelled before it started: its future is already completed
+      return;
+    }
+    Result<E, T> result = null;
+    Throwable error = null;
+    try {
+      result = ScopedValue.where(CancelToken.CURRENT, token).call(() -> program.run(state, token));
+    } catch (Throwable e) {
+      error = e;
+    }
+    if (token.isCancelled()) {
+      // only when cancelled: a program that finishes normally can leave forks running, and they
+      // are not awaited even if a cancellation arrives right after the program has finished
+      token.awaitForks();
+    }
+    // otherwise the parent keeps a callback for each program it has ever forked
+    token.detachFromParent();
+    if (error != null) {
+      future.completeExceptionally(error);
+    } else {
+      future.complete(result);
     }
   }
 
@@ -813,7 +1073,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with elapsed time measurement
    */
   default Program<S, E, ElapsedTime<T>> timed() {
-    return Combine.pipe(
+    return pipe(
         start(),
         start -> map(value -> end(start, value))
         );
@@ -920,6 +1180,22 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Forks the program to be executed asynchronously using the common fork-join pool.
    *
+   * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
+   * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
+   *
+   * <p>The lifetime of the forked program depends on how the program that forked it ends:
+   * <ul>
+   *   <li>If that program is cancelled, the forked program is cancelled too, and the cancelled
+   *   program only completes once the forked program has stopped.</li>
+   *   <li>If that program completes on its own, the forked program keeps running and nobody waits
+   *   for it. To stop it, cancel the returned future, or join it before completing.</li>
+   *   <li>If it's forked in an uncancelable region, like a finalizer, it can't be cancelled, and
+   *   nobody waits for it either.</li>
+   * </ul>
+   *
+   * <p>The concurrent combinators, like {@code parZip} or {@code race}, always join or cancel the
+   * programs they fork, so this only matters for programs forked directly.
+   *
    * @return a new program representing the forked computation
    */
   default Program<S, E, CompletableFuture<Result<E, T>>> fork() {
@@ -928,6 +1204,22 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Forks the program to be executed asynchronously using the provided executor.
+   *
+   * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
+   * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
+   *
+   * <p>The lifetime of the forked program depends on how the program that forked it ends:
+   * <ul>
+   *   <li>If that program is cancelled, the forked program is cancelled too, and the cancelled
+   *   program only completes once the forked program has stopped.</li>
+   *   <li>If that program completes on its own, the forked program keeps running and nobody waits
+   *   for it. To stop it, cancel the returned future, or join it before completing.</li>
+   *   <li>If it's forked in an uncancelable region, like a finalizer, it can't be cancelled, and
+   *   nobody waits for it either.</li>
+   * </ul>
+   *
+   * <p>The concurrent combinators, like {@code parZip} or {@code race}, always join or cancel the
+   * programs they fork, so this only matters for programs forked directly.
    *
    * @param executor the executor used to execute the program asynchronously
    * @return a new program representing the forked computation
@@ -939,6 +1231,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Adds a timeout to the program using the provided duration and the common fork-join pool.
    *
+   * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
+   * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
+   *
    * @param duration the duration of the timeout
    * @return a new program representing the computation with timeout
    */
@@ -949,23 +1244,73 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Adds a timeout to the program using the provided duration and executor.
    *
+   * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
+   * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
+   *
    * @param duration the duration of the timeout
    * @param executor the executor used to execute the timeout
    * @return a new program representing the computation with timeout
    */
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
-    return Concurrent.race(sleep(duration, executor), this, executor)
+    return race(sleep(duration, executor), this, executor)
         .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
   }
 
   /**
+   * Makes the program uncancelable: it always runs to completion.
+   *
+   * <p>A cancellation requested while the program runs is not ignored, it is deferred: it takes
+   * effect at the first step after the program finishes. Use it for steps that must not be
+   * interrupted half-way, like committing a transaction.
+   *
+   * <p>Keep in mind that:
+   * <ul>
+   *   <li>The concurrent combinators, like {@code parZip}, {@code either}, {@code race} or
+   *   {@link #timeout(Duration)}, complete only once their cancelled programs have stopped, so they
+   *   wait for an uncancelable program to finish. For example, {@code commit.uncancelable().timeout(d)}
+   *   fails with a timeout, but only once the commit is done.</li>
+   *   <li>The programs forked while it runs can't be cancelled either, and a cancelled program doesn't
+   *   wait for them.</li>
+   * </ul>
+   *
+   * @return a new program representing the uncancelable computation
+   */
+  default Program<S, E, T> uncancelable() {
+    if (this instanceof Uncancelable) {
+      return this;
+    }
+    return new Uncancelable<>(this);
+  }
+
+  /**
    * Ensures that the finalizer program is executed after the current program, regardless of success or failure.
+   *
+   * <p>The finalizer also runs when the program throws an exception or is cancelled, and it can't be
+   * cancelled itself. If the finalizer fails, its failure replaces the result of the program.
    *
    * @param finalizer the program to be executed as a finalizer
    * @return a new program representing the computation with the finalizer
    */
   default Program<S, E, T> ensuring(Program<S, E, ?> finalizer) {
     return new Ensuring<>(this, finalizer);
+  }
+
+  /**
+   * Runs the finalizer only when the program is cancelled, before the cancellation goes on.
+   *
+   * <p>The finalizer doesn't run when the program completes, fails or throws an exception, and it
+   * can't be cancelled itself. Use it to undo the work of a program that was interrupted, like
+   * rolling back a transaction. To run it in every case, use {@link #ensuring(Program)}.
+   *
+   * <p>A program is cancelled when its own cancellation is requested: joining a forked program that
+   * was cancelled is an ordinary exception for the program that joins it, and doesn't run the
+   * finalizer.
+   *
+   * @param finalizer the program to be executed if the program is cancelled
+   * @return a new program representing the computation with the finalizer
+   */
+  default Program<S, E, T> onCancel(Program<S, E, ?> finalizer) {
+    return new OnCancel<>(this, finalizer);
   }
 
   /**
@@ -1124,7 +1469,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the delayed computation
    */
   static <S, E, T> Program<S, E, T> delayed(Duration duration, Program<S, E, T> program, Executor executor) {
-    return Combine.pipe(
+    return pipe(
         sleep(duration, executor),
         _ -> program
         );
@@ -1182,7 +1527,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   @SafeVarargs
   static <S, E, T> Program<S, Collection<E>, T> validate(T value, Validator<S, E, T>... validators) {
-    return Combine.traverse(v -> v.apply(value), validators)
+    return traverse(v -> v.apply(value), validators)
         .foldMap(
             _ -> success(value),
             result -> Validation.combine(result).fold(() -> success(value), Program::failure));
@@ -1266,6 +1611,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it
    *
+   * <p>Acquiring and releasing the resource can't be cancelled, and once acquired the resource is
+   * released whether {@code use} succeeds, fails, throws an exception or is cancelled.
+   *
    * @param acquire the supplier of the resource to be acquired
    * @param use the function used to use the acquired resource
    * @param release the function used to release the acquired resource
@@ -1279,9 +1627,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Program<S, E, T> acquire,
       Function<? super T, ? extends Program<S, E, R>> use,
       Function<? super T, ? extends Program<S, E, Void>> release) {
-    return Combine.pipe(
-        acquire,
-        resource -> use.apply(resource).ensuring(release.apply(resource))
+    // installing the finalizer never observes a cancellation, so there is no gap between
+    // acquiring the resource and guaranteeing its release
+    return pipe(
+        acquire.uncancelable(),
+        // use and release are called inside suspend, after the finalizer is installed: if they
+        // throw while building their programs, the resource is released anyway
+        resource -> Program.<S, E, R>suspend(() -> use.apply(resource))
+            .ensuring(suspend(() -> release.apply(resource)))
         );
   }
 

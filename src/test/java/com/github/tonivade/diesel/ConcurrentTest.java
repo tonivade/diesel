@@ -9,12 +9,15 @@ import static com.github.tonivade.diesel.Concurrent.parAll;
 import static com.github.tonivade.diesel.Concurrent.parAny;
 import static com.github.tonivade.diesel.Concurrent.parSequence;
 import static com.github.tonivade.diesel.Concurrent.parZip;
+import static com.github.tonivade.diesel.Concurrent.race;
 import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.never;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
+import static com.github.tonivade.diesel.Program.success;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -217,5 +220,73 @@ class ConcurrentTest {
       .isCloseTo(Duration.ofSeconds(6), Duration.ofMillis(100));
     assertThat(result.value()).isEqualTo(List.of("1", "2", "3"));
     verify(supplier, times(3)).get();
+  }
+
+  @Test
+  void forkedProgramThrowsTheOriginalException() {
+    var program = boom().fork().flatMap(Program::from);
+
+    assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void raceThrowsTheOriginalException() {
+    var program = race(boom(), Program.<Void, String, Integer>never());
+
+    assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void eitherThrowsTheOriginalException() {
+    var program = either(boom(), boom());
+
+    assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void parZipThrowsTheOriginalException() {
+    var program = parZip(boom(), Program.<Void, String, Integer>never(), (a, _) -> a);
+
+    assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void parAllThrowsTheOriginalException() {
+    var program = parAll(boom(), Program.<Void, String, Integer>never());
+
+    assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void parSequenceThrowsTheOriginalException() {
+    var program = parSequence(boom(), Program.<Void, String, Integer>never());
+
+    assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void parAnyThrowsTheOriginalException() {
+    var program = parAny(boom(), boom());
+
+    assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void timeoutThrowsTheOriginalException() {
+    var program = boom().timeout(Duration.ofSeconds(10));
+
+    assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void catchAllReceivesTheOriginalException() {
+    var program = parZip(boom(), Program.<Void, String, Integer>never(), (_, _) -> "done")
+        .catchAll(e -> success(e.getClass().getSimpleName()));
+
+    assertThat(program.evalOrElseThrow()).isEqualTo("UnsupportedOperationException");
+  }
+
+  private static Program<Void, String, Integer> boom() {
+    return raise(UnsupportedOperationException::new);
   }
 }

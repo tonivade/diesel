@@ -21,6 +21,7 @@ import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -39,7 +40,8 @@ public final class Concurrent {
   /**
    * Creates a new program that represents an either of two programs executed in parallel using the common fork-join pool.
    *
-   * <p>First without error/exception wins
+   * <p>First without error/exception wins. The other program is cancelled, and the resulting
+   * program completes once it has stopped and run its finalizers.
    *
    * @param p1 the first program
    * @param p2 the second program
@@ -56,7 +58,8 @@ public final class Concurrent {
   /**
    * Creates a new program that represents an either of two programs executed in parallel using the provided executor.
    *
-   * <p>First without error/exception wins
+   * <p>First without error/exception wins. The other program is cancelled, and the resulting
+   * program completes once it has stopped and run its finalizers.
    *
    * @param p1 the first program
    * @param p2 the second program
@@ -76,7 +79,8 @@ public final class Concurrent {
   /**
    * Creates a new program that represents an race of two programs executed in parallel using the common fork-join pool.
    *
-   * <p>First to finish wins
+   * <p>First to finish wins. The other program is cancelled, and the resulting program completes
+   * once it has stopped and run its finalizers.
    *
    * @param p1 the first program
    * @param p2 the second program
@@ -93,7 +97,8 @@ public final class Concurrent {
   /**
    * Creates a new program that represents an race of two programs executed in parallel using the provided executor.
    *
-   * <p>First to finish wins
+   * <p>First to finish wins. The other program is cancelled, and the resulting program completes
+   * once it has stopped and run its finalizers.
    *
    * @param p1 the first program
    * @param p2 the second program
@@ -114,10 +119,12 @@ public final class Concurrent {
    * Executes all the given programs in parallel using the common fork-join pool and ignores all their results.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param programs the programs to be executed
    * @param <S> the type of the state
@@ -134,10 +141,12 @@ public final class Concurrent {
    * Executes all the given programs in parallel using the provided executor.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param executor the executor used to execute the programs in parallel
    * @param programs the programs to be executed
@@ -154,10 +163,12 @@ public final class Concurrent {
    * Executes all the given programs in parallel using the common fork-join pool and ignores all their results.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param programs the programs to be executed
    * @param <S> the type of the state
@@ -172,10 +183,12 @@ public final class Concurrent {
    * Executes all the given programs in parallel using the provided executor.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param executor the executor used to execute the programs in parallel
    * @param programs the programs to be executed
@@ -208,7 +221,8 @@ public final class Concurrent {
    *
    * <p>
    * Programs that fail, with an error or an exception, are ignored as long as there are other
-   * programs still running. When a program succeeds the remaining programs are cancelled. If all
+   * programs still running. When a program succeeds the remaining programs are cancelled, and the
+   * resulting program completes once they have stopped and run their finalizers. If all
    * the programs fail, the resulting program fails with the last error to happen in time.
    *
    * @param programs the programs to be executed
@@ -228,7 +242,8 @@ public final class Concurrent {
    *
    * <p>
    * Programs that fail, with an error or an exception, are ignored as long as there are other
-   * programs still running. When a program succeeds the remaining programs are cancelled. If all
+   * programs still running. When a program succeeds the remaining programs are cancelled, and the
+   * resulting program completes once they have stopped and run their finalizers. If all
    * the programs fail, the resulting program fails with the last error to happen in time.
    *
    * @param executor the executor used to execute the programs in parallel
@@ -249,7 +264,8 @@ public final class Concurrent {
    *
    * <p>
    * Programs that fail, with an error or an exception, are ignored as long as there are other
-   * programs still running. When a program succeeds the remaining programs are cancelled. If all
+   * programs still running. When a program succeeds the remaining programs are cancelled, and the
+   * resulting program completes once they have stopped and run their finalizers. If all
    * the programs fail, the resulting program fails with the last error to happen in time.
    *
    * @param programs the programs to be executed
@@ -269,7 +285,8 @@ public final class Concurrent {
    *
    * <p>
    * Programs that fail, with an error or an exception, are ignored as long as there are other
-   * programs still running. When a program succeeds the remaining programs are cancelled. If all
+   * programs still running. When a program succeeds the remaining programs are cancelled, and the
+   * resulting program completes once they have stopped and run their finalizers. If all
    * the programs fail, the resulting program fails with the last error to happen in time.
    *
    * @param executor the executor used to execute the programs in parallel
@@ -304,10 +321,12 @@ public final class Concurrent {
    * their results into a single program containing a collection of success values.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param programs the programs to be executed
    * @param <S> the type of the state
@@ -325,10 +344,12 @@ public final class Concurrent {
    * and sequences their results into a single program containing a collection of success values.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param executor the executor used to execute the programs in parallel
    * @param programs the programs to be executed
@@ -347,10 +368,12 @@ public final class Concurrent {
    * their results into a single program containing a collection of success values.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param programs the programs to be executed
    * @param <S> the type of the state
@@ -367,10 +390,12 @@ public final class Concurrent {
    * and sequences their results into a single program containing a collection of success values.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param executor the executor used to execute the programs in parallel
    * @param programs the programs to be executed
@@ -404,10 +429,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -442,10 +469,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -484,10 +513,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -530,10 +561,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -580,10 +613,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -634,10 +669,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -692,10 +729,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -754,10 +793,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -820,10 +861,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -847,10 +890,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -877,10 +922,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -910,10 +957,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -946,10 +995,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -985,10 +1036,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -1027,10 +1080,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -1072,10 +1127,12 @@ public final class Concurrent {
    * using the finisher function.
    *
    * <p>
-   * The execution is fail-fast: as soon as any program fails, the resulting program fails with
-   * that error without waiting for the rest. If several programs fail, the error returned is the
-   * first one to happen in time, not the first by position. The remaining programs are not
-   * cancelled and keep running in the background.
+   * The execution is fail-fast: as soon as any program fails, the remaining programs are
+   * cancelled and the resulting program fails with that error. If several programs fail, the
+   * error returned is the first one to happen in time, not the first by position. Cancelled
+   * programs stop at their next step and run their finalizers, and the resulting program
+   * completes once they have stopped. Cancellation is cooperative, so code that is already
+   * running, like a blocking call inside {@code supply} or {@code task}, finishes first.
    *
    * @param p0 a program to be executed in parallel
    * @param p1 a program to be executed in parallel
@@ -1156,22 +1213,33 @@ public final class Concurrent {
       });
     }
 
-    return result;
+    var outcome = result.whenComplete((value, error) -> {
+      if (error != null || value instanceof Failure) {
+        // fail-fast: cancel the programs that are still running
+        futures.forEach(future -> future.cancel(true));
+      }
+    });
+    return afterAll(futures, outcome);
   }
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> race(
       CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
-    return f1.thenApply(t -> t.map(Either::<T, U>left))
+    var outcome = f1.thenApply(t -> t.map(Either::<T, U>left))
         .applyToEither(f2.thenApply(u -> u.map(Either::<T, U>right)), identity())
         .whenComplete((_, _) -> cancelBoth(f1, f2));
+    return afterAll(List.of(f1, f2), outcome);
   }
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
       CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
-    return parAnySuccess(List.of(
+    // parAnySuccess only cancels the mapped futures it receives, and cancelling a future doesn't
+    // reach the future it was mapped from: the forked programs have to be cancelled through f1
+    // and f2, and waited for through them too
+    var outcome = parAnySuccess(List.of(
             f1.thenApply(t -> t.map(Either::<T, U>left)),
             f2.thenApply(u -> u.map(Either::<T, U>right))))
         .whenComplete((_, _) -> cancelBoth(f1, f2));
+    return afterAll(List.of(f1, f2), outcome);
   }
 
   private static <E, T> CompletableFuture<Result<E, T>> parAnySuccess(
@@ -1196,7 +1264,22 @@ public final class Concurrent {
       });
     }
 
-    return result.whenComplete((_, _) -> futures.forEach(f -> f.cancel(true)));
+    var outcome = result.whenComplete((_, _) -> futures.forEach(f -> f.cancel(true)));
+    return afterAll(futures, outcome);
+  }
+
+  /**
+   * Completes like {@code outcome} once all the futures are done too, so the cancelled programs
+   * have stopped and run their finalizers before the caller continues.
+   */
+  private static <T> CompletableFuture<T> afterAll(
+      Collection<? extends CompletableFuture<?>> futures, CompletableFuture<T> outcome) {
+    var all = new ArrayList<CompletableFuture<?>>(futures);
+    all.add(outcome);
+    return CompletableFuture.allOf(all.toArray(new CompletableFuture<?>[0]))
+        // the cancelled programs complete exceptionally, that is expected
+        .handle((_, _) -> null)
+        .thenCompose(_ -> outcome);
   }
 
   private static void cancelBoth(CompletableFuture<?> f1, CompletableFuture<?> f2) {
