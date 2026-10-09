@@ -164,7 +164,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Effect<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {}
+  record Access<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {}
 
   /**
    * Represents a new program that describes a computation that suspends its execution.
@@ -521,7 +521,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     // each one has its own future and canceler. suspend would defer it too, but without the state.
     // The canceler is installed in the step right after the operation starts: installing an
     // onCancel never stops for a cancellation, so a started operation always has its canceler
-    return effectP(state -> {
+    return accessProgram(state -> {
       var future = new CompletableFuture<Result<E, T>>();
       Program<S, E, Void> canceler = register.apply(state, future);
       return Program.<S, E, T>from(future).onCancel(canceler);
@@ -550,8 +550,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing a DSL access
    */
-  static <S, E, T> Program<S, E, T> effect(Function<? super S, ? extends T> mapper) {
-    return effectR(mapper.andThen(Result::success));
+  static <S, E, T> Program<S, E, T> access(Function<? super S, ? extends T> mapper) {
+    return accessResult(mapper.andThen(Result::success));
   }
 
   /**
@@ -564,7 +564,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a DSL access
    */
   static <S, E> Program<S, E, Void> inspect(Consumer<S> consumer) {
-    return effectR(state -> {
+    return accessResult(state -> {
       consumer.accept(state);
       return Result.unit();
     });
@@ -580,8 +580,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing a DSL access
    */
-  static <S, E, T> Program<S, E, T> effectR(Function<? super S, ? extends Result<E, T>> mapper) {
-    return effectP(mapper.andThen(Program::from));
+  static <S, E, T> Program<S, E, T> accessResult(Function<? super S, ? extends Result<E, T>> mapper) {
+    return accessProgram(mapper.andThen(Program::from));
   }
 
   /**
@@ -593,8 +593,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing a DSL access
    */
-  static <S, E, T> Program<S, E, T> effectP(Function<? super S, ? extends Program<S, E, T>> mapper) {
-    return new Effect<>(mapper);
+  static <S, E, T> Program<S, E, T> accessProgram(Function<? super S, ? extends Program<S, E, T>> mapper) {
+    return new Access<>(mapper);
   }
 
   /**
@@ -696,7 +696,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
               }
             }
           }
-        } else if (current instanceof Effect(var mapper)) {
+        } else if (current instanceof Access(var mapper)) {
           current = mapper.apply(state);
         } else if (current instanceof Async(var callback)) {
           var async = (BiConsumer<S, CompletableFuture<?>>) callback;

@@ -7,7 +7,7 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.bracket;
 import static com.github.tonivade.diesel.Program.delayed;
-import static com.github.tonivade.diesel.Program.effectR;
+import static com.github.tonivade.diesel.Program.accessResult;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.memoize;
 import static com.github.tonivade.diesel.Program.memoizeRecursive;
@@ -365,7 +365,7 @@ class ProgramTest {
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
   static Program<TestDsl.Service, TestDsl.TestError, Integer> newOperation() {
-    return effectR(TestDsl.Service::operation);
+    return accessResult(TestDsl.Service::operation);
   }
 
   static UnknownError newUnknownError() {

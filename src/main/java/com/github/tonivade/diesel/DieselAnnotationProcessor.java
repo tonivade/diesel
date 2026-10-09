@@ -178,7 +178,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   private CodeBlock createMethodBody(ExecutableElement method, String methodName) {
     if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
       return CodeBlock.builder()
-          .addStatement("return Program.effectR(state -> state.$N($L).mapError(e -> (E) e))",
+          .addStatement("return Program.accessResult(state -> state.$N($L).mapError(e -> (E) e))",
               methodName,
               method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
           .build();
@@ -194,7 +194,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     if (returnType.getKind() == TypeKind.VOID) {
       return "return Program.inspect(state -> state.$N($L))";
     }
-    return "return Program.effect(state -> state.$N($L))";
+    return "return Program.access(state -> state.$N($L))";
   }
 
   private TypeName getReturnTypeFor(ExecutableElement method) {

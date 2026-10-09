@@ -8,7 +8,7 @@ import static com.github.tonivade.diesel.Combine.chainAll;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.attempt;
-import static com.github.tonivade.diesel.Program.effect;
+import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.success;
@@ -55,36 +55,36 @@ interface Todo {
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> create(TodoEntity todo) {
-    return effect(repository -> {
+    return access(repository -> {
       repository.create(todo);
       return null;
     });
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> update(int id, UnaryOperator<TodoEntity> update) {
-    return effect(repository -> {
+    return access(repository -> {
       repository.update(id, update);
       return null;
     });
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Optional<TodoEntity>> findOne(int id) {
-    return effect(repository -> repository.find(id));
+    return access(repository -> repository.find(id));
   }
 
   static <S extends Repository, E extends Error> Program<S, E, List<TodoEntity>> findAll() {
-    return effect(Repository::findAll);
+    return access(Repository::findAll);
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> deleteOne(int id) {
-    return effect(repository -> {
+    return access(repository -> {
       repository.delete(id);
       return null;
     });
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Void> deleteAll() {
-    return effect(repository -> {
+    return access(repository -> {
       repository.deleteAll();
       return null;
     });

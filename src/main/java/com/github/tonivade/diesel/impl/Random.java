@@ -6,7 +6,7 @@ package com.github.tonivade.diesel.impl;
 
 import com.github.tonivade.diesel.Program;
 
-import static com.github.tonivade.diesel.Program.effect;
+import static com.github.tonivade.diesel.Program.access;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -41,6 +41,6 @@ public interface Random {
    * @return a program that generates a random integer
    */
   static <S extends Service, E> Program<S, E, Integer> nextInt(int bound) {
-    return effect(state -> state.nextInt(bound));
+    return access(state -> state.nextInt(bound));
   }
 }

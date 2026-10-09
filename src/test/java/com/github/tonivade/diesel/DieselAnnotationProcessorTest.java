@@ -40,7 +40,7 @@ class DieselAnnotationProcessorTest {
       public interface ConsoleDsl {
         @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, String> readLine() {
-          return Program.effect(state -> state.readLine());
+          return Program.access(state -> state.readLine());
         }
 
         @SuppressWarnings("unchecked")
@@ -85,7 +85,7 @@ class DieselAnnotationProcessorTest {
       public interface ConsoleApi {
         @SuppressWarnings("unchecked")
         static <S extends Console, E> Program<S, E, String> readLine() {
-          return Program.effect(state -> state.readLine());
+          return Program.access(state -> state.readLine());
         }
 
         @SuppressWarnings("unchecked")
@@ -130,7 +130,7 @@ class DieselAnnotationProcessorTest {
       public interface StateDsl {
         @SuppressWarnings("unchecked")
         static <S extends State, E> Program<S, E, Integer> get() {
-          return Program.effect(state -> state.get());
+          return Program.access(state -> state.get());
         }
 
         @SuppressWarnings("unchecked")
@@ -175,7 +175,7 @@ class DieselAnnotationProcessorTest {
       public interface ConsoleDsl {
         @SuppressWarnings("unchecked")
         static <S extends Console, E extends String> Program<S, E, String> readLine() {
-          return Program.effect(state -> state.readLine());
+          return Program.access(state -> state.readLine());
         }
 
         @SuppressWarnings("unchecked")
@@ -222,12 +222,12 @@ class DieselAnnotationProcessorTest {
       public interface ConsoleDsl {
         @SuppressWarnings("unchecked")
         static <S extends Console, E extends Exception> Program<S, E, String> readLine() {
-          return Program.effectR(state -> state.readLine().mapError(e -> (E) e));
+          return Program.accessResult(state -> state.readLine().mapError(e -> (E) e));
         }
 
         @SuppressWarnings("unchecked")
         static <S extends Console, E extends Exception> Program<S, E, Void> writeLine(String line) {
-          return Program.effectR(state -> state.writeLine(line).mapError(e -> (E) e));
+          return Program.accessResult(state -> state.writeLine(line).mapError(e -> (E) e));
         }
       }""");
 
@@ -268,7 +268,7 @@ class DieselAnnotationProcessorTest {
       public interface StoreDsl {
         @SuppressWarnings("unchecked")
         static <S extends Store, E, T> Program<S, E, T> get(String key, Class<T> type) {
-          return Program.effect(state -> state.get(key,type));
+          return Program.access(state -> state.get(key,type));
         }
 
         @SuppressWarnings("unchecked")
@@ -314,12 +314,12 @@ class DieselAnnotationProcessorTest {
       public interface StoreDsl {
         @SuppressWarnings("unchecked")
         static <S extends Store, E, T extends Number> Program<S, E, T> get(String key) {
-          return Program.effect(state -> state.get(key));
+          return Program.access(state -> state.get(key));
         }
 
         @SuppressWarnings("unchecked")
         static <S extends Store, E, K, V extends Comparable<V>> Program<S, E, V> lookup(K key) {
-          return Program.effect(state -> state.lookup(key));
+          return Program.access(state -> state.lookup(key));
         }
       }""");
 
@@ -360,7 +360,7 @@ class DieselAnnotationProcessorTest {
       public interface StoreDsl {
         @SuppressWarnings("unchecked")
         static <S extends Store, E extends Exception, T> Program<S, E, T> get(String key, Class<T> type) {
-          return Program.effectR(state -> state.get(key,type).mapError(e -> (E) e));
+          return Program.accessResult(state -> state.get(key,type).mapError(e -> (E) e));
         }
       }""");
 

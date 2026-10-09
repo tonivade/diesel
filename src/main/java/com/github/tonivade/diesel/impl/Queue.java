@@ -4,7 +4,7 @@
  */
 package com.github.tonivade.diesel.impl;
 
-import static com.github.tonivade.diesel.Program.effect;
+import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.inspect;
 
 import com.github.tonivade.diesel.Program;
@@ -62,6 +62,6 @@ public interface Queue<T> {
    *         from the queue
    */
   static <T, S extends Service<T>, E> Program<S, E, T> take() {
-    return effect(Service::take);
+    return access(Service::take);
   }
 }

@@ -5,7 +5,7 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Combine.pipe;
-import static com.github.tonivade.diesel.Program.effect;
+import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.inspect;
 
 import com.github.tonivade.diesel.Program;
@@ -58,7 +58,7 @@ public interface Console {
    * @return A new console operation that reads a line of text from the console.
    */
   static <S extends Service, E> Program<S, E, String> readLine() {
-    return effect(Service::readLine);
+    return access(Service::readLine);
   }
 
   /**

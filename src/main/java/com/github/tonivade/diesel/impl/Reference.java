@@ -5,7 +5,7 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Combine.pipe;
-import static com.github.tonivade.diesel.Program.effect;
+import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.inspect;
 
 import java.util.function.UnaryOperator;
@@ -62,7 +62,7 @@ public interface Reference<T> {
    * @return a program that retrieves the value from the reference
    */
   static <T, S extends Service<T>, E> Program<S, E, T> get() {
-    return effect(Service::get);
+    return access(Service::get);
   }
 
   /**

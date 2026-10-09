@@ -5,7 +5,7 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Combine.pipe;
-import static com.github.tonivade.diesel.Program.effect;
+import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.impl.Console.prompt;
@@ -45,22 +45,22 @@ interface Weather {
   record Config(String host, int port) {}
 
   static <S extends Service, E extends Error> Program<S, E, Config> readConfig() {
-    return effect(Service::readConfig);
+    return access(Service::readConfig);
   }
 
   static <S extends Service, E extends Error> Program<S, E, Optional<Forecast>> getForecast(City city) {
-    return effect(service -> service.getForecast(city));
+    return access(service -> service.getForecast(city));
   }
 
   static <S extends Service, E extends Error> Program<S, E, Void> setForecast(City city, Forecast forecast) {
-    return effect(service -> {
+    return access(service -> {
       service.setForecast(city, forecast);
       return null;
     });
   }
 
   static <S extends Service, E extends Error> Program<S, E, Optional<City>> hottestCity() {
-    return effect(Service::hottestCity);
+    return access(Service::hottestCity);
   }
 
   public static void main(String[] args) {
