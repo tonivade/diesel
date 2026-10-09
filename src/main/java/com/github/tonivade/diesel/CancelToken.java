@@ -88,6 +88,9 @@ final class CancelToken {
           // the forks are expected to complete exceptionally, they have been cancelled
           .handle((_, _) -> null)
           .join();
+      // the forks remove themselves when they complete, but that can happen after join returns,
+      // so remove them here too, or the loop would wait again on forks that are already done
+      forks.removeIf(CompletableFuture::isDone);
     }
   }
 

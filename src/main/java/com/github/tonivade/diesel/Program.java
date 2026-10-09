@@ -907,7 +907,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * the token, have stopped too; and its token doesn't listen to the parent anymore.
    */
   private static <S, E, T> void runForked(
-      @Nullable S state, CancelToken token, Program<S, E, T> program, CompletableFuture<Result<E, T>> future) {
+      @Nullable S state, CancelToken token, Program<S, E, T> program, CancelableFuture<Result<E, T>> future) {
+    if (!future.start()) {
+      // cancelled before it started: its future is already completed
+      return;
+    }
     Result<E, T> result = null;
     Throwable error = null;
     try {
@@ -1629,7 +1633,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     // acquiring the resource and guaranteeing its release
     return pipe(
         acquire.uncancelable(),
-        resource -> use.apply(resource).ensuring(release.apply(resource))
+        // use and release are called inside suspend, after the finalizer is installed: if they
+        // throw while building their programs, the resource is released anyway
+        resource -> Program.<S, E, R>suspend(() -> use.apply(resource))
+            .ensuring(suspend(() -> release.apply(resource)))
         );
   }
 

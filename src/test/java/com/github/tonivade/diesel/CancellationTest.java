@@ -501,6 +501,57 @@ class CancellationTest {
     assertThat(released).hasValue(0);
   }
 
+  @Test
+  void cancelledForkWaitingForAQueuedForkCompletes() throws Exception {
+    var executor = Executors.newSingleThreadExecutor();
+    try {
+      // the child is queued behind the parent, on the only thread of the executor
+      var parent = never().fork(executor).flatMap(_ -> start()).andThen(never());
+      expected = 1;
+
+      var future = parent.fork(executor).evalOrElseThrow();
+      allStarted.get(5, TimeUnit.SECONDS);
+      future.cancel(true);
+
+      assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void forkCancelledBeforeItStartsNeverRuns() throws Exception {
+    var executor = Executors.newSingleThreadExecutor();
+    try {
+      var busy = new CompletableFuture<Void>();
+      executor.execute(busy::join);
+
+      var future = run(executed::incrementAndGet).fork(executor).evalOrElseThrow();
+      future.cancel(true);
+
+      // completes right away, while the program is still queued
+      assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+      busy.complete(null);
+      CompletableFuture.runAsync(() -> {}, executor).get(5, TimeUnit.SECONDS);
+      assertThat(executed).hasValue(0);
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void bracketReleasesTheResourceWhenTheUseFunctionThrows() {
+    Program<Void, String, String> program = bracket(
+        success("resource"),
+        _ -> {
+          throw new IllegalStateException();
+        },
+        _ -> run(released::incrementAndGet));
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(released).hasValue(1);
+  }
+
   /**
    * A program that installs its finalizer, signals that it has started and then waits forever,
    * so it only finishes when it is cancelled.

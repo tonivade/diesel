@@ -4,7 +4,9 @@
  */
 package com.github.tonivade.diesel;
 
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Future of a forked program, cancelling it cancels the program.
@@ -17,13 +19,36 @@ import java.util.concurrent.CompletableFuture;
  * completion: the future isn't done when {@code cancel} returns, and if the program finishes before
  * it sees the request, the future completes with its result even though {@code cancel} returned
  * {@code true}.
+ *
+ * <p>A program cancelled before it starts never runs: its future completes right away. Otherwise a
+ * cancelled program waiting for a fork that is queued behind it, on the same bounded executor,
+ * would wait forever.
  */
 final class CancelableFuture<T> extends CompletableFuture<T> {
 
   private final CancelToken token;
+  // claimed either by the task that runs the program or by a cancellation, whichever comes first
+  private final AtomicBoolean started = new AtomicBoolean();
 
   CancelableFuture(CancelToken token) {
     this.token = token;
+    // the cancellation can also come from the parent program, through the token
+    var _ = token.onCancel(this::cancelIfNotStarted);
+  }
+
+  /**
+   * Claims the future for the task that runs the program, returns false if the program was
+   * cancelled before it started, and then it must not run.
+   */
+  boolean start() {
+    return started.compareAndSet(false, true);
+  }
+
+  private void cancelIfNotStarted() {
+    if (started.compareAndSet(false, true)) {
+      token.detachFromParent();
+      completeExceptionally(new CancellationException("cancelled before it started"));
+    }
   }
 
   @Override
