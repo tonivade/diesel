@@ -27,7 +27,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -1490,6 +1489,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents a sleep for the given duration using the provided executor.
    *
+   * <p>Cancelling the sleep cancels its delay too, so a cancelled sleep, like the one of a
+   * {@link #timeout(Duration)} that didn't expire, doesn't stay scheduled until the delay expires.
+   *
    * @param duration the duration of the sleep
    * @param executor the executor used to execute the sleep
    * @param <S> the type of the state
@@ -1497,8 +1499,18 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a sleep
    */
   static <S, E> Program<S, E, Void> sleep(Duration duration, Executor executor) {
-    var delayed = CompletableFuture.delayedExecutor(duration.toNanos(), TimeUnit.NANOSECONDS, executor);
-    return async((_, callback) -> delayed.execute(() -> callback.complete(Result.unit())));
+    return asyncCancelable((_, callback) -> {
+      // the scheduler only waits for the delay, the program continues on the executor
+      var delay = DelayScheduler.schedule(duration, () -> {
+        try {
+          executor.execute(() -> callback.complete(Result.unit()));
+        } catch (RuntimeException e) {
+          // the executor refused it, fail the sleep instead of leaving it waiting forever
+          callback.completeExceptionally(e);
+        }
+      });
+      return task(() -> delay.cancel(false));
+    });
   }
 
   /**

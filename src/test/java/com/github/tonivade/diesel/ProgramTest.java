@@ -33,6 +33,8 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
@@ -176,6 +178,17 @@ class ProgramTest {
 
     assertThat(result.duration())
       .isCloseTo(duration, Duration.ofMillis(100));
+  }
+
+  @Test
+  void shouldFailSleepWhenTheExecutorRejectsIt() {
+    Executor rejecting = _ -> {
+      throw new RejectedExecutionException();
+    };
+
+    var program = Program.<Void, String>sleep(Duration.ofMillis(1), rejecting);
+
+    assertThatThrownBy(program::evalOrElseThrow).isInstanceOf(RejectedExecutionException.class);
   }
 
   @Test

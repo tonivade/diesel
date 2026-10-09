@@ -552,6 +552,29 @@ class CancellationTest {
     assertThat(released).hasValue(1);
   }
 
+  @Test
+  void cancellingASleepRemovesItsDelay() throws Exception {
+    var before = DelayScheduler.pending();
+
+    var future = Program.<Void, String>sleep(Duration.ofHours(1)).fork().evalOrElseThrow();
+    awaitPendingDelays(before + 1);
+    future.cancel(true);
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(DelayScheduler.pending()).isEqualTo(before);
+  }
+
+  @Test
+  void timeoutRemovesItsDelayWhenTheProgramFinishesFirst() {
+    var before = DelayScheduler.pending();
+
+    var result = Program.<Void, String, String>success("done").timeout(Duration.ofHours(1)).eval();
+
+    // the sleep of the timeout has been cancelled, it doesn't wait an hour to expire
+    assertThat(result).isEqualTo(Result.success("done"));
+    assertThat(DelayScheduler.pending()).isEqualTo(before);
+  }
+
   /**
    * A program that installs its finalizer, signals that it has started and then waits forever,
    * so it only finishes when it is cancelled.
@@ -579,6 +602,16 @@ class CancellationTest {
   private void signalStarted() {
     if (started.incrementAndGet() == expected) {
       allStarted.complete(Result.unit());
+    }
+  }
+
+  private static void awaitPendingDelays(int count) {
+    var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+    while (DelayScheduler.pending() < count) {
+      if (System.nanoTime() > deadline) {
+        throw new AssertionError("the delay of the sleep was never scheduled");
+      }
+      Thread.onSpinWait();
     }
   }
 
