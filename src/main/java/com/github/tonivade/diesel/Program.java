@@ -541,6 +541,22 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
+   * using the provided consumer.
+   *
+   * @param consumer the consumer used to access the DSL computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing a DSL access
+   */
+  static <S, E> Program<S, E, Void> inspect(Consumer<S> consumer) {
+    return access(state -> {
+      consumer.accept(state);
+      return null;
+    });
+  }
+
+  /**
+   * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
    * sing the provided function.
    *
    * @param mapper the function used to access the DSL computation
@@ -551,22 +567,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T> Program<S, E, T> access(Function<? super S, ? extends T> mapper) {
     return accessResult(mapper.andThen(Result::success));
-  }
-
-  /**
-   * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
-   * using the provided consumer.
-   *
-   * @param consumer the consumer used to access the DSL computation
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @return a new program representing a DSL access
-   */
-  static <S, E> Program<S, E, Void> inspect(Consumer<S> consumer) {
-    return accessResult(state -> {
-      consumer.accept(state);
-      return Result.unit();
-    });
   }
 
   /**
@@ -594,6 +594,46 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E, T> Program<S, E, T> accessProgram(Function<? super S, ? extends Program<S, E, T>> mapper) {
     return new Access<>(mapper);
+  }
+
+  /**
+   * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
+   * sing the provided function.
+   *
+   * @param mapper the function used to access the DSL computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a DSL access
+   */
+  static <S, E, T> Program<S, E, T> accessFuture(Function<? super S, ? extends CompletableFuture<T>> mapper) {
+    return accessFutureResult(mapper.andThen(future -> future.thenApply(Result::success)));
+  }
+
+  /**
+   * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
+   * sing the provided function.
+   *
+   * @param mapper the function used to access the DSL computation
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a DSL access
+   */
+  static <S, E, T> Program<S, E, T> accessFutureResult(Function<? super S, ? extends CompletableFuture<? extends Result<E, T>>> mapper) {
+    return asyncCancelable((state, callback) -> {
+      var future = mapper.apply(state);
+      // not async: completing the callback is cheap, and it avoids depending on the common pool
+      // the returned future can be ignored because the action cannot throw
+      var _ = future.whenComplete((result, error) -> {
+        if (error != null) {
+          callback.completeExceptionally(error);
+        } else {
+          callback.complete(result);
+        }
+      });
+      return Program.task(() -> future.cancel(true));
+    });
   }
 
   /**

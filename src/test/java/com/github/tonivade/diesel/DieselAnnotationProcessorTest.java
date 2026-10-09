@@ -240,6 +240,45 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
+  void shouldGenerateDslCodeWithCompletableFuture() {
+    var file = forSourceLines("test.Http",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel
+      public interface Http {
+        CompletableFuture<String> get(String request);
+      }""");
+
+    var expected = forSourceLines("test.HttpDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface HttpDsl {
+        @SuppressWarnings("unchecked")
+        static <S extends Http, E> Program<S, E, String> get(String request) {
+          return Program.accessFuture(state -> state.get(request));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
   void shouldGenerateDslCodeWithGenericMethod() {
     var file = forSourceLines("test.Store",
       """
