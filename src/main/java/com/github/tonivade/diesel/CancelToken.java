@@ -33,6 +33,9 @@ final class CancelToken {
   private final AtomicBoolean cancelled = new AtomicBoolean();
   private final Set<Callback> callbacks = ConcurrentHashMap.newKeySet();
   private final Set<CompletableFuture<?>> forks = ConcurrentHashMap.newKeySet();
+  // not final nor volatile: it's written once in newChild, before the token is passed to the
+  // executor that runs the forked program, and submitting a task to an executor makes everything
+  // done before visible to the task, so detachFromParent always reads the registration
   private Registration parentRegistration = NOOP;
 
   private CancelToken() {}
