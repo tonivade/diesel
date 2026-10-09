@@ -549,9 +549,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a DSL access
    */
   static <S, E> Program<S, E, Void> inspect(Consumer<S> consumer) {
-    return access(state -> {
+    return accessResult(state -> {
       consumer.accept(state);
-      return null;
+      return Result.unit();
     });
   }
 
@@ -632,7 +632,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           callback.complete(result);
         }
       });
-      return Program.task(() -> future.cancel(true));
+      return task(() -> future.cancel(true));
     });
   }
 
