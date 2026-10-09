@@ -1176,7 +1176,19 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
    * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
-   * The forked program is also cancelled when the program that forked it is cancelled.
+   *
+   * <p>The lifetime of the forked program depends on how the program that forked it ends:
+   * <ul>
+   *   <li>If that program is cancelled, the forked program is cancelled too, and the cancelled
+   *   program only completes once the forked program has stopped.</li>
+   *   <li>If that program completes on its own, the forked program keeps running and nobody waits
+   *   for it. To stop it, cancel the returned future, or join it before completing.</li>
+   *   <li>If it's forked in an uncancelable region, like a finalizer, it can't be cancelled, and
+   *   nobody waits for it either.</li>
+   * </ul>
+   *
+   * <p>The concurrent combinators, like {@code parZip} or {@code race}, always join or cancel the
+   * programs they fork, so this only matters for programs forked directly.
    *
    * @return a new program representing the forked computation
    */
@@ -1189,7 +1201,19 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
    * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
-   * The forked program is also cancelled when the program that forked it is cancelled.
+   *
+   * <p>The lifetime of the forked program depends on how the program that forked it ends:
+   * <ul>
+   *   <li>If that program is cancelled, the forked program is cancelled too, and the cancelled
+   *   program only completes once the forked program has stopped.</li>
+   *   <li>If that program completes on its own, the forked program keeps running and nobody waits
+   *   for it. To stop it, cancel the returned future, or join it before completing.</li>
+   *   <li>If it's forked in an uncancelable region, like a finalizer, it can't be cancelled, and
+   *   nobody waits for it either.</li>
+   * </ul>
+   *
+   * <p>The concurrent combinators, like {@code parZip} or {@code race}, always join or cancel the
+   * programs they fork, so this only matters for programs forked directly.
    *
    * @param executor the executor used to execute the program asynchronously
    * @return a new program representing the forked computation
