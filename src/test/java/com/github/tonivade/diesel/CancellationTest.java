@@ -277,6 +277,13 @@ class CancellationTest {
   }
 
   @Test
+  void uncancelableIsNotNested() {
+    var program = run(executed::incrementAndGet).uncancelable();
+
+    assertThat(program.uncancelable()).isSameAs(program);
+  }
+
+  @Test
   void uncancelableDefersTheCancellation() throws Exception {
     expected = 1;
     var after = new AtomicInteger();

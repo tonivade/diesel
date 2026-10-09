@@ -1270,6 +1270,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the uncancelable computation
    */
   default Program<S, E, T> uncancelable() {
+    if (this instanceof Uncancelable) {
+      return this;
+    }
     return new Uncancelable<>(this);
   }
 
