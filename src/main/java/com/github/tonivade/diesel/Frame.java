@@ -20,6 +20,9 @@ sealed interface Frame<S> {
 
   record FinalizerFrame<S>(Program<S, ?, ?> finalizer) implements Frame<S> {}
 
+  // a finalizer that only runs when the program is cancelled
+  record OnCancelFrame<S>(Program<S, ?, ?> finalizer) implements Frame<S> {}
+
   // marks the end of an uncancelable region
   record UnmaskFrame<S>() implements Frame<S> {}
 
@@ -38,6 +41,10 @@ sealed interface Frame<S> {
 
   static <S> FinalizerFrame<S> finalizer(Program<S, ?, ?> finalizer) {
     return new FinalizerFrame<>(finalizer);
+  }
+
+  static <S> OnCancelFrame<S> onCancel(Program<S, ?, ?> finalizer) {
+    return new OnCancelFrame<>(finalizer);
   }
 
   static <S> UnmaskFrame<S> unmask() {

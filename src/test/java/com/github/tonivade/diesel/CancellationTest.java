@@ -327,6 +327,85 @@ class CancellationTest {
     assertThat(executed).hasValue(1);
   }
 
+  @Test
+  void onCancelRunsWhenTheProgramIsCancelled() {
+    var program = start().andThen(never()).onCancel(run(released::incrementAndGet));
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void onCancelDoesNotRunWhenTheProgramCompletes() {
+    var program = run(executed::incrementAndGet).onCancel(run(released::incrementAndGet));
+
+    var result = program.eval();
+
+    assertThat(result).isEqualTo(Result.success(null));
+    assertThat(executed).hasValue(1);
+    assertThat(released).hasValue(0);
+  }
+
+  @Test
+  void onCancelDoesNotRunWhenTheProgramFails() {
+    var program = Program.<Void, String, Void>failure("error").onCancel(run(released::incrementAndGet));
+
+    var result = program.eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(0);
+  }
+
+  @Test
+  void onCancelDoesNotRunWhenTheProgramThrows() {
+    var program = Program.<Void, String, Void>raise(IllegalStateException::new)
+        .onCancel(run(released::incrementAndGet));
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(released).hasValue(0);
+  }
+
+  @Test
+  void onCancelDoesNotRunWhenJoiningACancelledFork() {
+    // the program that joins is not cancelled, the fork is
+    var program = never().fork()
+        .flatMap(fork -> run(() -> fork.cancel(true)).andThen(Program.from(fork)))
+        .onCancel(run(released::incrementAndGet))
+        .map(_ -> "joined")
+        .catchAll(_ -> success("recovered"));
+
+    var result = program.eval();
+
+    assertThat(result).isEqualTo(Result.success("recovered"));
+    assertThat(released).hasValue(0);
+  }
+
+  @Test
+  void onCancelFinalizerCannotBeCancelled() {
+    var finalizer = Program.<Void, String>sleep(Duration.ofMillis(50)).andThen(run(released::incrementAndGet));
+    var program = start().andThen(never()).onCancel(finalizer);
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void onCancelRunsTogetherWithEnsuring() {
+    var program = start().andThen(never())
+        .onCancel(run(released::incrementAndGet))
+        .ensuring(run(executed::incrementAndGet));
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(1);
+    assertThat(executed).hasValue(1);
+  }
+
   /**
    * A program that installs its finalizer, signals that it has started and then waits forever,
    * so it only finishes when it is cancelled.

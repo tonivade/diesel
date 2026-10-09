@@ -11,6 +11,7 @@ import static com.github.tonivade.diesel.Concurrent.race;
 import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Frame.OnCancelFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.purefun.Kind;
 
@@ -188,6 +189,18 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record Ensuring<S, E, T>(Program<S, E, T> current, Program<S, E, ?> finalizer) implements Program<S, E, T> {}
+
+  /**
+   * Represents a computation that runs a finalizer only when the program is cancelled. The
+   * finalizer can't be cancelled.
+   *
+   * @param current the current program
+   * @param finalizer the program to be executed if the program is cancelled
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record OnCancel<S, E, T>(Program<S, E, T> current, Program<S, E, ?> finalizer) implements Program<S, E, T> {}
 
   /**
    * Represents a memoized computation that caches the result of the program.
@@ -637,6 +650,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
                 resumed = true;
               }
               case UnmaskFrame<S> _ -> masked--;
+              case OnCancelFrame<S> _ -> {
+                // the program completed, so it wasn't cancelled
+              }
               case CatchFrame<S> _ -> {
                 // leaving a catchAll scope normally, its handler no longer applies
               }
@@ -650,6 +666,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           current = from(result);
         } else if (current instanceof Ensuring(var source, var finalizer)) {
           stack.push(Frame.finalizer(finalizer));
+          current = source;
+        } else if (current instanceof OnCancel(var source, var finalizer)) {
+          stack.push(Frame.onCancel(finalizer));
           current = source;
         } else if (current instanceof Uncancelable(var source)) {
           masked = enterUncancelable(stack, masked);
@@ -715,6 +734,19 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
               current = finalizer;
               resumed = true;
             }
+            case OnCancelFrame(var finalizer) -> {
+              // only when this program is being cancelled, not for an ordinary exception or a
+              // cancelled fork joined by this program
+              if (masked == 0 && token.isCancelled()) {
+                // run the finalizer, then keep unwinding with the same exception
+                stack.push(Frame.fold(
+                    _ -> raise(() -> e),
+                    _ -> raise(() -> e)));
+                masked = enterUncancelable(stack, masked);
+                current = finalizer;
+                resumed = true;
+              }
+            }
             case UnmaskFrame<S> _ -> masked--;
             case FoldFrame<S> _ -> {
               // a continuation inside the catchAll scope, discarded
@@ -732,14 +764,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <ul>
    *   <li>Inside an uncancelable region ({@code masked > 0}), like a finalizer: the cleanup has to
    *   run to completion.</li>
-   *   <li>When the step installs a finalizer ({@link Ensuring}). {@code bracket} acquires the resource
+   *   <li>When the step installs a finalizer ({@link Ensuring} or {@link OnCancel}). {@code bracket} acquires the resource
    *   in an uncancelable region, and the step right after it installs the release. Stopping there
    *   would leave the resource acquired with no release to run, so a finalizer is always installed
    *   and the program stops at the step after it, running the finalizer while it unwinds.</li>
    * </ul>
    */
   private static boolean shouldStop(CancelToken token, int masked, Program<?, ?, ?> current) {
-    if (masked > 0 || current instanceof Ensuring) {
+    if (masked > 0 || current instanceof Ensuring || current instanceof OnCancel) {
       return false;
     }
     return token.isCancelled();
@@ -1192,6 +1224,24 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   default Program<S, E, T> ensuring(Program<S, E, ?> finalizer) {
     return new Ensuring<>(this, finalizer);
+  }
+
+  /**
+   * Runs the finalizer only when the program is cancelled, before the cancellation goes on.
+   *
+   * <p>The finalizer doesn't run when the program completes, fails or throws an exception, and it
+   * can't be cancelled itself. Use it to undo the work of a program that was interrupted, like
+   * rolling back a transaction. To run it in every case, use {@link #ensuring(Program)}.
+   *
+   * <p>A program is cancelled when its own cancellation is requested: joining a forked program that
+   * was cancelled is an ordinary exception for the program that joins it, and doesn't run the
+   * finalizer.
+   *
+   * @param finalizer the program to be executed if the program is cancelled
+   * @return a new program representing the computation with the finalizer
+   */
+  default Program<S, E, T> onCancel(Program<S, E, ?> finalizer) {
+    return new OnCancel<>(this, finalizer);
   }
 
   /**
