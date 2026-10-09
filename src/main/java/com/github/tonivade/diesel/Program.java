@@ -668,83 +668,96 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         if (shouldStop(token, masked, current)) {
           throw new CancelToken.Cancelled();
         }
-        if (current instanceof Pure(var result)) {
-          var resumed = false;
-          while (!resumed) {
-            switch (stack.poll()) {
-              case null -> {
-                return (Result<E, T>) result;
-              }
-              case FoldFrame(var onFailure, var onSuccess) -> {
-                current = result.fold(onFailure, onSuccess);
-                resumed = true;
-              }
-              case FinalizerFrame(var finalizer) -> {
-                // run the finalizer and then continue with the result, unless the finalizer fails
-                stack.push(Frame.fold(Program::failure, _ -> from(result)));
-                masked = enterUncancelable(stack, masked);
-                current = finalizer;
-                resumed = true;
-              }
-              case UnmaskFrame<S> _ -> masked--;
-              case OnCancelFrame<S> _ -> {
-                // the program completed, so it wasn't cancelled
-              }
-              case CatchFrame<S> _ -> {
-                // leaving a catchAll scope normally, its handler no longer applies
+        switch (current) {
+          case null -> {
+            return sneakyThrow(new NullPointerException("program cannot be null"));
+          }
+          case Pure(var result) -> {
+            var resumed = false;
+            while (!resumed) {
+              switch (stack.poll()) {
+                case null -> {
+                  return (Result<E, T>) result;
+                }
+                case FoldFrame(var onFailure, var onSuccess) -> {
+                  current = result.fold(onFailure, onSuccess);
+                  resumed = true;
+                }
+                case FinalizerFrame(var finalizer) -> {
+                  // run the finalizer and then continue with the result, unless the finalizer fails
+                  stack.push(Frame.fold(Program::failure, _ -> from(result)));
+                  masked = enterUncancelable(stack, masked);
+                  current = finalizer;
+                  resumed = true;
+                }
+                case UnmaskFrame<S> _ -> masked--;
+                case OnCancelFrame<S> _ -> {
+                  // the program completed, so it wasn't cancelled
+                }
+                case CatchFrame<S> _ -> {
+                  // leaving a catchAll scope normally, its handler no longer applies
+                }
               }
             }
           }
-        } else if (current instanceof Access(var mapper)) {
-          current = mapper.apply(state);
-        } else if (current instanceof Async(var callback)) {
-          var async = (BiConsumer<S, CompletableFuture<?>>) callback;
-          var result = masked == 0 ? awaitCancelable(state, async, token) : awaitUncancelable(state, async);
-          current = from(result);
-        } else if (current instanceof Ensuring(var source, var finalizer)) {
-          stack.push(Frame.finalizer(finalizer));
-          current = source;
-        } else if (current instanceof OnCancel(var source, var finalizer)) {
-          stack.push(Frame.onCancel(finalizer));
-          current = source;
-        } else if (current instanceof Uncancelable(var source)) {
-          masked = enterUncancelable(stack, masked);
-          current = source;
-        } else if (current instanceof Forked forked) {
-          // a fork started in an uncancelable region, like a finalizer, can't be cancelled either.
-          // It isn't tracked by the parent either, so a cancelled parent doesn't wait for it: the
-          // programs that wait for their forks, like timeout or par*, are not affected
-          var parent = masked == 0 ? token : CancelToken.NONE;
-          current = success(startFork(state, parent, forked.current, forked.executor));
-        } else if (current instanceof FoldMap(var source, var onFailure, var onSuccess)) {
-          stack.push(Frame.fold(onFailure, onSuccess));
-          current = source;
-        } else if (current instanceof Raise(var throwable)) {
-          return sneakyThrow(throwable.get());
-        } else if (current instanceof Catch(var source, var recover)) {
-          stack.push(Frame.catch_(recover));
-          current = source;
-        } else if (current instanceof Suspend(var supplier)) {
-          current = supplier.get();
-        } else if (current instanceof Memoized memoized) {
-          var result = memoized.get();
-          if (result != null) {
-            current = from(result);
-          } else {
-            stack.push(Frame.fold(
-                error -> {
-                  memoized.set(Result.failure(error));
-                  return failure(error);
-                },
-                value -> {
-                  memoized.set(Result.success(value));
-                  return success(value);
-                }));
-            current = memoized.current;
+          case Access(var mapper) -> {
+            current = mapper.apply(state);
           }
-        } else {
-          // every subtype is handled above, so only a null program can reach here
-          throw new NullPointerException("program cannot be null");
+          case Async(var callback) -> {
+            var async = (BiConsumer<S, CompletableFuture<?>>) callback;
+            var result = masked == 0 ? awaitCancelable(state, async, token) : awaitUncancelable(state, async);
+            current = from(result);
+          }
+          case Ensuring(var source, var finalizer) -> {
+            stack.push(Frame.finalizer(finalizer));
+            current = source;
+          }
+          case OnCancel(var source, var finalizer) -> {
+            stack.push(Frame.onCancel(finalizer));
+            current = source;
+          }
+          case Uncancelable(var source) -> {
+            masked = enterUncancelable(stack, masked);
+            current = source;
+          }
+          case Forked forked -> {
+            // a fork started in an uncancelable region, like a finalizer, can't be cancelled either.
+            // It isn't tracked by the parent either, so a cancelled parent doesn't wait for it: the
+            // programs that wait for their forks, like timeout or par*, are not affected
+            var parent = masked == 0 ? token : CancelToken.NONE;
+            current = success(startFork(state, parent, forked.current, forked.executor));
+          }
+          case FoldMap(var source, var onFailure, var onSuccess) -> {
+            stack.push(Frame.fold(onFailure, onSuccess));
+            current = source;
+          }
+          case Raise(var throwable) -> {
+            return sneakyThrow(throwable.get());
+          }
+          case Catch(var source, var recover) -> {
+            stack.push(Frame.catch_(recover));
+            current = source;
+          }
+          case Suspend(var supplier) -> {
+            current = supplier.get();
+          }
+          case Memoized memoized -> {
+            var result = memoized.get();
+            if (result != null) {
+              current = from(result);
+            } else {
+              stack.push(Frame.fold(
+                  error -> {
+                    memoized.set(Result.failure(error));
+                    return failure(error);
+                  },
+                  value -> {
+                    memoized.set(Result.success(value));
+                    return success(value);
+                  }));
+              current = memoized.current;
+            }
+          }
         }
       } catch (Throwable e) {
         // unwind to the nearest catchAll, discarding the continuations inside its scope and
