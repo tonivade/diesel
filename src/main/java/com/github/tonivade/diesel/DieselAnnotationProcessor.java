@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Generated;
@@ -50,7 +51,6 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   private static final String UNCHECKED = "\"unchecked\"";
   private static final String DSL_SUFFIX = "Dsl";
   private static final String DIESEL_PACKAGE_NAME = "com.github.tonivade.diesel";
-  private static final String RESULT = "Result";
   private static final String PROGRAM = "Program";
   private static final String VALUE = "value";
   private static final String ERROR_TYPE = "errorType";
@@ -176,7 +176,21 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private CodeBlock createMethodBody(ExecutableElement method, String methodName) {
-    if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
+    if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName() +  "<" + Result.class.getName())) {
+      return CodeBlock.builder()
+          .addStatement("return Program.accessFutureResult(state -> state.$N($L).thenApply(r -> r.mapError(e -> (E) e)))",
+              methodName,
+              method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+          .build();
+    }
+    if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName())) {
+      return CodeBlock.builder()
+          .addStatement("return Program.accessFuture(state -> state.$N($L))",
+              methodName,
+              method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+          .build();
+    }
+    if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(Result.class.getName())) {
       return CodeBlock.builder()
           .addStatement("return Program.accessResult(state -> state.$N($L).mapError(e -> (E) e))",
               methodName,
@@ -199,7 +213,13 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private TypeName getReturnTypeFor(ExecutableElement method) {
     var returnType = method.getReturnType();
-    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
+    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName() + "<" + Result.class.getName())) {
+      return TypeName.get(((DeclaredType) declared.getTypeArguments().getLast()).getTypeArguments().getLast());
+    }
+    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName())) {
+      return TypeName.get(declared.getTypeArguments().getLast());
+    }
+    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(Result.class.getName())) {
       return TypeName.get(declared.getTypeArguments().getLast());
     }
     return isPrimitiveOrVoid(returnType) ?
