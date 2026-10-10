@@ -1619,7 +1619,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   static <S, E, T, R> Program<S, E, R> bracket(
       Program<S, E, T> acquire,
       Function<? super T, ? extends Program<S, E, R>> use,
-      Function<? super T, ? extends Program<S, E, Void>> release) {
+      Function<? super T, ? extends Program<S, E, ?>> release) {
     // installing the finalizer never observes a cancellation, so there is no gap between
     // acquiring the resource and guaranteeing its release
     return pipe(
@@ -1627,7 +1627,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         // use and release are called inside suspend, after the finalizer is installed: if they
         // throw while building their programs, the resource is released anyway
         resource -> Program.<S, E, R>suspend(() -> use.apply(resource))
-            .ensuring(suspend(() -> release.apply(resource)))
+            .ensuring(suspend(() -> release.apply(resource).andThen(unit())))
         );
   }
 
