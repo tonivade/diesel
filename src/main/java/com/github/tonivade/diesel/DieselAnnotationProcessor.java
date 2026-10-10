@@ -176,6 +176,13 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private CodeBlock createMethodBody(ExecutableElement method, String methodName) {
+    if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName() +  "<" + Result.class.getName())) {
+      return CodeBlock.builder()
+          .addStatement("return Program.accessFutureResult(state -> state.$N($L).thenApply(r -> r.mapError(e -> (E) e)))",
+              methodName,
+              method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+          .build();
+    }
     if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName())) {
       return CodeBlock.builder()
           .addStatement("return Program.accessFuture(state -> state.$N($L))",
@@ -206,6 +213,9 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private TypeName getReturnTypeFor(ExecutableElement method) {
     var returnType = method.getReturnType();
+    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName() + "<" + Result.class.getName())) {
+      return TypeName.get(((DeclaredType) declared.getTypeArguments().getLast()).getTypeArguments().getLast());
+    }
     if (returnType instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName())) {
       return TypeName.get(declared.getTypeArguments().getLast());
     }
