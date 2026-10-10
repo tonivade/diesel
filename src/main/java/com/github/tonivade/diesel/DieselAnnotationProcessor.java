@@ -176,21 +176,22 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private CodeBlock createMethodBody(ExecutableElement method, String methodName) {
-    if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName() +  "<" + Result.class.getName())) {
+    var returnType = method.getReturnType();
+    if (hasRawTypeOfRawType(returnType, CompletableFuture.class, Result.class)) {
       return CodeBlock.builder()
           .addStatement("return Program.accessFutureResult(state -> state.$N($L).thenApply(r -> r.mapError(e -> (E) e)))",
               methodName,
               method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
           .build();
     }
-    if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName())) {
+    if (hasRawType(returnType, CompletableFuture.class)) {
       return CodeBlock.builder()
           .addStatement("return Program.accessFuture(state -> state.$N($L))",
               methodName,
               method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
           .build();
     }
-    if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(Result.class.getName())) {
+    if (hasRawType(returnType, Result.class)) {
       return CodeBlock.builder()
           .addStatement("return Program.accessResult(state -> state.$N($L).mapError(e -> (E) e))",
               methodName,
@@ -198,7 +199,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
           .build();
     }
     return CodeBlock.builder()
-        .addStatement(createStatement(method.getReturnType()),
+        .addStatement(createStatement(returnType),
             methodName,
             method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
         .build();
@@ -213,17 +214,47 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private TypeName getReturnTypeFor(ExecutableElement method) {
     var returnType = method.getReturnType();
-    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName() + "<" + Result.class.getName())) {
-      return TypeName.get(((DeclaredType) declared.getTypeArguments().getLast()).getTypeArguments().getLast());
+    if (hasRawTypeOfRawType(returnType, CompletableFuture.class, Result.class)) {
+      return TypeName.get(getTypeArguments(getTypeArguments(returnType).getLast()).getLast());
     }
-    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(CompletableFuture.class.getName())) {
-      return TypeName.get(declared.getTypeArguments().getLast());
+    if (hasRawType(returnType, CompletableFuture.class)) {
+      return TypeName.get(getTypeArguments(returnType).getLast());
     }
-    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(Result.class.getName())) {
-      return TypeName.get(declared.getTypeArguments().getLast());
+    if (hasRawType(returnType, Result.class)) {
+      return TypeName.get(getTypeArguments(returnType).getLast());
     }
     return isPrimitiveOrVoid(returnType) ?
         TypeName.get(returnType).box() : TypeName.get(returnType);
+  }
+
+  private List<? extends TypeMirror> getTypeArguments(TypeMirror returnType) {
+    return ((DeclaredType) returnType).getTypeArguments();
+  }
+
+  private boolean hasRawTypeOfRawType(TypeMirror type, Class<?> first, Class<?> second) {
+    if (hasRawType(type, first)) {
+      var futureType = ((DeclaredType) type).getTypeArguments().getLast();
+      return hasRawType(futureType, second);
+    }
+    return false;
+  }
+
+  private boolean hasRawType(TypeMirror type, Class<?> expected) {
+    if (type instanceof DeclaredType) {
+      var types = processingEnv.getTypeUtils();
+      var expectedElement = typeElement(expected);
+
+      return expectedElement != null
+          && types.isSameType(
+              types.erasure(type),
+              types.erasure(expectedElement.asType()));
+    }
+    return false;
+  }
+
+  private TypeElement typeElement(Class<?> type) {
+    return processingEnv.getElementUtils()
+        .getTypeElement(type.getCanonicalName());
   }
 
   private boolean isPrimitiveOrVoid(TypeMirror returnType) {
