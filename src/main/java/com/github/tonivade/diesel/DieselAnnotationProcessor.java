@@ -183,35 +183,14 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         if (!declaredType.getTypeArguments().isEmpty()) {
           var futureType = declaredType.getTypeArguments().getLast();
           if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
-            if (!futureDeclaredType.getTypeArguments().isEmpty()) {
-              return CodeBlock.builder()
-                  .addStatement("return Program.accessFutureResult(state -> state.$N($L).thenApply(r -> r.mapError(e -> (E) e)))",
-                      methodName,
-                      method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
-                  .build();
-            } else {
-              return CodeBlock.builder()
-                  .addStatement("return Program.accessFutureResult(state -> state.$N($L).<$T<E, Object>>thenApply(r -> r))",
-                      methodName,
-                      method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")),
-                      Result.class
-                      )
-                  .build();
-            }
-          } else {
-            return CodeBlock.builder()
-                .addStatement("return Program.accessFuture(state -> state.$N($L))",
-                    methodName,
-                    method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
-                .build();
+            return createMethodBodyForCompletableFutureOfResult(method, methodName, futureDeclaredType);
           }
-        } else {
-          return CodeBlock.builder()
-              .addStatement("return Program.accessFuture(state -> state.$N($L))",
-                  methodName,
-                  method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
-              .build();
         }
+        return CodeBlock.builder()
+            .addStatement("return Program.accessFuture(state -> state.$N($L))",
+                methodName,
+                method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+            .build();
       }
       if (hasRawType(declaredType, Result.class)) {
         return CodeBlock.builder()
@@ -222,13 +201,31 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
       }
     }
     return CodeBlock.builder()
-        .addStatement(createStatement(returnType),
+        .addStatement(createSimpleStatement(returnType),
             methodName,
             method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
         .build();
   }
 
-  private String createStatement(TypeMirror returnType) {
+  private CodeBlock createMethodBodyForCompletableFutureOfResult(ExecutableElement method, String methodName,
+      DeclaredType futureDeclaredType) {
+    if (!futureDeclaredType.getTypeArguments().isEmpty()) {
+      return CodeBlock.builder()
+          .addStatement("return Program.accessFutureResult(state -> state.$N($L).thenApply(r -> r.mapError(e -> (E) e)))",
+              methodName,
+              method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+          .build();
+    }
+    return CodeBlock.builder()
+        .addStatement("return Program.accessFutureResult(state -> state.$N($L).<$T<E, Object>>thenApply(r -> r))",
+            methodName,
+            method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")),
+            Result.class
+            )
+        .build();
+  }
+
+  private String createSimpleStatement(TypeMirror returnType) {
     if (returnType.getKind() == TypeKind.VOID) {
       return "return Program.inspect(state -> state.$N($L))";
     }
@@ -239,33 +236,33 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var returnType = method.getReturnType();
     if (returnType instanceof DeclaredType declaredType) {
       if (hasRawType(declaredType, CompletableFuture.class)) {
-        if (!declaredType.getTypeArguments().isEmpty()) {
-          var futureType = declaredType.getTypeArguments().getLast();
-          if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
-            if (!futureDeclaredType.getTypeArguments().isEmpty()) {
-              return TypeName.get(futureDeclaredType.getTypeArguments().getLast());
-            } else {
-              return WildcardTypeName.subtypeOf(Object.class);
-            }
-          } else {
-            return TypeName.get(futureType);
-          }
-        } else {
-          return WildcardTypeName.subtypeOf(Object.class);
-        }
+        return getReturnTypeForCompletableFuture(declaredType);
       }
       if (hasRawType(declaredType, Result.class)) {
         if (!declaredType.getTypeArguments().isEmpty()) {
           return TypeName.get(declaredType.getTypeArguments().getLast());
-        } else {
-          return WildcardTypeName.subtypeOf(Object.class);
         }
+        return WildcardTypeName.subtypeOf(Object.class);
       }
     }
     if (isPrimitiveOrVoid(returnType)) {
       return TypeName.get(returnType).box();
     }
     return TypeName.get(returnType);
+  }
+
+  private TypeName getReturnTypeForCompletableFuture(DeclaredType declaredType) {
+    if (!declaredType.getTypeArguments().isEmpty()) {
+      var futureType = declaredType.getTypeArguments().getLast();
+      if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
+        if (!futureDeclaredType.getTypeArguments().isEmpty()) {
+          return TypeName.get(futureDeclaredType.getTypeArguments().getLast());
+        }
+        return WildcardTypeName.subtypeOf(Object.class);
+      }
+      return TypeName.get(futureType);
+    }
+    return WildcardTypeName.subtypeOf(Object.class);
   }
 
   private boolean hasRawType(DeclaredType type, Class<?> expected) {
