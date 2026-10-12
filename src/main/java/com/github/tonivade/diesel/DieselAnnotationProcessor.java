@@ -29,6 +29,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.WildcardType;
 import javax.tools.Diagnostic.Kind;
 
 import com.palantir.javapoet.AnnotationSpec;
@@ -203,6 +204,11 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
       if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
         return createMethodBodyForCompletableFutureOfResult(method, methodName, futureDeclaredType);
       }
+      if (futureType instanceof WildcardType futureWildcardType
+          && futureWildcardType.getExtendsBound() instanceof DeclaredType futureDeclaredType
+          && hasRawType(futureDeclaredType, Result.class)) {
+        return createMethodBodyForCompletableFutureOfResult(method, methodName, futureDeclaredType);
+      }
     }
     return CodeBlock.builder()
         .addStatement("return Program.accessFuture(state -> state.$N($L))",
@@ -260,6 +266,14 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     }
     var futureType = declaredType.getTypeArguments().getLast();
     if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
+      if (futureDeclaredType.getTypeArguments().isEmpty()) {
+        return WildcardTypeName.subtypeOf(Object.class);
+      }
+      return TypeName.get(futureDeclaredType.getTypeArguments().getLast());
+    }
+    if (futureType instanceof WildcardType futureWildcardType
+        && futureWildcardType.getExtendsBound() instanceof DeclaredType futureDeclaredType
+        && hasRawType(futureDeclaredType, Result.class)) {
       if (futureDeclaredType.getTypeArguments().isEmpty()) {
         return WildcardTypeName.subtypeOf(Object.class);
       }
