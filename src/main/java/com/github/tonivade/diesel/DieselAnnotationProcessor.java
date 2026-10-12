@@ -52,8 +52,6 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private static final String UNCHECKED = "\"unchecked\"";
   private static final String DSL_SUFFIX = "Dsl";
-  private static final String DIESEL_PACKAGE_NAME = "com.github.tonivade.diesel";
-  private static final String PROGRAM = "Program";
   private static final String VALUE = "value";
   private static final String ERROR_TYPE = "errorType";
   private static final String STATE_VARIABLE = "S";
@@ -157,7 +155,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private MethodSpec createFactoryMethod(ExecutableElement method, ClassName service, TypeName errorType) {
     var methodName = method.getSimpleName().toString();
-    var program = ClassName.get(DIESEL_PACKAGE_NAME, PROGRAM);
+    var program = ClassName.get(Program.class);
     var returnType = ParameterizedTypeName.get(program,
         TypeVariableName.get(STATE_VARIABLE), TypeVariableName.get(ERROR_VARIABLE), getReturnTypeFor(method));
     return MethodSpec.methodBuilder(methodName)
