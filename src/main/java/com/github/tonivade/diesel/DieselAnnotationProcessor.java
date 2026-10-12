@@ -191,7 +191,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
                   .build();
             } else {
               return CodeBlock.builder()
-                  .addStatement("return Program.accessFutureResult(state -> state.$N($L)).<$T<E, Object>>thenApply(r -> r)",
+                  .addStatement("return Program.accessFutureResult(state -> state.$N($L).<$T<E, Object>>thenApply(r -> r))",
                       methodName,
                       method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")),
                       Result.class
