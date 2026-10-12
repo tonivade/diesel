@@ -240,6 +240,146 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
+  void shouldFailWithRawResult() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+
+      @Diesel(errorType = Exception.class)
+      public interface Console {
+        Result readLine();
+        Result writeLine(String line);
+      }""");
+
+    var expected = forSourceLines("test.ConsoleDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import java.lang.Exception;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface ConsoleDsl {
+        @SuppressWarnings("unchecked")
+        static <S extends Console, E extends Exception> Program<S, E, ?> readLine() {
+          return Program.accessResult(state -> state.readLine().mapError(e -> (E) e));
+        }
+
+        @SuppressWarnings("unchecked")
+        static <S extends Console, E extends Exception> Program<S, E, ?> writeLine(String line) {
+          return Program.accessResult(state -> state.writeLine(line).mapError(e -> (E) e));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
+  void shouldFailWithRawCompletableFuture() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel(errorType = Exception.class)
+      public interface Console {
+        CompletableFuture readLine();
+        CompletableFuture writeLine(String line);
+      }""");
+
+    var expected = forSourceLines("test.ConsoleDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import java.lang.Exception;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface ConsoleDsl {
+        @SuppressWarnings("unchecked")
+        static <S extends Console, E extends Exception> Program<S, E, ?> readLine() {
+          return Program.accessFuture(state -> state.readLine());
+        }
+
+        @SuppressWarnings("unchecked")
+        static <S extends Console, E extends Exception> Program<S, E, ?> writeLine(String line) {
+          return Program.accessFuture(state -> state.writeLine(line));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
+  void shouldFailWithRawCompletableFutureResult() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel(errorType = Exception.class)
+      public interface Console {
+        CompletableFuture<Result> readLine();
+        CompletableFuture<Result> writeLine(String line);
+      }""");
+
+    var expected = forSourceLines("test.ConsoleDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Result;
+      import java.lang.Exception;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface ConsoleDsl {
+        @SuppressWarnings("unchecked")
+        static <S extends Console, E extends Exception> Program<S, E, ?> readLine() {
+          return Program.accessFutureResult(state -> state.readLine().<Result<E, Object>>thenApply(r -> r));
+        }
+
+        @SuppressWarnings("unchecked")
+        static <S extends Console, E extends Exception> Program<S, E, ?> writeLine(String line) {
+          return Program.accessFutureResult(state -> state.writeLine(line).<Result<E, Object>>thenApply(r -> r));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
   void shouldGenerateDslCodeWithCompletableFuture() {
     var file = forSourceLines("test.Http",
       """
