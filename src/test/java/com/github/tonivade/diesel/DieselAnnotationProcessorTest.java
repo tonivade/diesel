@@ -476,6 +476,45 @@ class DieselAnnotationProcessorTest {
 
       @Diesel
       public interface Http {
+        CompletableFuture<?> get(String request);
+      }""");
+
+    var expected = forSourceLines("test.HttpDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface HttpDsl {
+        @SuppressWarnings("unchecked")
+        static <S extends Http, E> Program<S, E, ?> get(String request) {
+          return Program.accessFuture(state -> state.get(request));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
+  void shouldGenerateDslCodeWithCompletableFutureExtendsWildcard() {
+    var file = forSourceLines("test.Http",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel
+      public interface Http {
         CompletableFuture<? extends String> get(String request);
       }""");
 
@@ -492,6 +531,45 @@ class DieselAnnotationProcessorTest {
       public interface HttpDsl {
         @SuppressWarnings("unchecked")
         static <S extends Http, E> Program<S, E, ? extends String> get(String request) {
+          return Program.accessFuture(state -> state.get(request));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
+  void shouldGenerateDslCodeWithCompletableFutureSuperWildcard() {
+    var file = forSourceLines("test.Http",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel
+      public interface Http {
+        CompletableFuture<? super String> get(String request);
+      }""");
+
+    var expected = forSourceLines("test.HttpDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface HttpDsl {
+        @SuppressWarnings("unchecked")
+        static <S extends Http, E> Program<S, E, ? super String> get(String request) {
           return Program.accessFuture(state -> state.get(request));
         }
       }""");
@@ -546,7 +624,7 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
-  void shouldGenerateDslCodeWithCompletableFutureAndResultWithWildcard() {
+  void shouldGenerateDslCodeWithCompletableFutureAndResultWithExtendsWildcard() {
     var file = forSourceLines("test.Http",
       """
       package test;
