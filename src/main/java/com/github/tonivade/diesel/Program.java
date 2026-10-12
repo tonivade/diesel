@@ -694,7 +694,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return run(state, CancelToken.current());
   }
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({ "unchecked", "rawtypes" })
   private Result<E, T> run(@Nullable S state, CancelToken token) {
     Program<S, ?, ?> current = this;
     Deque<Frame<S>> stack = new ArrayDeque<>();
@@ -1630,10 +1630,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
             .ensuring(suspend(() -> release.apply(resource).andThen(unit())))
         );
   }
-
-  // start generated code
-
-  // end generated code
 
   /**
    * The result of a timed program, with the time it took to execute and its result.
