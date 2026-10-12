@@ -235,7 +235,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private String createSimpleStatement(TypeMirror returnType) {
-    if (returnType.getKind() == TypeKind.VOID) {
+    if (isVoid(returnType)) {
       return "return Program.inspect(state -> state.$N($L))";
     }
     return "return Program.access(state -> state.$N($L))";
@@ -254,7 +254,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         return TypeName.get(declaredType.getTypeArguments().getLast());
       }
     }
-    if (isPrimitiveOrVoid(returnType)) {
+    if (isPrimitive(returnType) || isVoid(returnType)) {
       return TypeName.get(returnType).box();
     }
     return TypeName.get(returnType);
@@ -297,8 +297,12 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .getTypeElement(type.getCanonicalName());
   }
 
-  private boolean isPrimitiveOrVoid(TypeMirror returnType) {
-    return returnType.getKind().isPrimitive() || returnType.getKind() == TypeKind.VOID;
+  private boolean isPrimitive(TypeMirror returnType) {
+    return returnType.getKind().isPrimitive();
+  }
+
+  private boolean isVoid(TypeMirror returnType) {
+    return returnType.getKind() == TypeKind.VOID;
   }
 
   private void printNote(String msg) {
