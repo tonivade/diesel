@@ -1546,6 +1546,21 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return program.flatMapError(recover);
   }
 
+  /**
+   * Catches all errors during the execution of the program and recovers using the provided function.
+   *
+   * @param program the program to be executed
+   * @param recover the function used to recover from errors
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the computation with error handling
+   */
+  static <S, E, T> Program<S, E, T> catchAll(Program<S, E, T> program,
+      Function<? super Throwable, ? extends Program<S, E, T>> recover) {
+    return program.catchAll(recover);
+  }
+
   /** Creates a function that branches the program based on a condition.
    *
    * @param condition the condition used to branch the program
