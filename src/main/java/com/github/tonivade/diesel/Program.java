@@ -15,6 +15,8 @@ import com.github.tonivade.diesel.Frame.OnCancelFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.purefun.Kind;
 
+import static java.util.function.Function.identity;
+
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -607,7 +609,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a DSL access
    */
   static <S, E, T> Program<S, E, T> accessFuture(Function<? super S, ? extends CompletableFuture<T>> mapper) {
-    return accessFutureResult(mapper.andThen(future -> future.thenApply(Result::success)));
+    return asyncCancelable((state, callback) -> whenComplete(callback, mapper.apply(state), Result::success));
   }
 
   /**
@@ -621,19 +623,21 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a DSL access
    */
   static <S, E, T> Program<S, E, T> accessFutureResult(Function<? super S, ? extends CompletableFuture<? extends Result<E, T>>> mapper) {
-    return asyncCancelable((state, callback) -> {
-      var future = mapper.apply(state);
-      // not async: completing the callback is cheap, and it avoids depending on the common pool
-      // the returned future can be ignored because the action cannot throw
-      var _ = future.whenComplete((result, error) -> {
-        if (error != null) {
-          callback.completeExceptionally(error);
-        } else {
-          callback.complete(result);
-        }
-      });
-      return task(() -> future.cancel(true));
+    return asyncCancelable((state, callback) -> whenComplete(callback, mapper.apply(state), identity()));
+  }
+
+  private static <S, E, T, A> Program<S, E, Void> whenComplete(CompletableFuture<Result<E, T>> callback,
+      CompletableFuture<? extends A> future, Function<? super A, ? extends Result<E, T>> mapper) {
+    // not async: completing the callback is cheap, and it avoids depending on the common pool
+    // the returned future can be ignored because the action cannot throw
+    var _ = future.whenComplete((result, error) -> {
+      if (error != null) {
+        callback.completeExceptionally(error);
+      } else {
+        callback.complete(mapper.apply(result));
+      }
     });
+    return task(() -> future.cancel(true));
   }
 
   /**
