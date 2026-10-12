@@ -180,17 +180,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var returnType = method.getReturnType();
     if (returnType instanceof DeclaredType declaredType) {
       if (hasRawType(declaredType, CompletableFuture.class)) {
-        if (!declaredType.getTypeArguments().isEmpty()) {
-          var futureType = declaredType.getTypeArguments().getLast();
-          if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
-            return createMethodBodyForCompletableFutureOfResult(method, methodName, futureDeclaredType);
-          }
-        }
-        return CodeBlock.builder()
-            .addStatement("return Program.accessFuture(state -> state.$N($L))",
-                methodName,
-                method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
-            .build();
+        return createMethodBodyForCompletableFuture(method, methodName, declaredType);
       }
       if (hasRawType(declaredType, Result.class)) {
         return CodeBlock.builder()
@@ -207,21 +197,34 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .build();
   }
 
+  private CodeBlock createMethodBodyForCompletableFuture(ExecutableElement method, String methodName, DeclaredType declaredType) {
+    if (!declaredType.getTypeArguments().isEmpty()) {
+      var futureType = declaredType.getTypeArguments().getLast();
+      if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
+        return createMethodBodyForCompletableFutureOfResult(method, methodName, futureDeclaredType);
+      }
+    }
+    return CodeBlock.builder()
+        .addStatement("return Program.accessFuture(state -> state.$N($L))",
+            methodName,
+            method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+        .build();
+  }
+
   private CodeBlock createMethodBodyForCompletableFutureOfResult(ExecutableElement method, String methodName,
       DeclaredType futureDeclaredType) {
-    if (!futureDeclaredType.getTypeArguments().isEmpty()) {
+    if (futureDeclaredType.getTypeArguments().isEmpty()) {
       return CodeBlock.builder()
-          .addStatement("return Program.accessFutureResult(state -> state.$N($L).thenApply(r -> r.mapError(e -> (E) e)))",
+          .addStatement("return Program.accessFutureResult(state -> state.$N($L).<$T<E, Object>>thenApply(r -> r))",
               methodName,
-              method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+              method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")),
+              Result.class)
           .build();
     }
     return CodeBlock.builder()
-        .addStatement("return Program.accessFutureResult(state -> state.$N($L).<$T<E, Object>>thenApply(r -> r))",
+        .addStatement("return Program.accessFutureResult(state -> state.$N($L).thenApply(r -> r.mapError(e -> (E) e)))",
             methodName,
-            method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")),
-            Result.class
-            )
+            method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
         .build();
   }
 
@@ -239,10 +242,10 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         return getReturnTypeForCompletableFuture(declaredType);
       }
       if (hasRawType(declaredType, Result.class)) {
-        if (!declaredType.getTypeArguments().isEmpty()) {
-          return TypeName.get(declaredType.getTypeArguments().getLast());
+        if (declaredType.getTypeArguments().isEmpty()) {
+          return WildcardTypeName.subtypeOf(Object.class);
         }
-        return WildcardTypeName.subtypeOf(Object.class);
+        return TypeName.get(declaredType.getTypeArguments().getLast());
       }
     }
     if (isPrimitiveOrVoid(returnType)) {
@@ -252,17 +255,17 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private TypeName getReturnTypeForCompletableFuture(DeclaredType declaredType) {
-    if (!declaredType.getTypeArguments().isEmpty()) {
-      var futureType = declaredType.getTypeArguments().getLast();
-      if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
-        if (!futureDeclaredType.getTypeArguments().isEmpty()) {
-          return TypeName.get(futureDeclaredType.getTypeArguments().getLast());
-        }
+    if (declaredType.getTypeArguments().isEmpty()) {
+      return WildcardTypeName.subtypeOf(Object.class);
+    }
+    var futureType = declaredType.getTypeArguments().getLast();
+    if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
+      if (futureDeclaredType.getTypeArguments().isEmpty()) {
         return WildcardTypeName.subtypeOf(Object.class);
       }
-      return TypeName.get(futureType);
+      return TypeName.get(futureDeclaredType.getTypeArguments().getLast());
     }
-    return WildcardTypeName.subtypeOf(Object.class);
+    return TypeName.get(futureType);
   }
 
   private boolean hasRawType(DeclaredType type, Class<?> expected) {

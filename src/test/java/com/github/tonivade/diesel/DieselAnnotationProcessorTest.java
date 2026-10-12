@@ -240,7 +240,54 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
-  void shouldFailWithRawResult() {
+  void shouldGenerateDslCodeWithResultWildcard() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+
+      @Diesel(errorType = Exception.class)
+      public interface Console {
+        Result<Exception, ? extends String> readLine();
+        Result<Exception, ? extends Void> writeLine(String line);
+      }""");
+
+    var expected = forSourceLines("test.ConsoleDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import java.lang.Exception;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import java.lang.Void;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface ConsoleDsl {
+        @SuppressWarnings("unchecked")
+        static <S extends Console, E extends Exception> Program<S, E, ? extends String> readLine() {
+          return Program.accessResult(state -> state.readLine().mapError(e -> (E) e));
+        }
+
+        @SuppressWarnings("unchecked")
+        static <S extends Console, E extends Exception> Program<S, E, ? extends Void> writeLine(String line) {
+          return Program.accessResult(state -> state.writeLine(line).mapError(e -> (E) e));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
+  void shouldGenerateDslCodeWithRawResult() {
     var file = forSourceLines("test.Console",
       """
       package test;
@@ -286,7 +333,7 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
-  void shouldFailWithRawCompletableFuture() {
+  void shouldGenerateDslCodeWithRawCompletableFuture() {
     var file = forSourceLines("test.Console",
       """
       package test;
@@ -332,7 +379,7 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
-  void shouldFailWithRawCompletableFutureResult() {
+  void shouldGenerateDslCodeRawCompletableFutureResult() {
     var file = forSourceLines("test.Console",
       """
       package test;
@@ -419,6 +466,45 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
+  void shouldGenerateDslCodeWithCompletableFutureWildcard() {
+    var file = forSourceLines("test.Http",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel
+      public interface Http {
+        CompletableFuture<? extends String> get(String request);
+      }""");
+
+    var expected = forSourceLines("test.HttpDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface HttpDsl {
+        @SuppressWarnings("unchecked")
+        static <S extends Http, E> Program<S, E, ? extends String> get(String request) {
+          return Program.accessFuture(state -> state.get(request));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
   void shouldGenerateDslCodeWithCompletableFutureAndResult() {
     var file = forSourceLines("test.Http",
       """
@@ -431,6 +517,47 @@ class DieselAnnotationProcessorTest {
       @Diesel(errorType = String.class)
       public interface Http {
         <T> CompletableFuture<Result<String, T>> get(String request, Class<T> clazz);
+      }""");
+
+    var expected = forSourceLines("test.HttpDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import java.lang.Class;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface HttpDsl {
+        @SuppressWarnings("unchecked")
+        static <S extends Http, E extends String, T> Program<S, E, T> get(String request, Class<T> clazz) {
+          return Program.accessFutureResult(state -> state.get(request, clazz).thenApply(r -> r.mapError(e -> (E) e)));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
+  void shouldGenerateDslCodeWithCompletableFutureAndResultWithWildcard() {
+    var file = forSourceLines("test.Http",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel(errorType = String.class)
+      public interface Http {
+        <T> CompletableFuture<? extends Result<String, T>> get(String request, Class<T> clazz);
       }""");
 
     var expected = forSourceLines("test.HttpDsl",
