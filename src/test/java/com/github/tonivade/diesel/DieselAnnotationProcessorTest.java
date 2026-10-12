@@ -399,22 +399,22 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
-      import com.github.tonivade.diesel.Result;
       import java.lang.Exception;
       import java.lang.String;
       import java.lang.SuppressWarnings;
+      import java.util.concurrent.CompletableFuture;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface ConsoleDsl {
         @SuppressWarnings("unchecked")
         static <S extends Console, E extends Exception> Program<S, E, ?> readLine() {
-          return Program.accessFutureResult(state -> state.readLine().<Result<E, Object>>thenApply(r -> r));
+          return Program.accessFutureResult(state -> (CompletableFuture) state.readLine());
         }
 
         @SuppressWarnings("unchecked")
         static <S extends Console, E extends Exception> Program<S, E, ?> writeLine(String line) {
-          return Program.accessFutureResult(state -> state.writeLine(line).<Result<E, Object>>thenApply(r -> r));
+          return Program.accessFutureResult(state -> (CompletableFuture) state.writeLine(line));
         }
       }""");
 
@@ -605,13 +605,14 @@ class DieselAnnotationProcessorTest {
       import java.lang.Class;
       import java.lang.String;
       import java.lang.SuppressWarnings;
+      import java.util.concurrent.CompletableFuture;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface HttpDsl {
         @SuppressWarnings("unchecked")
         static <S extends Http, E extends String, T> Program<S, E, T> get(String request, Class<T> clazz) {
-          return Program.accessFutureResult(state -> state.get(request, clazz).thenApply(r -> r.mapError(e -> (E) e)));
+          return Program.accessFutureResult(state -> (CompletableFuture) state.get(request, clazz));
         }
       }""");
 
@@ -646,13 +647,14 @@ class DieselAnnotationProcessorTest {
       import java.lang.Class;
       import java.lang.String;
       import java.lang.SuppressWarnings;
+      import java.util.concurrent.CompletableFuture;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface HttpDsl {
         @SuppressWarnings("unchecked")
         static <S extends Http, E extends String, T> Program<S, E, T> get(String request, Class<T> clazz) {
-          return Program.accessFutureResult(state -> state.get(request, clazz).thenApply(r -> r.mapError(e -> (E) e)));
+          return Program.accessFutureResult(state -> (CompletableFuture) state.get(request, clazz));
         }
       }""");
 
@@ -684,16 +686,16 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
-      import com.github.tonivade.diesel.Result;
       import java.lang.String;
       import java.lang.SuppressWarnings;
+      import java.util.concurrent.CompletableFuture;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
       public interface HttpDsl {
         @SuppressWarnings("unchecked")
         static <S extends Http, E extends String> Program<S, E, ?> get(String request) {
-          return Program.accessFutureResult(state -> state.get(request).<Result<E, Object>>thenApply(r -> r));
+          return Program.accessFutureResult(state -> (CompletableFuture) state.get(request));
         }
       }""");
 

@@ -219,14 +219,15 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
       DeclaredType futureDeclaredType) {
     if (futureDeclaredType.getTypeArguments().isEmpty()) {
       return CodeBlock.builder()
-          .addStatement("return Program.accessFutureResult(state -> state.$N($L).<$T<E, Object>>thenApply(r -> r))",
+          .addStatement("return Program.accessFutureResult(state -> ($T) state.$N($L))",
+              CompletableFuture.class,
               methodName,
-              method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")),
-              Result.class)
+              method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
           .build();
     }
     return CodeBlock.builder()
-        .addStatement("return Program.accessFutureResult(state -> state.$N($L).thenApply(r -> r.mapError(e -> (E) e)))",
+        .addStatement("return Program.accessFutureResult(state -> ($T) state.$N($L))",
+            CompletableFuture.class,
             methodName,
             method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
         .build();
