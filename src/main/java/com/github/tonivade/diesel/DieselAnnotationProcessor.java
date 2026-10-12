@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Generated;
@@ -28,6 +29,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.WildcardType;
 import javax.tools.Diagnostic.Kind;
 
 import com.palantir.javapoet.AnnotationSpec;
@@ -40,6 +42,7 @@ import com.palantir.javapoet.ParameterizedTypeName;
 import com.palantir.javapoet.TypeName;
 import com.palantir.javapoet.TypeSpec;
 import com.palantir.javapoet.TypeVariableName;
+import com.palantir.javapoet.WildcardTypeName;
 
 /**
  * Annotation processor for the {@link Diesel} annotation.
@@ -47,11 +50,9 @@ import com.palantir.javapoet.TypeVariableName;
 @SupportedAnnotationTypes("com.github.tonivade.diesel.Diesel")
 public class DieselAnnotationProcessor extends AbstractProcessor {
 
+  private static final String RAWTYPES = "\"rawtypes\"";
   private static final String UNCHECKED = "\"unchecked\"";
   private static final String DSL_SUFFIX = "Dsl";
-  private static final String DIESEL_PACKAGE_NAME = "com.github.tonivade.diesel";
-  private static final String RESULT = "Result";
-  private static final String PROGRAM = "Program";
   private static final String VALUE = "value";
   private static final String ERROR_TYPE = "errorType";
   private static final String STATE_VARIABLE = "S";
@@ -155,11 +156,11 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private MethodSpec createFactoryMethod(ExecutableElement method, ClassName service, TypeName errorType) {
     var methodName = method.getSimpleName().toString();
-    var program = ClassName.get(DIESEL_PACKAGE_NAME, PROGRAM);
+    var program = ClassName.get(Program.class);
     var returnType = ParameterizedTypeName.get(program,
         TypeVariableName.get(STATE_VARIABLE), TypeVariableName.get(ERROR_VARIABLE), getReturnTypeFor(method));
     return MethodSpec.methodBuilder(methodName)
-        .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember(VALUE, UNCHECKED).build())
+        .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember(VALUE, UNCHECKED).addMember(VALUE, RAWTYPES).build())
         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
         .addTypeVariables(List.of(
             TypeVariableName.get(STATE_VARIABLE, service),
@@ -176,22 +177,58 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private CodeBlock createMethodBody(ExecutableElement method, String methodName) {
-    if (method.getReturnType() instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
-      return CodeBlock.builder()
-          .addStatement("return Program.accessResult(state -> state.$N($L).mapError(e -> (E) e))",
-              methodName,
-              method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
-          .build();
+    var returnType = method.getReturnType();
+    if (returnType instanceof DeclaredType declaredType) {
+      if (hasRawType(declaredType, CompletableFuture.class)) {
+        return createMethodBodyForCompletableFuture(method, methodName, declaredType);
+      }
+      if (hasRawType(declaredType, Result.class)) {
+        return CodeBlock.builder()
+            .addStatement("return Program.accessResult(state -> ($T) state.$N($L))",
+                Result.class,
+                methodName,
+                method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+            .build();
+      }
     }
     return CodeBlock.builder()
-        .addStatement(createStatement(method.getReturnType()),
+        .addStatement(createSimpleStatement(returnType),
             methodName,
             method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
         .build();
   }
 
-  private String createStatement(TypeMirror returnType) {
-    if (returnType.getKind() == TypeKind.VOID) {
+  private CodeBlock createMethodBodyForCompletableFuture(ExecutableElement method, String methodName, DeclaredType declaredType) {
+    if (!declaredType.getTypeArguments().isEmpty()) {
+      var futureType = declaredType.getTypeArguments().getLast();
+      if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
+        return createMethodBodyForCompletableFutureOfResult(method, methodName, futureDeclaredType);
+      }
+      if (futureType instanceof WildcardType futureWildcardType
+          && futureWildcardType.getExtendsBound() instanceof DeclaredType futureDeclaredType
+          && hasRawType(futureDeclaredType, Result.class)) {
+        return createMethodBodyForCompletableFutureOfResult(method, methodName, futureDeclaredType);
+      }
+    }
+    return CodeBlock.builder()
+        .addStatement("return Program.accessFuture(state -> state.$N($L))",
+            methodName,
+            method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+        .build();
+  }
+
+  private CodeBlock createMethodBodyForCompletableFutureOfResult(ExecutableElement method, String methodName,
+      DeclaredType futureDeclaredType) {
+    return CodeBlock.builder()
+        .addStatement("return Program.accessFutureResult(state -> ($T) state.$N($L))",
+            CompletableFuture.class,
+            methodName,
+            method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
+        .build();
+  }
+
+  private String createSimpleStatement(TypeMirror returnType) {
+    if (isVoid(returnType)) {
       return "return Program.inspect(state -> state.$N($L))";
     }
     return "return Program.access(state -> state.$N($L))";
@@ -199,15 +236,66 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private TypeName getReturnTypeFor(ExecutableElement method) {
     var returnType = method.getReturnType();
-    if (returnType instanceof DeclaredType declared && declared.toString().startsWith(DIESEL_PACKAGE_NAME + "." + RESULT)) {
-      return TypeName.get(declared.getTypeArguments().getLast());
+    if (returnType instanceof DeclaredType declaredType) {
+      if (hasRawType(declaredType, CompletableFuture.class)) {
+        return getReturnTypeForCompletableFuture(declaredType);
+      }
+      if (hasRawType(declaredType, Result.class)) {
+        if (declaredType.getTypeArguments().isEmpty()) {
+          return WildcardTypeName.subtypeOf(Object.class);
+        }
+        return TypeName.get(declaredType.getTypeArguments().getLast());
+      }
     }
-    return isPrimitiveOrVoid(returnType) ?
-        TypeName.get(returnType).box() : TypeName.get(returnType);
+    if (isPrimitive(returnType) || isVoid(returnType)) {
+      return TypeName.get(returnType).box();
+    }
+    return TypeName.get(returnType);
   }
 
-  private boolean isPrimitiveOrVoid(TypeMirror returnType) {
-    return returnType.getKind().isPrimitive() || returnType.getKind() == TypeKind.VOID;
+  private TypeName getReturnTypeForCompletableFuture(DeclaredType declaredType) {
+    if (declaredType.getTypeArguments().isEmpty()) {
+      return WildcardTypeName.subtypeOf(Object.class);
+    }
+    var futureType = declaredType.getTypeArguments().getLast();
+    if (futureType instanceof DeclaredType futureDeclaredType && hasRawType(futureDeclaredType, Result.class)) {
+      if (futureDeclaredType.getTypeArguments().isEmpty()) {
+        return WildcardTypeName.subtypeOf(Object.class);
+      }
+      return TypeName.get(futureDeclaredType.getTypeArguments().getLast());
+    }
+    if (futureType instanceof WildcardType futureWildcardType
+        && futureWildcardType.getExtendsBound() instanceof DeclaredType futureDeclaredType
+        && hasRawType(futureDeclaredType, Result.class)) {
+      if (futureDeclaredType.getTypeArguments().isEmpty()) {
+        return WildcardTypeName.subtypeOf(Object.class);
+      }
+      return TypeName.get(futureDeclaredType.getTypeArguments().getLast());
+    }
+    return TypeName.get(futureType);
+  }
+
+  private boolean hasRawType(DeclaredType type, Class<?> expected) {
+    var types = processingEnv.getTypeUtils();
+    var expectedElement = typeElement(expected);
+
+    return expectedElement != null
+        && types.isSameType(
+            types.erasure(type),
+            types.erasure(expectedElement.asType()));
+  }
+
+  private TypeElement typeElement(Class<?> type) {
+    return processingEnv.getElementUtils()
+        .getTypeElement(type.getCanonicalName());
+  }
+
+  private boolean isPrimitive(TypeMirror returnType) {
+    return returnType.getKind().isPrimitive();
+  }
+
+  private boolean isVoid(TypeMirror returnType) {
+    return returnType.getKind() == TypeKind.VOID;
   }
 
   private void printNote(String msg) {
