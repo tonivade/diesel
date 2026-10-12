@@ -50,6 +50,7 @@ import com.palantir.javapoet.WildcardTypeName;
 @SupportedAnnotationTypes("com.github.tonivade.diesel.Diesel")
 public class DieselAnnotationProcessor extends AbstractProcessor {
 
+  private static final String RAWTYPES = "\"rawtypes\"";
   private static final String UNCHECKED = "\"unchecked\"";
   private static final String DSL_SUFFIX = "Dsl";
   private static final String VALUE = "value";
@@ -159,7 +160,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var returnType = ParameterizedTypeName.get(program,
         TypeVariableName.get(STATE_VARIABLE), TypeVariableName.get(ERROR_VARIABLE), getReturnTypeFor(method));
     return MethodSpec.methodBuilder(methodName)
-        .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember(VALUE, UNCHECKED).build())
+        .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember(VALUE, UNCHECKED).addMember(VALUE, RAWTYPES).build())
         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
         .addTypeVariables(List.of(
             TypeVariableName.get(STATE_VARIABLE, service),
@@ -183,7 +184,8 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
       }
       if (hasRawType(declaredType, Result.class)) {
         return CodeBlock.builder()
-            .addStatement("return Program.accessResult(state -> state.$N($L).mapError(e -> (E) e))",
+            .addStatement("return Program.accessResult(state -> ($T) state.$N($L))",
+                Result.class,
                 methodName,
                 method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(",")))
             .build();
