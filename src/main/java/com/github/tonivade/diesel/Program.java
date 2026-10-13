@@ -639,14 +639,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <S, E, T, A> Program<S, E, Void> whenComplete(CompletableFuture<Result<E, T>> callback,
       CompletableFuture<? extends A> future, Function<? super A, ? extends Result<E, T>> adapter) {
-    var next = future.whenComplete((result, error) -> {
+    var _ = future.whenComplete((result, error) -> {
       if (error != null) {
         callback.completeExceptionally(error);
       } else {
         callback.complete(adapter.apply(result));
       }
     });
-    return task(() -> next.cancel(true));
+    return task(() -> future.cancel(true));
   }
 
   /**
