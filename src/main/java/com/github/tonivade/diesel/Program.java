@@ -500,10 +500,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           callback.completeExceptionally(error);
         }
       });
-      return task(() -> {
-        System.out.println("cancel");
-        future.cancel(true);
-      });
+      return task(() -> future.cancel(true));
     });
   }
 
