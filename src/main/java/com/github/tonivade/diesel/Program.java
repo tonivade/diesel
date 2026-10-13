@@ -293,6 +293,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents an asynchronous computation.
    *
+   * <p>If the program is cancelled, the original future is not cancelled
+   *
    * @param future the CompletableFuture representing the asynchronous computation
    * @param <S> the type of the state
    * @param <E> the type of the error
@@ -558,7 +560,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
-   * sing the provided function.
+   * using the provided function.
    *
    * @param mapper the function used to access the DSL computation
    * @param <S> the type of the state
@@ -599,7 +601,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
-   * sing the provided function.
+   * using the provided function.
+   *
+   * <p>When the program is cancelled, the future returned by the mapper is cancelled too, so a
+   * future that aborts its work on cancel, like the one of {@code HttpClient.sendAsync}, stops it.
+   * A function that returns a future shared with others, like a cached one, must return a copy of
+   * it with {@link CompletableFuture#copy()}, or the cancellation would reach every one using it.
    *
    * @param mapper the function used to access the DSL computation
    * @param <S> the type of the state
@@ -613,7 +620,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Creates a new program that represents an effectful computation that accesses a domain-specific language (DSL)
-   * sing the provided function.
+   * using the provided function.
+   *
+   * <p>When the program is cancelled, the future returned by the mapper is cancelled too, so a
+   * future that aborts its work on cancel, like the one of {@code HttpClient.sendAsync}, stops it.
+   * A function that returns a future shared with others, like a cached one, must return a copy of
+   * it with {@link CompletableFuture#copy()}, or the cancellation would reach every one using it.
    *
    * @param mapper the function used to access the DSL computation
    * @param <S> the type of the state
@@ -627,16 +639,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <S, E, T, A> Program<S, E, Void> whenComplete(CompletableFuture<Result<E, T>> callback,
       CompletableFuture<? extends A> future, Function<? super A, ? extends Result<E, T>> adapter) {
-    // not async: completing the callback is cheap, and it avoids depending on the common pool
-    // the returned future can be ignored because the action cannot throw
-    var _ = future.whenComplete((result, error) -> {
+    var next = future.whenComplete((result, error) -> {
       if (error != null) {
         callback.completeExceptionally(error);
       } else {
         callback.complete(adapter.apply(result));
       }
     });
-    return task(() -> future.cancel(true));
+    return task(() -> next.cancel(true));
   }
 
   /**
