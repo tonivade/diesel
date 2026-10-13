@@ -23,8 +23,8 @@ For use in a gradle build you will need to add it as a dependency, and activate 
 For example:
 
 ```kotlin
-    implementation("com.github.tonivade:diesel:0.10")
-    annotationProcessor("com.github.tonivade:diesel:0.10")
+    implementation("com.github.tonivade:diesel:0.11")
+    annotationProcessor("com.github.tonivade:diesel:0.11")
 ```
 
 If you want to work with snapshots you will need to add this repository in your gradle configuration:
@@ -43,7 +43,7 @@ In the case of maven:
 <dependency>
     <groupId>com.github.tonivade</groupId>
     <artifactId>diesel</artifactId>
-    <version>0.10</version>
+    <version>0.11</version>
 </dependency>
 ```
 
@@ -59,7 +59,7 @@ For the annotation processor:
       <path>
         <groupId>com.github.tonivade</groupId>
         <artifactId>diesel</artifactId>
-        <version>0.10</version>
+        <version>0.11</version>
       </path>
     </annotationProcessorPaths>
   </configuration>
