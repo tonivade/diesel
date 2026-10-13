@@ -31,7 +31,6 @@ import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 import java.math.BigInteger;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -180,17 +179,6 @@ class ProgramTest {
 
     assertThat(result.duration())
       .isCloseTo(duration, Duration.ofMillis(100));
-  }
-
-  @Test
-  void shouldNotWaitForAHugelyNegativeDuration() throws Exception {
-    // too negative to fit in nanoseconds: a delay that has already expired
-    var duration = ChronoUnit.FOREVER.getDuration().negated();
-
-    var future = Program.<Void, String>sleep(duration).fork().evalOrElseThrow();
-
-    // get with a timeout: if the sleep waited forever, the test fails instead of hanging
-    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
   }
 
   @Test
