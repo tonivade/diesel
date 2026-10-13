@@ -9,6 +9,7 @@ import static com.github.tonivade.diesel.Program.bracket;
 import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.accessResult;
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.interruptibleTask;
 import static com.github.tonivade.diesel.Program.memoize;
 import static com.github.tonivade.diesel.Program.memoizeRecursive;
 import static com.github.tonivade.diesel.Program.raise;
@@ -33,6 +34,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -382,6 +384,33 @@ class ProgramTest {
     var result = program.eval(service);
 
     assertThat(result).isEqualTo(Result.success(1));
+  }
+
+  @Test
+  void shouldInterruptAnInterruptibleTask(@Mock Runnable interrupted) throws InterruptedException {
+    var latch = new CountDownLatch(1);
+    var executor = Executors.newSingleThreadExecutor();
+    try {
+      var result = interruptibleTask(executor, () -> {
+        try {
+          while (!Thread.interrupted()) {
+            Thread.sleep(100);
+          }
+        } catch (InterruptedException e) {
+        }
+        interrupted.run();
+        latch.countDown();
+      }).fork().evalOrElseThrow();
+
+      Thread.sleep(1000);
+      result.cancel(true);
+
+      latch.await();
+
+      verify(interrupted).run();
+    } finally {
+      executor.shutdownNow();
+    }
   }
 
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}

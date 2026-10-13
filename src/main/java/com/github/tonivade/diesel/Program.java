@@ -9,13 +9,6 @@ import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Concurrent.race;
 import static java.util.function.Function.identity;
 
-import com.github.tonivade.diesel.Frame.CatchFrame;
-import com.github.tonivade.diesel.Frame.FinalizerFrame;
-import com.github.tonivade.diesel.Frame.FoldFrame;
-import com.github.tonivade.diesel.Frame.OnCancelFrame;
-import com.github.tonivade.diesel.Frame.UnmaskFrame;
-import com.github.tonivade.purefun.Kind;
-
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -27,7 +20,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -38,6 +33,13 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
+
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FinalizerFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Frame.OnCancelFrame;
+import com.github.tonivade.diesel.Frame.UnmaskFrame;
+import com.github.tonivade.purefun.Kind;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
@@ -474,6 +476,34 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return supply(() -> {
       runnable.run();
       return null;
+    });
+  }
+
+  /**
+   * Creates a new program that represents an interruptible task. This means that the thread
+   * running the task can be interrupted, so if inside the task {@link Thread#interrupted()}
+   * is calle, it will return true if the program is interrupted.
+   *
+   * @param executor executor that will execute the interruptible task
+   * @param runnable the runnable to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing an interruptible task
+   */
+  static <S, E> Program<S, E, Void> interruptibleTask(ExecutorService executor, Runnable action) {
+    return asyncCancelable((_, callback) -> {
+      Future<?> future = executor.submit(() -> {
+        try {
+          action.run();
+          callback.complete(Result.unit());
+        } catch (Throwable error) {
+          callback.completeExceptionally(error);
+        }
+      });
+      return task(() -> {
+        System.out.println("cancel");
+        future.cancel(true);
+      });
     });
   }
 
