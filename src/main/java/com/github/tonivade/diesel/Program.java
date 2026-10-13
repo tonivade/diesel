@@ -7,6 +7,7 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Concurrent.race;
+import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
@@ -14,8 +15,6 @@ import com.github.tonivade.diesel.Frame.FoldFrame;
 import com.github.tonivade.diesel.Frame.OnCancelFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.purefun.Kind;
-
-import static java.util.function.Function.identity;
 
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
@@ -1489,6 +1488,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a sleep
    */
   static <S, E> Program<S, E, Void> sleep(Duration duration) {
+    if (duration.isNegative() || duration.isZero()) {
+      return unit();
+    }
     return asyncCancelable((_, callback) -> {
       // completed directly on the scheduler thread: the program continues on the thread that waits
       // for it, not on an executor, and handing the completion to the executor of a fork could
