@@ -485,7 +485,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * is calle, it will return true if the program is interrupted.
    *
    * @param executor executor that will execute the interruptible task
-   * @param runnable the runnable to be executed
+   * @param action the runnable to be executed
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @return a new program representing an interruptible task
