@@ -21,10 +21,12 @@ final class DelayScheduler {
 
   private static final ScheduledThreadPoolExecutor SCHEDULER = create();
 
+  static final Duration FOREVER = Duration.ofNanos(Long.MAX_VALUE);
+
   private DelayScheduler() {}
 
   static ScheduledFuture<?> schedule(Duration delay, Runnable action) {
-    return SCHEDULER.schedule(action, toNanos(delay), TimeUnit.NANOSECONDS);
+    return SCHEDULER.schedule(action, delay.toNanos(), TimeUnit.NANOSECONDS);
   }
 
   /**
@@ -35,18 +37,8 @@ final class DelayScheduler {
     return SCHEDULER.getQueue().stream()
         .filter(Delayed.class::isInstance)
         .map(Delayed.class::cast)
-        .filter(delay -> delay.getDelay(TimeUnit.NANOSECONDS) >= toNanos(duration))
+        .filter(delay -> delay.getDelay(TimeUnit.NANOSECONDS) >= duration.toNanos())
         .count();
-  }
-
-  // a duration too long to fit in nanoseconds, like ChronoUnit.FOREVER, is a delay that never
-  // expires: the scheduler supports Long.MAX_VALUE
-  private static long toNanos(Duration duration) {
-    try {
-      return duration.toNanos();
-    } catch (ArithmeticException e) {
-      return Long.MAX_VALUE;
-    }
   }
 
   private static ScheduledThreadPoolExecutor create() {

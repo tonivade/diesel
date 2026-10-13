@@ -569,11 +569,9 @@ class CancellationTest {
   void sleepingForeverCanBeCancelled() throws Exception {
     // too long to fit in nanoseconds, it's scheduled as a delay that never expires
     var future = Program.<Void, String>sleep(ChronoUnit.FOREVER.getDuration()).fork().evalOrElseThrow();
-    awaitLongDelays(1);
     future.cancel(true);
 
     assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
-    assertThat(DelayScheduler.pendingLongerThan(LONG_DELAY)).isZero();
   }
 
   @Test

@@ -1491,6 +1491,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     if (duration.isNegative() || duration.isZero()) {
       return unit();
     }
+    if (duration.compareTo(DelayScheduler.FOREVER) >= 0) {
+      return never();
+    }
     return asyncCancelable((_, callback) -> {
       // completed directly on the scheduler thread: the program continues on the thread that waits
       // for it, not on an executor, and handing the completion to the executor of a fork could
