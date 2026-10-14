@@ -224,7 +224,7 @@ class ConcurrentTest {
 
   @Test
   void forkedProgramThrowsTheOriginalException() {
-    var program = boom().fork().flatMap(Program::from);
+    var program = boom().fork().flatMap(Program::join);
 
     assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
   }

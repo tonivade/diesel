@@ -73,7 +73,7 @@ public final class Concurrent {
   public static <S, E, T, U> Program<S, E, Either<T, U>> either(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
     return zip(p1.fork(executor), p2.fork(executor), Concurrent::either)
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -112,7 +112,7 @@ public final class Concurrent {
   public static <S, E, T, U> Program<S, E, Either<T, U>> race(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
     return zip(p1.fork(executor), p2.fork(executor), Concurrent::race)
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -212,7 +212,7 @@ public final class Concurrent {
             future.completeExceptionally(e);
           }
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -313,7 +313,7 @@ public final class Concurrent {
             future.completeExceptionally(e);
           }
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -421,7 +421,7 @@ public final class Concurrent {
             future.completeExceptionally(e);
           }
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -461,7 +461,7 @@ public final class Concurrent {
                   Result::<E, R>failure,
                   _ -> Result.zip(f0.join(), f1.join(), finisher)));
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -505,7 +505,7 @@ public final class Concurrent {
                   Result::<E, R>failure,
                   _ -> Result.zip(f0.join(), f1.join(), f2.join(), finisher)));
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -553,7 +553,7 @@ public final class Concurrent {
                   Result::<E, R>failure,
                   _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), finisher)));
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -605,7 +605,7 @@ public final class Concurrent {
                   Result::<E, R>failure,
                   _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), finisher)));
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -661,7 +661,7 @@ public final class Concurrent {
                   Result::<E, R>failure,
                   _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), finisher)));
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -721,7 +721,7 @@ public final class Concurrent {
                   Result::<E, R>failure,
                   _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), finisher)));
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -785,7 +785,7 @@ public final class Concurrent {
                   Result::<E, R>failure,
                   _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), f7.join(), finisher)));
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**
@@ -853,7 +853,7 @@ public final class Concurrent {
                   Result::<E, R>failure,
                   _ -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), f7.join(), f8.join(), finisher)));
         })
-        .flatMap(Program::from);
+        .flatMap(Program::join);
   }
 
   /**

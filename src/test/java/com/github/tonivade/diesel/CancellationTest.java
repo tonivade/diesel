@@ -207,7 +207,7 @@ class CancellationTest {
   void joiningACancelledForkIsAnOrdinaryException() {
     // the program that joins is not cancelled, so it can recover from it
     var program = never().fork()
-        .flatMap(fork -> run(() -> fork.cancel(true)).andThen(Program.from(fork)))
+        .flatMap(fork -> run(() -> fork.cancel(true)).andThen(Program.join(fork)))
         .map(_ -> "joined")
         .catchAll(_ -> success("recovered"));
 
@@ -290,7 +290,7 @@ class CancellationTest {
   void uncancelableDefersTheCancellation() throws Exception {
     expected = 1;
     var after = new AtomicInteger();
-    var program = start().andThen(Program.from(gate)).andThen(run(executed::incrementAndGet))
+    var program = start().andThen(Program.join(gate)).andThen(run(executed::incrementAndGet))
         .uncancelable()
         .andThen(run(after::incrementAndGet));
 
@@ -308,7 +308,7 @@ class CancellationTest {
   @Test
   void combinatorsWaitForUncancelablePrograms() throws Exception {
     var failed = new CompletableFuture<Void>();
-    var program = start().andThen(Program.from(gate)).andThen(run(executed::incrementAndGet)).uncancelable();
+    var program = start().andThen(Program.join(gate)).andThen(run(executed::incrementAndGet)).uncancelable();
     var failing = whenStarted(1).andThen(run(() -> failed.complete(null))).andThen(Program.<Void, String, Void>failure("error"));
 
     var future = parZip(program, failing, (_, _) -> "done").fork().evalOrElseThrow();
@@ -324,7 +324,7 @@ class CancellationTest {
   @Test
   void forksInsideUncancelableAreNotCancelled() throws Exception {
     var forked = new CompletableFuture<CompletableFuture<Result<String, Void>>>();
-    var child = Program.<Void, String, Void>from(gate).andThen(run(executed::incrementAndGet));
+    var child = Program.<Void, String, Void>join(gate).andThen(run(executed::incrementAndGet));
     var program = child.fork().flatMap(f -> run(() -> forked.complete(f))).uncancelable()
         .andThen(start()).andThen(never());
 
@@ -383,7 +383,7 @@ class CancellationTest {
   void onCancelDoesNotRunWhenJoiningACancelledFork() {
     // the program that joins is not cancelled, the fork is
     var program = never().fork()
-        .flatMap(fork -> run(() -> fork.cancel(true)).andThen(Program.from(fork)))
+        .flatMap(fork -> run(() -> fork.cancel(true)).andThen(Program.join(fork)))
         .onCancel(run(released::incrementAndGet))
         .map(_ -> "joined")
         .catchAll(_ -> success("recovered"));
@@ -600,7 +600,7 @@ class CancellationTest {
 
   private Program<Void, String, Void> whenStarted(int count) {
     expected = count;
-    return Program.from(allStarted);
+    return Program.join(allStarted);
   }
 
   private Program<Void, String, Void> start() {

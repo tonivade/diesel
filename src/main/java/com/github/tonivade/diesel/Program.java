@@ -9,6 +9,13 @@ import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Concurrent.race;
 import static java.util.function.Function.identity;
 
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FinalizerFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Frame.OnCancelFrame;
+import com.github.tonivade.diesel.Frame.UnmaskFrame;
+import com.github.tonivade.purefun.Kind;
+
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -22,7 +29,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -33,13 +39,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
-
-import com.github.tonivade.diesel.Frame.CatchFrame;
-import com.github.tonivade.diesel.Frame.FinalizerFrame;
-import com.github.tonivade.diesel.Frame.FoldFrame;
-import com.github.tonivade.diesel.Frame.OnCancelFrame;
-import com.github.tonivade.diesel.Frame.UnmaskFrame;
-import com.github.tonivade.purefun.Kind;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
@@ -293,7 +292,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Creates a new program that represents an asynchronous computation.
+   * Creates a new program that will wait for the completion of a future.
    *
    * <p>If the program is cancelled, the original future is not cancelled
    *
@@ -301,9 +300,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
-   * @return a new program representing an asynchronous computation
+   * @return a new program that will wait for the future
    */
-  static <S, E, T> Program<S, E, T> from(CompletableFuture<? extends Result<E, T>> future) {
+  static <S, E, T> Program<S, E, T> join(CompletableFuture<? extends Result<E, T>> future) {
     return async((_, callback) -> {
       // not async: completing the callback is cheap, and it avoids depending on the common pool
       // the returned future can be ignored because the action cannot throw
@@ -482,17 +481,33 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents an interruptible task. This means that the thread
    * running the task can be interrupted, so if inside the task {@link Thread#interrupted()}
-   * is calle, it will return true if the program is interrupted.
+   * is called, it will return {@code true} if the program has been interrupted using {@link Thread#interrupt()}.
    *
-   * @param executor executor that will execute the interruptible task
-   * @param action the runnable to be executed
+   * <p>This will use the {@link ForkJoinPool#commonPool} as executor.
+   *
+   * @param action the task to be executed
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a new program representing an interruptible task
+   */
+  static <S, E> Program<S, E, Void> interruptibleTask(Runnable action) {
+    return interruptibleTask(ForkJoinPool.commonPool(), action);
+  }
+
+  /**
+   * Creates a new program that represents an interruptible task. This means that the thread
+   * running the task can be interrupted, so if inside the task {@link Thread#interrupted()}
+   * is called, it will return {@code true} if the program has been interrupted using {@link Thread#interrupt()}.
+   *
+   * @param executor executor that will execute the action
+   * @param action the task to be executed
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @return a new program representing an interruptible task
    */
   static <S, E> Program<S, E, Void> interruptibleTask(ExecutorService executor, Runnable action) {
     return asyncCancelable((_, callback) -> {
-      Future<?> future = executor.submit(() -> {
+      var future = executor.submit(() -> {
         try {
           action.run();
           callback.complete(Result.unit());
@@ -553,7 +568,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return accessProgram(state -> {
       var future = new CompletableFuture<Result<E, T>>();
       Program<S, E, Void> canceler = register.apply(state, future);
-      return Program.<S, E, T>from(future).onCancel(canceler);
+      return Program.<S, E, T>join(future).onCancel(canceler);
     });
   }
 
@@ -920,7 +935,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     var wakeUpOnCancel = token.onCancel(() -> future.completeExceptionally(new CancelToken.Cancelled()));
     try {
       async.accept(state, future);
-      return join(future);
+      return joinOrThrows(future);
     } finally {
       // the wait is over, so stop listening, otherwise the token keeps a callback for each wait
       wakeUpOnCancel.remove();
@@ -935,7 +950,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   private static <S> Result<?, ?> awaitUncancelable(@Nullable S state, BiConsumer<S, CompletableFuture<?>> async) {
     var future = new CompletableFuture<Result<?, ?>>();
     ScopedValue.where(CancelToken.CURRENT, CancelToken.NONE).run(() -> async.accept(state, future));
-    return join(future);
+    return joinOrThrows(future);
   }
 
   /**
@@ -945,7 +960,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * wrap the exception of a failed future in a {@link CompletionException}. Without unwrapping it,
    * a {@code catchAll} would receive the wrapper instead of the exception the program raised.
    */
-  private static Result<?, ?> join(CompletableFuture<Result<?, ?>> future) {
+  private static Result<?, ?> joinOrThrows(CompletableFuture<Result<?, ?>> future) {
     try {
       return future.join();
     } catch (CompletionException e) {
