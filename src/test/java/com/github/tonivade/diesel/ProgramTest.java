@@ -5,9 +5,9 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.zip;
+import static com.github.tonivade.diesel.Program.accessResult;
 import static com.github.tonivade.diesel.Program.bracket;
 import static com.github.tonivade.diesel.Program.delayed;
-import static com.github.tonivade.diesel.Program.accessResult;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.interruptibleTask;
 import static com.github.tonivade.diesel.Program.memoize;
@@ -34,11 +34,14 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
 
 import org.jspecify.annotations.Nullable;
@@ -387,7 +390,7 @@ class ProgramTest {
   }
 
   @Test
-  void shouldInterruptAnInterruptibleTask(@Mock Runnable interrupted) throws InterruptedException {
+  void shouldInterruptAnInterruptibleTask() throws InterruptedException {
     var latch = new CountDownLatch(1);
     var executor = Executors.newSingleThreadExecutor();
     try {
@@ -398,16 +401,44 @@ class ProgramTest {
           }
         } catch (InterruptedException e) {
         }
-        interrupted.run();
         latch.countDown();
       }).fork().evalOrElseThrow();
 
       Thread.sleep(1000);
       result.cancel(true);
 
-      latch.await();
+      latch.await(5, TimeUnit.SECONDS);
+    } finally {
+      executor.shutdownNow();
+    }
+  }
 
-      verify(interrupted).run();
+  @Test
+  void finalizersRunAfterTheInterruptedTaskStops() throws Exception {
+    var started = new CountDownLatch(1);
+    var stopped = new AtomicBoolean();
+    var stoppedWhenReleased = new CompletableFuture<Boolean>();
+    var executor = Executors.newSingleThreadExecutor();
+
+    try {
+      var future = Program.<Void, String>interruptibleTask(executor, () -> {
+        started.countDown();
+        try {
+          Thread.sleep(Long.MAX_VALUE);
+        } catch (InterruptedException e) {
+          // simulate cleanup that takes a while before the action returns
+          LockSupport.parkNanos(Duration.ofMillis(200).toNanos());
+          stopped.set(true);
+        }
+      })
+      .ensuring(task(() -> stoppedWhenReleased.complete(stopped.get())))
+      .fork()
+      .evalOrElseThrow();
+
+      assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+      future.cancel(true);
+
+      assertThat(stoppedWhenReleased.get(5, TimeUnit.SECONDS)).isTrue();
     } finally {
       executor.shutdownNow();
     }

@@ -30,6 +30,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -497,7 +498,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that represents an interruptible task. This means that the thread
    * running the task can be interrupted, so if inside the task {@link Thread#interrupted()}
-   * is called, it will return {@code true} if the program has been interrupted using {@link Thread#interrupt()}.
+   * is called, it will return {@code true} if the program has been interrupted using {@link Thread#interrupt()}
+   *
+   * <p>After cancellation, the program will wait for the task to finish and to ensure all
+   * the finalizers are called.
    *
    * @param executor executor that will execute the action
    * @param action the task to be executed
@@ -507,15 +511,27 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, E> Program<S, E, Void> interruptibleTask(ExecutorService executor, Runnable action) {
     return asyncCancelable((_, callback) -> {
+      var claimed = new AtomicBoolean();
+      var finished = new CompletableFuture<Void>();
       var future = executor.submit(() -> {
-        try {
-          action.run();
-          callback.complete(Result.unit());
-        } catch (Throwable error) {
-          callback.completeExceptionally(error);
+        if (claimed.compareAndSet(false, true)) {
+          try {
+            action.run();
+            callback.complete(Result.unit());
+          } catch (Throwable error) {
+            callback.completeExceptionally(error);
+          } finally {
+            finished.complete(null);
+          }
         }
       });
-      return task(() -> future.cancel(true));
+      return task(() -> {
+        var started = !claimed.compareAndSet(false, true);
+        future.cancel(true);
+        if (started) {
+          finished.join();
+        }
+      });
     });
   }
 
