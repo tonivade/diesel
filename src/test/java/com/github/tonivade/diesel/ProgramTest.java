@@ -407,28 +407,27 @@ class ProgramTest {
 
   @Test
   void shouldInterruptAnInterruptibleTask() throws InterruptedException {
-    var latch = new CountDownLatch(1);
+    var started = new CountDownLatch(1);
+    var interrupted = new CountDownLatch(1);
     var executor = Executors.newSingleThreadExecutor();
     try {
       var result = interruptibleTask(executor, () -> {
+        started.countDown();
         try {
-          while (!Thread.interrupted()) {
-            Thread.sleep(100);
-          }
+          Thread.sleep(Long.MAX_VALUE);
         } catch (InterruptedException e) {
+          interrupted.countDown();
         }
-        latch.countDown();
       }).fork().evalOrElseThrow();
 
-      Thread.sleep(1000);
+      assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
       result.cancel(true);
 
-      assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+      assertThat(interrupted.await(5, TimeUnit.SECONDS)).isTrue();
     } finally {
       executor.shutdownNow();
     }
   }
-
   @Test
   void finalizersRunAfterTheInterruptedTaskStops() throws Exception {
     var started = new CountDownLatch(1);
