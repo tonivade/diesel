@@ -304,17 +304,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program that will wait for the future
    */
   static <S, E, T> Program<S, E, T> join(CompletableFuture<? extends Result<E, T>> future) {
-    return async((_, callback) -> {
-      // not async: completing the callback is cheap, and it avoids depending on the common pool
-      // the returned future can be ignored because the action cannot throw
-      var _ = future.whenComplete((result, error) -> {
-        if (error != null) {
-          callback.completeExceptionally(error);
-        } else {
-          callback.complete(result);
-        }
-      });
-    });
+    return async((_, callback) -> completeWith(callback, future, identity()));
   }
 
   /**
@@ -679,7 +669,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a DSL access
    */
   static <S, E, T> Program<S, E, T> accessFuture(Function<? super S, ? extends CompletableFuture<T>> mapper) {
-    return asyncCancelable((state, callback) -> whenComplete(callback, mapper.apply(state), Result::success));
+    return asyncCancelable((state, callback) -> {
+      var future = mapper.apply(state);
+      completeWith(callback, future, Result::success);
+      return task(() -> future.cancel(true));
+    });
   }
 
   /**
@@ -698,11 +692,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a DSL access
    */
   static <S, E, T> Program<S, E, T> accessFutureResult(Function<? super S, ? extends CompletableFuture<? extends Result<E, T>>> mapper) {
-    return asyncCancelable((state, callback) -> whenComplete(callback, mapper.apply(state), identity()));
+    return asyncCancelable((state, callback) -> {
+      var future = mapper.apply(state);
+      completeWith(callback, future, identity());
+      return task(() -> future.cancel(true));
+    });
   }
 
-  private static <S, E, T, A> Program<S, E, Void> whenComplete(CompletableFuture<Result<E, T>> callback,
+  private static <E, T, A> void completeWith(CompletableFuture<Result<E, T>> callback,
       CompletableFuture<? extends A> future, Function<? super A, ? extends Result<E, T>> adapter) {
+    // not async: completing the callback is cheap, and it avoids depending on the common pool
+    // the returned future can be ignored because the action cannot throw
     var _ = future.whenComplete((result, error) -> {
       if (error != null) {
         callback.completeExceptionally(error);
@@ -710,7 +710,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         callback.complete(adapter.apply(result));
       }
     });
-    return task(() -> future.cancel(true));
   }
 
   /**
