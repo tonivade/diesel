@@ -27,8 +27,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -509,11 +509,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing an interruptible task
    */
-  static <S, E> Program<S, E, Void> interruptibleTask(ExecutorService executor, Runnable action) {
+  static <S, E> Program<S, E, Void> interruptibleTask(Executor executor, Runnable action) {
     return asyncCancelable((_, callback) -> {
       var claimed = new AtomicBoolean();
       var finished = new CompletableFuture<Void>();
-      var future = executor.submit(() -> {
+      // a FutureTask interrupts the thread that runs it on cancel(true), whatever the executor: the
+      // tasks of ForkJoinPool.submit don't when submitted from inside the pool, like from a fork
+      var future = new FutureTask<Void>(() -> {
         if (claimed.compareAndSet(false, true)) {
           try {
             action.run();
@@ -524,11 +526,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
             finished.complete(null);
           }
         }
-      });
+      }, null);
+      executor.execute(future);
       return task(() -> {
         var started = !claimed.compareAndSet(false, true);
         future.cancel(true);
         if (started) {
+          // wait for the task to finish
           finished.join();
         }
       });

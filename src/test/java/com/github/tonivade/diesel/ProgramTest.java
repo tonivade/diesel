@@ -41,7 +41,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
 
 import org.jspecify.annotations.Nullable;
@@ -407,7 +406,7 @@ class ProgramTest {
       Thread.sleep(1000);
       result.cancel(true);
 
-      latch.await(5, TimeUnit.SECONDS);
+      assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
     } finally {
       executor.shutdownNow();
     }
@@ -422,18 +421,21 @@ class ProgramTest {
 
     try {
       var future = Program.<Void, String>interruptibleTask(executor, () -> {
-        started.countDown();
-        try {
-          Thread.sleep(Long.MAX_VALUE);
-        } catch (InterruptedException e) {
-          // simulate cleanup that takes a while before the action returns
-          LockSupport.parkNanos(Duration.ofMillis(200).toNanos());
-          stopped.set(true);
-        }
-      })
-      .ensuring(task(() -> stoppedWhenReleased.complete(stopped.get())))
-      .fork()
-      .evalOrElseThrow();
+          started.countDown();
+          try {
+            Thread.sleep(Long.MAX_VALUE);
+          } catch (InterruptedException e) {
+            // simulate cleanup that takes a while before the action returns
+            try {
+              Thread.sleep(200);
+            } catch (InterruptedException _) {
+            }
+            stopped.set(true);
+          }
+        })
+        .ensuring(task(() -> stoppedWhenReleased.complete(stopped.get())))
+        .fork()
+        .evalOrElseThrow();
 
       assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
       future.cancel(true);
@@ -442,6 +444,35 @@ class ProgramTest {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @Test
+  void finalizersRunAfterTheInterruptedTaskStopsWithForkJoinPool() throws Exception {
+    var started = new CountDownLatch(1);
+    var stopped = new AtomicBoolean();
+    var stoppedWhenReleased = new CompletableFuture<Boolean>();
+
+    var future = Program.<Void, String>interruptibleTask(() -> {
+        started.countDown();
+        try {
+          Thread.sleep(Long.MAX_VALUE);
+        } catch (InterruptedException e) {
+          // simulate cleanup that takes a while before the action returns
+          try {
+            Thread.sleep(200);
+          } catch (InterruptedException _) {
+          }
+          stopped.set(true);
+        }
+      })
+      .ensuring(task(() -> stoppedWhenReleased.complete(stopped.get())))
+      .fork()
+      .evalOrElseThrow();
+
+    assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+    future.cancel(true);
+
+    assertThat(stoppedWhenReleased.get(5, TimeUnit.SECONDS)).isTrue();
   }
 
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
