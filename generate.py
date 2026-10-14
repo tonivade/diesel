@@ -106,7 +106,7 @@ public static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program
             Result::<E, R>failure,
             _ -> Result.zip({% for i in range(value) %}f{{ i }}.join(), {% endfor %}finisher)));
       })
-      .flatMap(Program::from);
+      .flatMap(Program::join);
 }
 """)
 
