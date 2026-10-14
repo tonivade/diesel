@@ -428,6 +428,7 @@ class ProgramTest {
       executor.shutdownNow();
     }
   }
+
   @Test
   void finalizersRunAfterTheInterruptedTaskStops() throws Exception {
     var started = new CountDownLatch(1);
