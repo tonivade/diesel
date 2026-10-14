@@ -32,6 +32,7 @@ import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 import java.math.BigInteger;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -183,6 +184,22 @@ class ProgramTest {
 
     assertThat(result.duration())
       .isCloseTo(duration, Duration.ofMillis(100));
+  }
+
+  @Test
+  void sleepWithAZeroOrNegativeDurationDoesNotWait() {
+    assertThat(Program.<Void, String>sleep(Duration.ZERO).eval()).isEqualTo(Result.unit());
+    assertThat(Program.<Void, String>sleep(Duration.ofSeconds(-1)).eval()).isEqualTo(Result.unit());
+    // too negative to fit in nanoseconds
+    assertThat(Program.<Void, String>sleep(ChronoUnit.FOREVER.getDuration().negated()).eval()).isEqualTo(Result.unit());
+  }
+
+  @Test
+  void sleepTooLongForNanosecondsNeverExpires() {
+    // about 300 years: longer than Long.MAX_VALUE nanoseconds, but not ChronoUnit.FOREVER
+    var program = Program.<Void, String>sleep(Duration.ofDays(365L * 300)).timeout(Duration.ofMillis(100));
+
+    assertThatThrownBy(program::eval).isInstanceOf(TimeoutException.class);
   }
 
   @Test

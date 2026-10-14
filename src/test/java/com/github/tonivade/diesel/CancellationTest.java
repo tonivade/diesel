@@ -567,7 +567,7 @@ class CancellationTest {
 
   @Test
   void sleepingForeverCanBeCancelled() throws Exception {
-    // too long to fit in nanoseconds, it's scheduled as a delay that never expires
+    // as long as Long.MAX_VALUE nanoseconds or longer, the sleep never expires: it waits until it's cancelled
     var future = Program.<Void, String>sleep(ChronoUnit.FOREVER.getDuration()).fork().evalOrElseThrow();
     future.cancel(true);
 
