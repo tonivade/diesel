@@ -1556,8 +1556,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <p>Cancelling the sleep cancels its delay too, so a cancelled sleep, like the one of a
    * {@link #timeout(Duration)} that didn't expire, doesn't stay scheduled until the delay expires.
    *
-   * <p>If duration is 0 or less, it will return {@link #unit()}
-   * <p>If duration in nanoseconds is greater than {@link Long#MAX_VALUE}, it will return {@link #never()}
+   * <p>If duration is 0 or less, it will return {@link #unit()}.
+   * <p>If duration in nanoseconds is greater than or equal to {@link Long#MAX_VALUE}, it will return {@link #never()}.
    *
    * @param duration the duration of the sleep
    * @param <S> the type of the state
