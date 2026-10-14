@@ -480,11 +480,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Creates a new program that represents an interruptible task. This means that the thread
-   * running the task can be interrupted, so if inside the task {@link Thread#interrupted()}
-   * is called, it will return {@code true} if the program has been interrupted using {@link Thread#interrupt()}.
+   * Creates a new program that represents an interruptible task, executed in the
+   * {@link ForkJoinPool#commonPool()}. See {@link #interruptibleTask(Executor, Runnable)}.
    *
-   * <p>This will use the {@link ForkJoinPool#commonPool} as executor.
+   * <p>The action holds a thread of the common pool while it runs, and forked programs use the
+   * same pool by default: for long blocking actions, pass an executor of their own.
    *
    * @param action the task to be executed
    * @param <S> the type of the state
@@ -496,12 +496,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Creates a new program that represents an interruptible task. This means that the thread
-   * running the task can be interrupted, so if inside the task {@link Thread#interrupted()}
-   * is called, it will return {@code true} if the program has been interrupted using {@link Thread#interrupt()}
+   * Creates a new program that represents an interruptible task: when the program is cancelled,
+   * the thread running the action is interrupted. A blocking call in the action, like
+   * {@link Thread#sleep} or {@link Object#wait}, then throws {@link InterruptedException}, and a
+   * loop can check {@code Thread.currentThread().isInterrupted()} to stop.
    *
-   * <p>After cancellation, the program will wait for the task to finish and to ensure all
-   * the finalizers are called.
+   * <p>The cancellation waits for the action to return, so the finalizers of the program, like the
+   * release of a {@code bracket} or an {@code ensuring}, run after it. An action that ignores the
+   * interrupt delays the cancellation until it finishes.
    *
    * @param executor executor that will execute the action
    * @param action the task to be executed
