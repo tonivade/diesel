@@ -77,7 +77,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         // the bound of E: without errorType, E is unbounded, so any error is valid
         var errorBound = getErrorTypeFromAnnotation(diesel)
           .map(value -> (TypeMirror) value.getValue())
-          .filter(type -> !hasRawType((DeclaredType) type, Void.class))
+          .filter(type -> asSupertype(type, Void.class).isEmpty())
           .orElseGet(() -> typeElement(Object.class).asType());
         generate(element, dslName, errorType, errorBound);
       }
@@ -186,7 +186,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
 
   private CodeBlock createMethodBody(ExecutableElement method) {
     var returnType = method.getReturnType();
-    var isFuture = returnType instanceof DeclaredType declaredType && hasRawType(declaredType, CompletableFuture.class);
+    var isFuture = asSupertype(returnType, CompletableFuture.class).isPresent();
     if (resultTypeOf(returnType).isPresent()) {
       return isFuture
           ? createStatement("return Program.accessFutureResult(state -> ($T) state.$N($L))", CompletableFuture.class, method)
@@ -220,8 +220,9 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
       // the value of the Result, returned directly or in a CompletableFuture
       return lastTypeArgument(result.get());
     }
-    if (returnType instanceof DeclaredType declaredType && hasRawType(declaredType, CompletableFuture.class)) {
-      return lastTypeArgument(declaredType);
+    var future = asSupertype(returnType, CompletableFuture.class);
+    if (future.isPresent()) {
+      return lastTypeArgument(future.get());
     }
     if (isPrimitive(returnType) || isVoid(returnType)) {
       return TypeName.get(returnType).box();
@@ -254,31 +255,31 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
    * The Result returned by the method, directly or in a CompletableFuture.
    */
   private Optional<DeclaredType> resultTypeOf(TypeMirror returnType) {
-    if (returnType instanceof DeclaredType declaredType) {
-      if (hasRawType(declaredType, Result.class)) {
-        return Optional.of(declaredType);
-      }
-      if (hasRawType(declaredType, CompletableFuture.class) && !declaredType.getTypeArguments().isEmpty()) {
-        var valueType = declaredType.getTypeArguments().getLast();
-        if (valueType instanceof WildcardType wildcard && wildcard.getExtendsBound() != null) {
-          valueType = wildcard.getExtendsBound();
-        }
-        if (valueType instanceof DeclaredType valueDeclaredType && hasRawType(valueDeclaredType, Result.class)) {
-          return Optional.of(valueDeclaredType);
-        }
-      }
-    }
-    return Optional.empty();
+    return asSupertype(returnType, Result.class)
+        .or(() -> asSupertype(returnType, CompletableFuture.class)
+            .filter(future -> !future.getTypeArguments().isEmpty())
+            .map(future -> future.getTypeArguments().getLast())
+            .map(value -> value instanceof WildcardType wildcard && wildcard.getExtendsBound() != null
+                ? wildcard.getExtendsBound() : value)
+            .flatMap(value -> asSupertype(value, Result.class)));
   }
 
-  private boolean hasRawType(DeclaredType type, Class<?> expected) {
-    var types = processingEnv.getTypeUtils();
-    var expectedElement = typeElement(expected);
-
-    return expectedElement != null
-        && types.isSameType(
-            types.erasure(type),
-            types.erasure(expectedElement.asType()));
+  /**
+   * The type viewed as the given class, with its type arguments: {@code Result.Success<E, T>} is
+   * {@code Result<E, T>}, and {@code class StringFuture extends CompletableFuture<String>} is
+   * {@code CompletableFuture<String>}.
+   */
+  private Optional<DeclaredType> asSupertype(TypeMirror type, Class<?> expected) {
+    if (type instanceof DeclaredType declaredType) {
+      if (declaredType.asElement().equals(typeElement(expected))) {
+        return Optional.of(declaredType);
+      }
+      return processingEnv.getTypeUtils().directSupertypes(declaredType).stream()
+          .map(supertype -> asSupertype(supertype, expected))
+          .flatMap(Optional::stream)
+          .findFirst();
+    }
+    return Optional.empty();
   }
 
   private TypeElement typeElement(Class<?> type) {

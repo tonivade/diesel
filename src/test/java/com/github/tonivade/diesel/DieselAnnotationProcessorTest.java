@@ -7,6 +7,9 @@ package com.github.tonivade.diesel;
 import static com.google.common.truth.Truth.assert_;
 import static com.google.testing.compile.JavaFileObjects.forSourceLines;
 import static com.google.testing.compile.JavaSourceSubjectFactory.javaSource;
+import static com.google.testing.compile.JavaSourcesSubjectFactory.javaSources;
+
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -940,5 +943,88 @@ class DieselAnnotationProcessorTest {
     assert_().about(javaSource()).that(file)
         .processedWith(new DieselAnnotationProcessor())
         .compilesWithoutError();
+  }
+
+  @Test
+  void shouldGenerateDslCodeWithSubtypes() {
+    var future = forSourceLines("test.StringFuture",
+      """
+      package test;
+
+      import java.util.concurrent.CompletableFuture;
+
+      public class StringFuture extends CompletableFuture<String> {}""");
+
+    var file = forSourceLines("test.Http",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel(errorType = String.class)
+      public interface Http {
+        Result.Success<String, Integer> success();
+        CompletableFuture<Result.Failure<String, Integer>> failure();
+        StringFuture text();
+      }""");
+
+    var expected = forSourceLines("test.HttpDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Result;
+      import java.lang.Integer;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import java.util.concurrent.CompletableFuture;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface HttpDsl {
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Http, E extends String> Program<S, E, Integer> success() {
+          return Program.accessResult(state -> (Result) state.success());
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Http, E extends String> Program<S, E, Integer> failure() {
+          return Program.accessFutureResult(state -> (CompletableFuture) state.failure());
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Http, E extends String> Program<S, E, String> text() {
+          return Program.accessFuture(state -> state.text());
+        }
+      }""");
+
+    assert_().about(javaSources())
+      .that(List.of(future, file))
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
+  void shouldFailWhenTheErrorOfAResultSubtypeIsNotTheErrorType() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+
+      @Diesel(errorType = Exception.class)
+      public interface Console {
+        Result.Success<String, String> readLine();
+      }""");
+
+    assert_().about(javaSource()).that(file)
+        .processedWith(new DieselAnnotationProcessor())
+        .failsToCompile()
+        .withErrorContaining("the error type of method readLine is not assignable");
   }
 }
