@@ -33,11 +33,11 @@ import java.lang.annotation.Target;
  * public interface ConsoleDsl {
  *
  *   static &lt;S extends Console, E&gt; Program&lt;S, E, String&gt; readLine() {
- *     return Program.effect(Console::readLine);
+ *     return Program.access(Console::readLine);
  *   }
  *
  *   static &lt;S extends Console, E&gt; Program&lt;S, E, Void&gt; writeLine(String line) {
- *     return Program.effect(console -&gt; {
+ *     return Program.access(console -&gt; {
  *       console.writeLine(line);
  *       return null;
  *     });
