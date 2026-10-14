@@ -896,4 +896,49 @@ class DieselAnnotationProcessorTest {
         .failsToCompile()
         .withErrorContaining("not supported");
   }
+
+  @Test
+  void shouldFailWhenTheErrorOfAResultIsNotTheErrorType() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel(errorType = Exception.class)
+      public interface Console {
+        Result<String, String> readLine();
+        CompletableFuture<? extends Result<? extends String, String>> readLineAsync();
+      }""");
+
+    assert_().about(javaSource()).that(file)
+        .processedWith(new DieselAnnotationProcessor())
+        .failsToCompile()
+        .withErrorContaining("the error type of method readLine is not assignable")
+        .and()
+        .withErrorContaining("the error type of method readLineAsync is not assignable");
+  }
+
+  @Test
+  void shouldAcceptAnyErrorWithoutErrorType() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel
+      public interface Console {
+        Result<String, String> readLine();
+        CompletableFuture<Result<Integer, String>> readLineAsync();
+      }""");
+
+    assert_().about(javaSource()).that(file)
+        .processedWith(new DieselAnnotationProcessor())
+        .compilesWithoutError();
+  }
 }
