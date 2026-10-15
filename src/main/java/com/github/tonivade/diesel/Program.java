@@ -1342,7 +1342,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with timeout
    */
   default Program<S, E, T> timeout(Duration duration) {
-    return timeout(duration, ForkJoinPool.commonPool());
+    return race(sleep(duration), this)
+        .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
   }
 
   /**

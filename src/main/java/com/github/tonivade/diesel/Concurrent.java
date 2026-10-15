@@ -11,6 +11,15 @@ import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.unit;
 import static java.util.function.Function.identity;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import com.github.tonivade.diesel.Result.Failure;
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
@@ -21,19 +30,12 @@ import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicInteger;
-
 /**
  * Concurrent combinators to execute {@link Program}s in parallel.
  */
 public final class Concurrent {
+
+  private static final Executor DEFAULT_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
   private Concurrent() {}
 
@@ -52,7 +54,7 @@ public final class Concurrent {
    * @return a new program representing an either of the two programs
    */
   public static <S, E, T, U> Program<S, E, Either<T, U>> either(Program<S, E, T> p1, Program<S, E, U> p2) {
-    return either(p1, p2, ForkJoinPool.commonPool());
+    return either(p1, p2, DEFAULT_EXECUTOR);
   }
 
   /**
@@ -91,7 +93,7 @@ public final class Concurrent {
    * @return a new program representing an either of the two programs
    */
   public static <S, E, T, U> Program<S, E, Either<T, U>> race(Program<S, E, T> p1, Program<S, E, U> p2) {
-    return race(p1, p2, ForkJoinPool.commonPool());
+    return race(p1, p2, DEFAULT_EXECUTOR);
   }
 
   /**
@@ -134,7 +136,7 @@ public final class Concurrent {
    */
   @SafeVarargs
   public static <S, E, T> Program<S, E, Void> parAll(Program<S, E, T>... programs) {
-    return parAll(ForkJoinPool.commonPool(), programs);
+    return parAll(DEFAULT_EXECUTOR, programs);
   }
 
   /**
@@ -176,7 +178,7 @@ public final class Concurrent {
    * @return a new program representing the parallel computation
    */
   public static <S, E> Program<S, E, Void> parAll(Collection<? extends Program<S, E, ?>> programs) {
-    return parAll(ForkJoinPool.commonPool(), programs);
+    return parAll(DEFAULT_EXECUTOR, programs);
   }
 
   /**
@@ -276,7 +278,7 @@ public final class Concurrent {
    * @throws NoSuchElementException when evaluated if no programs are given
    */
   public static <S, E, T> Program<S, E, T> parAny(Collection<? extends Program<S, E, T>> programs) {
-    return parAny(ForkJoinPool.commonPool(), programs);
+    return parAny(DEFAULT_EXECUTOR, programs);
   }
 
   /**
@@ -336,7 +338,7 @@ public final class Concurrent {
    */
   @SafeVarargs
   public static <S, E, T> Program<S, E, Collection<T>> parSequence(Program<S, E, T>... programs) {
-    return parSequence(ForkJoinPool.commonPool(), programs);
+    return parSequence(DEFAULT_EXECUTOR, programs);
   }
 
   /**
@@ -382,7 +384,7 @@ public final class Concurrent {
    * @return a new program representing the parallel computation with sequenced results
    */
   public static <S, E, T> Program<S, E, Collection<T>> parSequence(Collection<? extends Program<S, E, T>> programs) {
-    return parSequence(ForkJoinPool.commonPool(), programs);
+    return parSequence(DEFAULT_EXECUTOR, programs);
   }
 
   /**
@@ -882,7 +884,7 @@ public final class Concurrent {
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Finisher2<T0, T1, R> finisher) {
-    return parZip(p0, p1, finisher, ForkJoinPool.commonPool());
+    return parZip(p0, p1, finisher, DEFAULT_EXECUTOR);
   }
 
   /**
@@ -914,7 +916,7 @@ public final class Concurrent {
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
       Finisher3<T0, T1, T2, R> finisher) {
-    return parZip(p0, p1, p2, finisher, ForkJoinPool.commonPool());
+    return parZip(p0, p1, p2, finisher, DEFAULT_EXECUTOR);
   }
 
   /**
@@ -949,7 +951,7 @@ public final class Concurrent {
       Program<S, E, T2> p2,
       Program<S, E, T3> p3,
       Finisher4<T0, T1, T2, T3, R> finisher) {
-    return parZip(p0, p1, p2, p3, finisher, ForkJoinPool.commonPool());
+    return parZip(p0, p1, p2, p3, finisher, DEFAULT_EXECUTOR);
   }
 
   /**
@@ -987,7 +989,7 @@ public final class Concurrent {
       Program<S, E, T3> p3,
       Program<S, E, T4> p4,
       Finisher5<T0, T1, T2, T3, T4, R> finisher) {
-    return parZip(p0, p1, p2, p3, p4, finisher, ForkJoinPool.commonPool());
+    return parZip(p0, p1, p2, p3, p4, finisher, DEFAULT_EXECUTOR);
   }
 
   /**
@@ -1028,7 +1030,7 @@ public final class Concurrent {
       Program<S, E, T4> p4,
       Program<S, E, T5> p5,
       Finisher6<T0, T1, T2, T3, T4, T5, R> finisher) {
-    return parZip(p0, p1, p2, p3, p4, p5, finisher, ForkJoinPool.commonPool());
+    return parZip(p0, p1, p2, p3, p4, p5, finisher, DEFAULT_EXECUTOR);
   }
 
   /**
@@ -1072,7 +1074,7 @@ public final class Concurrent {
       Program<S, E, T5> p5,
       Program<S, E, T6> p6,
       Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher) {
-    return parZip(p0, p1, p2, p3, p4, p5, p6, finisher, ForkJoinPool.commonPool());
+    return parZip(p0, p1, p2, p3, p4, p5, p6, finisher, DEFAULT_EXECUTOR);
   }
 
   /**
@@ -1119,7 +1121,7 @@ public final class Concurrent {
       Program<S, E, T6> p6,
       Program<S, E, T7> p7,
       Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher) {
-    return parZip(p0, p1, p2, p3, p4, p5, p6, p7, finisher, ForkJoinPool.commonPool());
+    return parZip(p0, p1, p2, p3, p4, p5, p6, p7, finisher, DEFAULT_EXECUTOR);
   }
 
   /**
@@ -1169,7 +1171,7 @@ public final class Concurrent {
       Program<S, E, T7> p7,
       Program<S, E, T8> p8,
       Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher) {
-    return parZip(p0, p1, p2, p3, p4, p5, p6, p7, p8, finisher, ForkJoinPool.commonPool());
+    return parZip(p0, p1, p2, p3, p4, p5, p6, p7, p8, finisher, DEFAULT_EXECUTOR);
   }
 
   private static <S, E, T> Collection<Program<S, E, CompletableFuture<Result<E, T>>>> forkAll(
