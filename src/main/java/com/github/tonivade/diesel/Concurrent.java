@@ -35,12 +35,12 @@ import com.github.tonivade.diesel.function.Finisher9;
  */
 public final class Concurrent {
 
-  private static final Executor DEFAULT_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+  static final Executor DEFAULT_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
   private Concurrent() {}
 
   /**
-   * Creates a new program that represents an either of two programs executed in parallel using the common fork-join pool.
+   * Creates a new program that represents an either of two programs executed in parallel using virtual threads.
    *
    * <p>First without error/exception wins. The other program is cancelled, and the resulting
    * program completes once it has stopped and run its finalizers.
@@ -79,7 +79,7 @@ public final class Concurrent {
   }
 
   /**
-   * Creates a new program that represents an race of two programs executed in parallel using the common fork-join pool.
+   * Creates a new program that represents an race of two programs executed in parallel using virtual threads.
    *
    * <p>First to finish wins. The other program is cancelled, and the resulting program completes
    * once it has stopped and run its finalizers.
@@ -118,7 +118,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes all the given programs in parallel using the common fork-join pool and ignores all their results.
+   * Executes all the given programs in parallel using virtual threads and ignores all their results.
    *
    * <p>
    * The execution is fail-fast: as soon as any program fails, the remaining programs are
@@ -162,7 +162,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes all the given programs in parallel using the common fork-join pool and ignores all their results.
+   * Executes all the given programs in parallel using virtual threads and ignores all their results.
    *
    * <p>
    * The execution is fail-fast: as soon as any program fails, the remaining programs are
@@ -218,7 +218,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes all the given programs in parallel using the common fork-join pool and returns the
+   * Executes all the given programs in parallel using virtual threads and returns the
    * result of the first one that finishes successfully.
    *
    * <p>
@@ -261,7 +261,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes all the given programs in parallel using the common fork-join pool and returns the
+   * Executes all the given programs in parallel using virtual threads and returns the
    * result of the first one that finishes successfully.
    *
    * <p>
@@ -319,7 +319,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes a collection of programs in parallel using the common fork-join pool and sequences
+   * Executes a collection of programs in parallel using virtual threads and sequences
    * their results into a single program containing a collection of success values.
    *
    * <p>
@@ -366,7 +366,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes a collection of programs in parallel using the common fork-join pool and sequences
+   * Executes a collection of programs in parallel using virtual threads and sequences
    * their results into a single program containing a collection of success values.
    *
    * <p>
@@ -859,7 +859,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * Executes the given programs in parallel using virtual threads and combines their results
    * using the finisher function.
    *
    * <p>
@@ -888,7 +888,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * Executes the given programs in parallel using virtual threads and combines their results
    * using the finisher function.
    *
    * <p>
@@ -920,7 +920,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * Executes the given programs in parallel using virtual threads and combines their results
    * using the finisher function.
    *
    * <p>
@@ -955,7 +955,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * Executes the given programs in parallel using virtual threads and combines their results
    * using the finisher function.
    *
    * <p>
@@ -993,7 +993,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * Executes the given programs in parallel using virtual threads and combines their results
    * using the finisher function.
    *
    * <p>
@@ -1034,7 +1034,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * Executes the given programs in parallel using virtual threads and combines their results
    * using the finisher function.
    *
    * <p>
@@ -1078,7 +1078,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * Executes the given programs in parallel using virtual threads and combines their results
    * using the finisher function.
    *
    * <p>
@@ -1125,7 +1125,7 @@ public final class Concurrent {
   }
 
   /**
-   * Executes the given programs in parallel using the common fork-join pool and combines their results
+   * Executes the given programs in parallel using virtual threads and combines their results
    * using the finisher function.
    *
    * <p>

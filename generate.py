@@ -110,9 +110,9 @@ public static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program
 }
 """)
 
-program_parzip_forkjoin_template = environment.from_string("""
+program_parzip_default_template = environment.from_string("""
 /**
- * Executes the given programs in parallel using the common fork-join pool and combines their results
+ * Executes the given programs in parallel using virtual threads and combines their results
  * using the finisher function.
  *
  * <p>
@@ -134,7 +134,7 @@ program_parzip_forkjoin_template = environment.from_string("""
 public static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> parZip(
   {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
   {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher) {
-    return parZip({% for i in range(value) %}p{{ i }}, {% endfor %}finisher, ForkJoinPool.commonPool());
+    return parZip({% for i in range(value) %}p{{ i }}, {% endfor %}finisher, DEFAULT_EXECUTOR);
 }
 """)
 
@@ -202,9 +202,9 @@ print(">>>> Concurrent parzip")
 for i in range(2, 10):
   print(program_parzip_template.render(value=i))
 
-print(">>>> Concurrent parzip fork join")
+print(">>>> Concurrent parzip default executor")
 for i in range(2, 10):
-  print(program_parzip_forkjoin_template.render(value=i))
+  print(program_parzip_default_template.render(value=i))
 
 print(">>>> Combine pipe")
 for i in range(2, 10):

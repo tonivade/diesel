@@ -473,8 +473,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * Creates a new program that represents an interruptible task, executed in the
    * {@link ForkJoinPool#commonPool()}. See {@link #interruptibleTask(Executor, Runnable)}.
    *
-   * <p>The action holds a thread of the common pool while it runs, and forked programs use the
-   * same pool by default: for long blocking actions, pass an executor of their own.
+   * <p>The common pool suits CPU-intensive actions. An action that mostly blocks, like waiting for
+   * I/O, holds a thread of the pool while it runs: pass an executor of its own, like one of
+   * virtual threads.
    *
    * @param action the task to be executed
    * @param <S> the type of the state
@@ -1282,7 +1283,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Forks the program to be executed asynchronously using the common fork-join pool.
+   * Forks the program to be executed asynchronously in a virtual thread.
    *
    * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
    * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
@@ -1303,7 +1304,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the forked computation
    */
   default Program<S, E, CompletableFuture<Result<E, T>>> fork() {
-    return fork(ForkJoinPool.commonPool());
+    return fork(Concurrent.DEFAULT_EXECUTOR);
   }
 
   /**
@@ -1333,7 +1334,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Adds a timeout to the program using the provided duration and the common fork-join pool.
+   * Adds a timeout to the program using the provided duration and virtual threads.
    *
    * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
    * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
@@ -1342,8 +1343,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with timeout
    */
   default Program<S, E, T> timeout(Duration duration) {
-    return race(sleep(duration), this)
-        .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
+    return timeout(duration, Concurrent.DEFAULT_EXECUTOR);
   }
 
   /**
