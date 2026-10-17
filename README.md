@@ -42,8 +42,8 @@ Add Diesel to both the compile classpath and the annotation processor path:
 
 ```kotlin
 dependencies {
-    implementation("com.github.tonivade:diesel:0.11")
-    annotationProcessor("com.github.tonivade:diesel:0.11")
+    implementation("com.github.tonivade:diesel:0.12")
+    annotationProcessor("com.github.tonivade:diesel:0.12")
 }
 ```
 
@@ -63,7 +63,7 @@ Add the library as a dependency:
 <dependency>
     <groupId>com.github.tonivade</groupId>
     <artifactId>diesel</artifactId>
-    <version>0.11</version>
+    <version>0.12</version>
 </dependency>
 ```
 
@@ -79,7 +79,7 @@ Configure the annotation processor in the Maven Compiler Plugin as well:
       <path>
         <groupId>com.github.tonivade</groupId>
         <artifactId>diesel</artifactId>
-        <version>0.11</version>
+        <version>0.12</version>
       </path>
     </annotationProcessorPaths>
   </configuration>
