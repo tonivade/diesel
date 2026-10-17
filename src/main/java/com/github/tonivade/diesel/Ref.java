@@ -4,7 +4,6 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Program.task;
 
@@ -83,7 +82,7 @@ public final class Ref<A> {
   }
 
   public static <S, E, A> Program<S, E, Ref<A>> make(A value) {
-    return success(of(value));
+    return supply(() -> of(value));
   }
 
   public static <A> Ref<A> of(A value) {
