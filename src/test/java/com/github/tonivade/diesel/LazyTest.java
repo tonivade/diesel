@@ -14,24 +14,20 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Optional;
-
 import org.junit.jupiter.api.Test;
 
 class LazyTest {
 
   @Test
   void readFileIO() {
-    var file = readFile("LICENSE");
+    var file = readFileLazy("LICENSE");
 
     assertEquals(success(impureReadFile("LICENSE")), file.eval());
   }
 
-  private Program<Void, String, String> readFile(String file) {
-    return Lazy.supply(() -> reader(file))
-      .flatMap(reader -> Lazy.iterate(() -> Optional.ofNullable(readLine(reader))))
-      .takeWhile(Optional::isPresent)
-      .map(Optional::orElseThrow)
+  private Program<Void, String, String> readFileLazy(String file) {
+    return Lazy.of(reader(file))
+      .flatMap(reader -> Lazy.from(reader.lines()))
       .foldLeft("", (a, b) -> a + '\n' + b)
       .catchAll(_ -> failure("--- file not found ---"));
   }
@@ -46,24 +42,15 @@ class LazyTest {
     });
   }
 
-  private String readLine(BufferedReader reader) {
-    try {
-      return reader.readLine();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
   private String impureReadFile(String file) {
-    String content = "";
-    try (BufferedReader reader = Files.newBufferedReader(Paths.get(file))) {
+    var content = "";
+    try (var reader = Files.newBufferedReader(Paths.get(file))) {
       while (true) {
-        String line = readLine(reader);
-        if (line != null) {
-          content = content + "\n" + line;
-        } else {
+        var line = reader.readLine();
+        if (line == null) {
           break;
         }
+        content = content + '\n' + line;
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);

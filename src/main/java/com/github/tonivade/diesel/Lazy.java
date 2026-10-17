@@ -7,12 +7,16 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Tuple2.tuple;
 
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
+
 import org.jspecify.annotations.Nullable;
 
 import com.github.tonivade.purefun.Kind;
@@ -56,10 +60,39 @@ public sealed interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
   }
 
   static <S, E, T> Lazy<S, E, T> suspend(Supplier<? extends Lazy<S, E, T>> lazy) {
-    return new Suspend<>(Program.suspend(() -> success(lazy.get())));
+    return new Suspend<>(Program.supply(() -> lazy.get()));
   }
 
-  record Empty<S, E, T>() implements Lazy<S, E, T> {
+  static <S, E, T> Lazy<S, E, T> from(Iterable<T> iterable) {
+    return from(iterable.iterator());
+  }
+
+  static <S, E, T> Lazy<S, E, T> from(Stream<T> stream) {
+    return from(stream.iterator());
+  }
+
+  static <S, E, T> Lazy<S, E, T> from(Iterator<T> iterator) {
+    return unfold(null, _ -> {
+      if (iterator.hasNext()) {
+        return Optional.of(tuple(iterator.next(), null));
+      }
+      return Optional.empty();
+    });
+  }
+
+  final class Empty<S, E, T> implements Lazy<S, E, T> {
+
+    private Empty() {}
+
+    @Override
+    public Program<S, E, T> head() {
+      throw new NoSuchElementException();
+    }
+
+    @Override
+    public Lazy<S, E, T> tail() {
+      return this;
+    }
 
     @Override
     public Program<S, E, Optional<T>> headOption() {
@@ -137,7 +170,7 @@ public sealed interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
 
     @Override
     public <R> Program<S, E, R> foldLeft(R begin, BiFunction<? super R, ? super T, ? extends R> combinator) {
-      return Program.success(begin);
+      return success(begin);
     }
 
     @Override
@@ -147,26 +180,26 @@ public sealed interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
     }
   }
 
-  record NonEmpty<S, E, T>(Program<S, E, T> current, Lazy<S, E, T> rest) implements Lazy<S, E, T> {
+  record NonEmpty<S, E, T>(Program<S, E, T> head, Lazy<S, E, T> tail) implements Lazy<S, E, T> {
 
     @Override
     public Program<S, E, Optional<T>> headOption() {
-      return current.map(Optional::of);
+      return head.map(Optional::of);
     }
 
     @Override
     public Program<S, E, Optional<Tuple2<Program<S, E, T>, Lazy<S, E, T>>>> split() {
-      return success(Optional.of(Tuple2.tuple(current, rest)));
+      return success(Optional.of(Tuple2.tuple(head, tail)));
     }
 
     @Override
     public Lazy<S, E, T> concat(Lazy<S, E, T> other) {
-    return supply(() -> nonEmpty(current, rest.concat(other)));
+    return supply(() -> nonEmpty(head, tail.concat(other)));
     }
 
     @Override
     public Lazy<S, E, T> append(Program<S, E, T> other) {
-      return supply(() -> nonEmpty(current, rest.append(other)));
+      return supply(() -> nonEmpty(head, tail.append(other)));
     }
 
     @Override
@@ -179,7 +212,7 @@ public sealed interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
       if (n < 1) {
         return empty();
       }
-      return supply(() -> nonEmpty(current, rest.take(n - 1)));
+      return supply(() -> nonEmpty(head, tail.take(n - 1)));
     }
 
     @Override
@@ -187,23 +220,23 @@ public sealed interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
       if (n < 0) {
         return this;
       }
-      return supply(() -> rest.drop(n - 1));
+      return supply(() -> tail.drop(n - 1));
     }
 
     @Override
     public Lazy<S, E, T> filter(Predicate<? super T> matcher) {
       return suspend(() ->
-        current.map(t -> matcher.test(t)
-            ? nonEmpty(current, rest.filter(matcher))
-            : rest.filter(matcher))
+        head.map(t -> matcher.test(t)
+            ? nonEmpty(head, tail.filter(matcher))
+            : tail.filter(matcher))
       );
     }
 
     @Override
     public Lazy<S, E, T> takeWhile(Predicate<? super T> matcher) {
       return suspend(() ->
-        current.map(t -> matcher.test(t)
-            ? nonEmpty(current, rest.takeWhile(matcher))
+        head.map(t -> matcher.test(t)
+            ? nonEmpty(head, tail.takeWhile(matcher))
             : empty())
       );
     }
@@ -211,8 +244,8 @@ public sealed interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
     @Override
     public Lazy<S, E, T> dropWhile(Predicate<? super T> matcher) {
       return suspend(() ->
-        current.map(t -> matcher.test(t)
-            ? rest.dropWhile(matcher)
+        head.map(t -> matcher.test(t)
+            ? tail.dropWhile(matcher)
             : this)
       );
     }
@@ -225,32 +258,32 @@ public sealed interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
     @Override
     public <R> Lazy<S, E, R> mapEval(Function<? super T, ? extends Program<S, E, R>> mapper) {
       return supply(
-          () -> nonEmpty(current.flatMap(mapper), rest.mapEval(mapper)));
+          () -> nonEmpty(head.flatMap(mapper), tail.mapEval(mapper)));
     }
 
     @Override
     public <R> Lazy<S, E, R> flatMap(Function<? super T, ? extends Lazy<S, E, R>> mapper) {
       return suspend(
-          () -> current.map(mapper).map(s -> s.concat(rest.flatMap(mapper))));
+          () -> head.map(mapper).map(s -> s.concat(tail.flatMap(mapper))));
     }
 
     @Override
     public <R> Lazy<S, E, R> collect(Predicate<? super T> isDefined, Function<? super T, ? extends R> mapper) {
       return suspend(() ->
-        current.map(t -> isDefined.test(t)
-            ? nonEmpty(current.map(mapper), rest.collect(isDefined, mapper))
-            : rest.collect(isDefined, mapper)));
+        head.map(t -> isDefined.test(t)
+            ? nonEmpty(head.map(mapper), tail.collect(isDefined, mapper))
+            : tail.collect(isDefined, mapper)));
     }
 
     @Override
     public <R> Program<S, E, R> foldLeft(R begin, BiFunction<? super R, ? super T, ? extends R> combinator) {
-      return current.flatMap(h -> rest.foldLeft(combinator.apply(begin, h), combinator));
+      return head.flatMap(h -> tail.foldLeft(combinator.apply(begin, h), combinator));
     }
 
     @Override
     public <R> Program<S, E, R> foldRight(Program<S, E, R> begin,
         BiFunction<? super T, ? super Program<S, E, R>, ? extends Program<S, E, R>> combinator) {
-      return current.flatMap(h -> rest.foldRight(combinator.apply(h, begin), combinator));
+      return head.flatMap(h -> tail.foldRight(combinator.apply(h, begin), combinator));
     }
 
     private <R> Lazy<S, E, R> supply(Supplier<Lazy<S, E, R>> stream) {
@@ -263,6 +296,16 @@ public sealed interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
   }
 
   record Suspend<S, E, T>(Program<S, E, Lazy<S, E, T>> program) implements Lazy<S, E, T> {
+
+    @Override
+    public Program<S, E, T> head() {
+      return program.flatMap(Lazy::head);
+    }
+
+    @Override
+    public Lazy<S, E, T> tail() {
+      return lazyMap(s -> s.tail());
+    }
 
     @Override
     public Program<S, E, Optional<T>> headOption() {
@@ -354,13 +397,9 @@ public sealed interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
     }
   }
 
-  default Lazy<S, E, T> head() {
-    return take(1);
-  }
+  Program<S, E, T> head();
 
-  default Lazy<S, E, T> tail() {
-    return drop(1);
-  }
+  Lazy<S, E, T> tail();
 
   Program<S, E, Optional<T>> headOption();
 
