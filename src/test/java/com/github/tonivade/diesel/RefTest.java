@@ -14,6 +14,19 @@ import org.junit.jupiter.api.Test;
 class RefTest {
 
   @Test
+  void makeCreatesANewRefForEachEvaluation() {
+    var program = Ref.make(0);
+
+    var first = program.evalOrElseThrow();
+    var second = program.evalOrElseThrow();
+
+    first.set(1).evalOrElseThrow();
+
+    assertEquals(1, first.get().evalOrElseThrow());
+    assertEquals(0, second.get().evalOrElseThrow());
+  }
+
+  @Test
   void get() {
     var ref = Ref.of("Hello World!");
 
