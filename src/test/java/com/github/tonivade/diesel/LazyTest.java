@@ -1,6 +1,11 @@
+/*
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Distributed under the terms of the MIT License
+ */
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Result.success;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -32,7 +37,7 @@ class LazyTest {
   }
 
   private Program<Void, String, BufferedReader> reader(String file) {
-    return Program.supply(() -> {
+    return supply(() -> {
       try {
         return Files.newBufferedReader(Paths.get(file));
       } catch (IOException e) {

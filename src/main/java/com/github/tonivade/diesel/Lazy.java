@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Distributed under the terms of the MIT License
+ */
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.success;
@@ -32,7 +36,11 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
   }
 
   static <S, E, T> Lazy<S, E, T> of(Program<S, E, T> value) {
-    return new NonEmpty<>(value, empty());
+    return nonEmpty(value, empty());
+  }
+
+  static <S, E, T> Lazy<S, E, T> nonEmpty(Program<S, E, T> head, Lazy<S, E, T> tail) {
+    return new NonEmpty<>(head, tail);
   }
 
   static <S, E, T> Lazy<S, E, T> supply(Supplier<Program<S, E, T>> supplier) {
@@ -40,7 +48,7 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
   }
 
   static <S, E, T> Lazy<S, E, T> iterate(T seed, UnaryOperator<T> generator) {
-    return new NonEmpty<>(success(seed), suspend(() -> iterate(generator.apply(seed), generator)));
+    return nonEmpty(success(seed), suspend(() -> iterate(generator.apply(seed), generator)));
   }
 
   static <S, E, T> Lazy<S, E, T> iterate(Supplier<T> generator) {
@@ -70,7 +78,7 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
 
     @Override
     public Lazy<S, E, T> append(Program<S, E, T> other) {
-      return new NonEmpty<>(other, this);
+      return nonEmpty(other, this);
     }
 
     @Override
@@ -153,17 +161,17 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
 
     @Override
     public Lazy<S, E, T> concat(Lazy<S, E, T> other) {
-    return supply(() -> new NonEmpty<>(current, rest.concat(other)));
+    return supply(() -> nonEmpty(current, rest.concat(other)));
     }
 
     @Override
     public Lazy<S, E, T> append(Program<S, E, T> other) {
-      return supply(() -> new NonEmpty<>(current, rest.append(other)));
+      return supply(() -> nonEmpty(current, rest.append(other)));
     }
 
     @Override
     public Lazy<S, E, T> prepend(Program<S, E, T> other) {
-      return supply(() -> new NonEmpty<>(other, rest.prepend(current)));
+      return supply(() -> nonEmpty(other, this));
     }
 
     @Override
@@ -171,7 +179,7 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
       if (n < 1) {
         return empty();
       }
-      return supply(() -> new NonEmpty<>(current, rest.take(n - 1)));
+      return supply(() -> nonEmpty(current, rest.take(n - 1)));
     }
 
     @Override
@@ -186,7 +194,7 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
     public Lazy<S, E, T> filter(Predicate<? super T> matcher) {
       return suspend(() ->
         current.map(t -> matcher.test(t)
-            ? new NonEmpty<>(current, rest.filter(matcher))
+            ? nonEmpty(current, rest.filter(matcher))
             : rest.filter(matcher))
       );
     }
@@ -195,7 +203,7 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
     public Lazy<S, E, T> takeWhile(Predicate<? super T> matcher) {
       return suspend(() ->
         current.map(t -> matcher.test(t)
-            ? new NonEmpty<>(current, rest.takeWhile(matcher))
+            ? nonEmpty(current, rest.takeWhile(matcher))
             : empty())
       );
     }
@@ -217,7 +225,7 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
     @Override
     public <R> Lazy<S, E, R> mapEval(Function<? super T, ? extends Program<S, E, R>> mapper) {
       return supply(
-          () -> new NonEmpty<>(current.flatMap(mapper), rest.mapEval(mapper)));
+          () -> nonEmpty(current.flatMap(mapper), rest.mapEval(mapper)));
     }
 
     @Override
@@ -230,7 +238,7 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
     public <R> Lazy<S, E, R> collect(Predicate<? super T> isDefined, Function<? super T, ? extends R> mapper) {
       return suspend(() ->
         current.map(t -> isDefined.test(t)
-            ? new NonEmpty<>(current.map(mapper), rest.collect(isDefined, mapper))
+            ? nonEmpty(current.map(mapper), rest.collect(isDefined, mapper))
             : rest.collect(isDefined, mapper)));
     }
 
@@ -399,7 +407,7 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
 
   private static <S, E, T, A> Lazy<S, E, T> doUnfold(@Nullable A seed, Function<? super A, Optional<Tuple2<T, A>>> function) {
     return function.apply(seed)
-      .<Lazy<S, E, T>>map(t -> new NonEmpty<>(success(t.first()), suspend(() -> doUnfold(t.second(), function))))
+      .<Lazy<S, E, T>>map(t -> nonEmpty(success(t.first()), suspend(() -> doUnfold(t.second(), function))))
       .orElseGet(Lazy::empty);
   }
 }
