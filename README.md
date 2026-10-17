@@ -198,8 +198,19 @@ Use `pipe` to pass the successful result of one program to the next program. A f
 var greeting = pipe(
     readLine(),
     name -> writeLine("Hello " + name + "!"),
-    ignored -> writeLine("Welcome.")
+    _ -> writeLine("Welcome.")
 );
+```
+
+Maybe is clearer in a diagram how `pipe` works:
+
+```mermaid
+flowchart LR
+   Program1 -- Result1 --> Program2
+   Program2 -- Result2 --> Program3
+   Program3 -- Result --> STOP[ ]
+
+   style STOP  fill:#FFFFFF00, stroke:#FFFFFF00;
 ```
 
 For two-step composition, `flatMap` is the core operation. Use `map` when the next step is a plain value-producing function, and `andThen` when the next program does not need the previous result.
@@ -216,6 +227,18 @@ var combined = Combine.zip(
     loadPreferences(),
     (user, preferences) -> new UserView(user, preferences)
 );
+```
+
+Maybe is clearer in a diagram how `zip` works:
+
+```mermaid
+flowchart LR
+   Program1 -- Result1 --> Finisher
+   Program2 -- Result2 --> Finisher
+   Program3 -- Result3 --> Finisher
+   Finisher -- Result --> STOP[ ]
+
+   style STOP  fill:#FFFFFF00, stroke:#FFFFFF00;
 ```
 
 `zip` propagates a failure and calls the finisher only when all inputs succeed. Generated overloads support combining multiple programs.
