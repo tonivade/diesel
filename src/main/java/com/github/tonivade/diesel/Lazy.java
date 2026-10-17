@@ -9,12 +9,18 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import org.jspecify.annotations.Nullable;
 
 import com.github.tonivade.purefun.Kind;
 
 public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
 
   Lazy<?, ?, ?> EMPTY = new Empty<>();
+
+  @SuppressWarnings("unchecked")
+  static <S, E, T> Lazy<S, E, T> toLazy(Kind<Lazy<S, E, ?>, ? extends T> value) {
+    return (Lazy<S, E, T>) value;
+  }
 
   @SuppressWarnings("unchecked")
   static <S, E, T> Lazy<S, E, T> empty() {
@@ -39,10 +45,6 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
 
   static <S, E, T> Lazy<S, E, T> iterate(Supplier<T> generator) {
     return unfold(null, _ -> Optional.of(tuple(generator.get(), null)));
-  }
-
-  static <S, E, T, A> Lazy<S, E, T> unfold(A seed, Function<? super A, Optional<Tuple2<T, A>>> function) {
-    return suspend(() -> doUnfold(seed, function));
   }
 
   static <S, E, T> Lazy<S, E, T> suspend(Supplier<? extends Lazy<S, E, T>> lazy) {
@@ -391,7 +393,11 @@ public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
   <R> Program<S, E, R> foldRight(Program<S, E, R> begin,
       BiFunction<? super T, ? super Program<S, E, R>, ? extends Program<S, E, R>> combinator);
 
-  private static <S, E, T, A> Lazy<S, E, T> doUnfold(A seed, Function<? super A, Optional<Tuple2<T, A>>> function) {
+  private static <S, E, T, A> Lazy<S, E, T> unfold(@Nullable A seed, Function<? super A, Optional<Tuple2<T, A>>> function) {
+    return suspend(() -> doUnfold(seed, function));
+  }
+
+  private static <S, E, T, A> Lazy<S, E, T> doUnfold(@Nullable A seed, Function<? super A, Optional<Tuple2<T, A>>> function) {
     return function.apply(seed)
       .<Lazy<S, E, T>>map(t -> new NonEmpty<>(success(t.first()), suspend(() -> doUnfold(t.second(), function))))
       .orElseGet(Lazy::empty);
