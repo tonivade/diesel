@@ -17,7 +17,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.github.tonivade.purefun.Kind;
 
-public interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
+public sealed interface Lazy<S, E, T> extends Kind<Lazy<S, E, ?>, T> {
 
   Lazy<?, ?, ?> EMPTY = new Empty<>();
 
