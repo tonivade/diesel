@@ -6,7 +6,6 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.supply;
-import static com.github.tonivade.diesel.Result.success;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.BufferedReader;
@@ -19,10 +18,10 @@ import org.junit.jupiter.api.Test;
 class LazyTest {
 
   @Test
-  void readFileIO() {
-    var file = readFileLazy("LICENSE");
-
-    assertEquals(success(impureReadFile("LICENSE")), file.eval());
+  void readFile() {
+    assertEquals(
+        impureReadFile("LICENSE"),
+        readFileLazy("LICENSE").evalOrElseThrow());
   }
 
   private Program<Void, String, String> readFileLazy(String file) {
@@ -43,8 +42,8 @@ class LazyTest {
   }
 
   private String impureReadFile(String file) {
-    var content = "";
     try (var reader = Files.newBufferedReader(Paths.get(file))) {
+      var content = "";
       while (true) {
         var line = reader.readLine();
         if (line == null) {
@@ -52,9 +51,9 @@ class LazyTest {
         }
         content = content + '\n' + line;
       }
+      return content;
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
-    return content;
   }
 }

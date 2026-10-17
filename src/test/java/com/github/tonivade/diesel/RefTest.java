@@ -89,12 +89,12 @@ class RefTest {
   @Test
   void modify() {
     var program = pipe(
-    Ref.make("Hello World!"),
-    ref -> zip(
-        ref.modify(value -> tuple("result", value.toUpperCase())),
-        ref.get(), Tuple2::tuple
-        )
-    );
+      Ref.make("Hello World!"),
+      ref -> zip(
+            ref.modify(value -> tuple("result", value.toUpperCase())),
+            ref.get(), Tuple2::tuple
+          )
+      );
 
     var result = program.evalOrElseThrow();
 
