@@ -6,8 +6,12 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.supply;
 
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * Models a value that is set only once and that programs can wait for.
@@ -23,15 +27,16 @@ import java.util.concurrent.CompletableFuture;
  * an uncancelable region, like a finalizer, can't be woken up, so it waits forever if the value is
  * never set.
  *
- * <p>Each waiting program registers a callback in the deferred, which is released when the value
- * is set. A waiter that is cancelled before that keeps its callback registered until then, so a
- * deferred that is never set, waited by many programs that are cancelled, keeps them all.
+ * <p>The value can't be {@code null}.
  *
  * @param <A> type of stored value
  */
 public final class Deferred<A> {
 
   private final CompletableFuture<A> value = new CompletableFuture<>();
+  // the programs waiting in get: each one leaves when it's woken up or cancelled, so the waiters
+  // that are cancelled while the value isn't set are not kept
+  private final Set<Consumer<A>> waiters = ConcurrentHashMap.newKeySet();
 
   private Deferred() {}
 
@@ -45,8 +50,17 @@ public final class Deferred<A> {
    * @return a program that waits for the value when evaluated
    */
   public <S, E> Program<S, E, A> get() {
-    // join doesn't cancel the future when the waiter is cancelled, so the others keep waiting
-    return Program.join(value.thenApply(Result::<E, A>success));
+    return Program.asyncCancelable((_, callback) -> {
+      Consumer<A> waiter = current -> callback.complete(Result.success(current));
+      waiters.add(waiter);
+      // complete sets the value before it wakes up the waiters, so a value set before the waiter
+      // was added is seen here
+      if (value.isDone()) {
+        waiters.remove(waiter);
+        waiter.accept(value.join());
+      }
+      return Program.task(() -> waiters.remove(waiter));
+    });
   }
 
   /**
@@ -54,12 +68,23 @@ public final class Deferred<A> {
    *
    * @param <S> the type of the state
    * @param <E> the type of the error
-   * @param newValue the value to set
+   * @param newValue the value to set, not {@code null}
    * @return a program that returns {@code true} if it set the value, or {@code false} if the value
    *     was already set, in which case the value doesn't change
+   * @throws NullPointerException if the value is {@code null}
    */
   public <S, E> Program<S, E, Boolean> complete(A newValue) {
-    return supply(() -> value.complete(newValue));
+    Objects.requireNonNull(newValue, "the value of a deferred can't be null");
+    return supply(() -> {
+      if (value.complete(newValue)) {
+        // a waiter added after this point sees the value in get and wakes itself up, so clearing
+        // the set never leaves a waiter asleep. Waking one that was just cancelled does nothing
+        waiters.forEach(waiter -> waiter.accept(newValue));
+        waiters.clear();
+        return true;
+      }
+      return false;
+    });
   }
 
   /**
@@ -103,6 +128,11 @@ public final class Deferred<A> {
   @Override
   public String toString() {
     return current().map(v -> String.format("Deferred(%s)", v)).orElse("Deferred(<empty>)");
+  }
+
+  // the number of programs waiting in get, for the tests
+  int waiting() {
+    return waiters.size();
   }
 
   private Optional<A> current() {

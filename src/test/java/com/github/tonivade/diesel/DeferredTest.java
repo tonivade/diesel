@@ -10,6 +10,7 @@ import static com.github.tonivade.diesel.Concurrent.parZip;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Tuple2.tuple;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -123,5 +124,58 @@ class DeferredTest {
     deferred.<Void, Void>complete("hello").evalOrElseThrow();
 
     assertThat(deferred).hasToString("Deferred(hello)");
+  }
+
+  @Test
+  void cancelledWaitersAreNotKept() {
+    var waitWithTimeout = deferred.<Void, Void>get()
+        .timeout(Duration.ofMillis(1))
+        .catchAll(_ -> success("timeout"));
+
+    for (int i = 0; i < 100; i++) {
+      assertThat(waitWithTimeout.evalOrElseThrow()).isEqualTo("timeout");
+    }
+
+    assertThat(deferred.waiting()).isZero();
+  }
+
+  @Test
+  void wokenUpWaitersAreNotKept() {
+    var program = parZip(
+        deferred.<Void, Void>get(),
+        Program.<Void, Void>sleep(Duration.ofMillis(50)).andThen(deferred.complete("hello")),
+        (value, _) -> value);
+
+    assertThat(program.evalOrElseThrow()).isEqualTo("hello");
+    assertThat(deferred.waiting()).isZero();
+  }
+
+  @Test
+  @SuppressWarnings("NullAway") // NullAway already rejects it at compile time, but not every caller uses it
+  void completeRejectsANullValue() {
+    assertThatThrownBy(() -> deferred.<Void, Void>complete(null)).isInstanceOf(NullPointerException.class);
+    assertThat(deferred.<Void, Void>tryGet().evalOrElseThrow()).isEmpty();
+  }
+
+  @Test
+  void getInAnUncancelableRegionWaitsForTheValue() throws Exception {
+    var future = deferred.<Void, Void>get().uncancelable().fork().evalOrElseThrow();
+    awaitWaiting(1);
+
+    future.cancel(true);
+    deferred.<Void, Void>complete("hello").evalOrElseThrow();
+
+    // the whole program is the region, so the cancellation has no step left to stop it
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.success("hello"));
+  }
+
+  private void awaitWaiting(int count) {
+    var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+    while (deferred.waiting() < count) {
+      if (System.nanoTime() > deadline) {
+        throw new AssertionError("the program never started waiting");
+      }
+      Thread.onSpinWait();
+    }
   }
 }
