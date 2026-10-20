@@ -63,22 +63,28 @@ class RefTest {
   void getAndSet() {
     var ref = Ref.of("Hello World!");
 
-    var result = ref.getAndSet("Something else");
-    var afterUpdate = result.andThen(ref.get());
+    var result = zip(
+        ref.getAndSet("Something else"),
+        ref.get(),
+        Tuple2::tuple
+      );
 
-    assertThat(result.evalOrElseThrow()).isEqualTo("Hello World!");
-    assertThat(afterUpdate.evalOrElseThrow()).isEqualTo("Something else");
+    assertThat(result.evalOrElseThrow())
+      .isEqualTo(tuple("Hello World!", "Something else"));
   }
 
   @Test
   void getAndUpdate() {
     var ref = Ref.of("Hello World!");
 
-    var result = ref.getAndUpdate(s -> s.toUpperCase(Locale.ROOT));
-    var afterUpdate = result.andThen(ref.get());
+    var result = zip(
+        ref.getAndUpdate(s -> s.toUpperCase(Locale.ROOT)),
+        ref.get(),
+        Tuple2::tuple
+      );
 
-    assertThat(result.evalOrElseThrow()).isEqualTo("Hello World!");
-    assertThat(afterUpdate.evalOrElseThrow()).isEqualTo("HELLO WORLD!");
+    assertThat(result.evalOrElseThrow())
+      .isEqualTo(tuple("Hello World!", "HELLO WORLD!"));
   }
 
   @Test
