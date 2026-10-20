@@ -53,16 +53,18 @@ public final class Ref<A> {
   }
 
   /**
-   * Eventually sets the stored value, with memory-ordering effects as specified by
-   * {@link AtomicReference#lazySet(Object)}.
+   * Atomically updates the value using the supplied function.
+   *
+   * <p>The function may be applied more than once if concurrent updates contend; it should
+   * therefore be side-effect-free.
    *
    * @param <S> the type of the state
    * @param <E> the type of the error
-   * @param newValue the value to store
+   * @param update the function used to compute the new value
    * @return a program that performs the update and returns {@code null}
    */
-  public <S, E> Program<S, E, Void> lazySet(A newValue) {
-    return task(() -> value.lazySet(newValue));
+  public <S, E> Program<S, E, Void> update(UnaryOperator<A> update) {
+    return task(() -> value.updateAndGet(update));
   }
 
   /**
@@ -123,15 +125,13 @@ public final class Ref<A> {
    */
   public <S, E, B> Program<S, E, B> modify(Function<? super A, Tuple2<B, A>> change) {
     return supply(() -> {
-      var loop = true;
-      B result = null;
-      while (loop) {
+      while (true) {
         A current = value.get();
         var tuple = change.apply(current);
-        result = tuple.first();
-        loop = !value.compareAndSet(current, tuple.second());
+        if (value.compareAndSet(current, tuple.second())) {
+          return tuple.first();
+        }
       }
-      return result;
     });
   }
 

@@ -11,15 +11,6 @@ import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.unit;
 import static java.util.function.Function.identity;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import com.github.tonivade.diesel.Result.Failure;
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
@@ -29,6 +20,15 @@ import com.github.tonivade.diesel.function.Finisher6;
 import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Concurrent combinators to execute {@link Program}s in parallel.
@@ -1204,7 +1204,7 @@ public final class Concurrent {
     var remaining = new AtomicInteger(futures.size());
 
     for (var future : futures) {
-      future.whenComplete((value, error) -> {
+      var _ = future.whenComplete((value, error) -> {
         if (error != null) {
           result.completeExceptionally(error);
         } else if (value instanceof Failure(var fail)) {

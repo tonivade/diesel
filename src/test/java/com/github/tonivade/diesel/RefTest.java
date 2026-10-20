@@ -7,7 +7,11 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Tuple2.tuple;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Test;
 
@@ -22,8 +26,8 @@ class RefTest {
 
     first.set(1).evalOrElseThrow();
 
-    assertEquals(1, first.get().evalOrElseThrow());
-    assertEquals(0, second.get().evalOrElseThrow());
+    assertThat(first.get().evalOrElseThrow()).isEqualTo(1);
+    assertThat(second.get().evalOrElseThrow()).isZero();
   }
 
   @Test
@@ -32,7 +36,7 @@ class RefTest {
 
     var result = ref.get();
 
-    assertEquals("Hello World!", result.evalOrElseThrow());
+    assertThat(result.evalOrElseThrow()).isEqualTo("Hello World!");
   }
 
   @Test
@@ -42,17 +46,17 @@ class RefTest {
     var set = ref.set("Something else");
     var result = set.andThen(ref.get());
 
-    assertEquals("Something else", result.evalOrElseThrow());
+    assertThat(result.evalOrElseThrow()).isEqualTo("Something else");
   }
 
   @Test
-  void lazySet() {
-    var ref = Ref.of("Hello World!");
+  void update() {
+    var ref = Ref.of(1);
 
-    var lazySet = ref.lazySet("Something else");
-    var result = lazySet.andThen(ref.get());
+    var update = ref.update(x -> x + 1);
+    var result = update.andThen(ref.get());
 
-    assertEquals("Something else", result.evalOrElseThrow());
+    assertThat(result.evalOrElseThrow()).isEqualTo(2);
   }
 
   @Test
@@ -62,42 +66,67 @@ class RefTest {
     var result = ref.getAndSet("Something else");
     var afterUpdate = result.andThen(ref.get());
 
-    assertEquals("Hello World!", result.evalOrElseThrow());
-    assertEquals("Something else", afterUpdate.evalOrElseThrow());
+    assertThat(result.evalOrElseThrow()).isEqualTo("Hello World!");
+    assertThat(afterUpdate.evalOrElseThrow()).isEqualTo("Something else");
   }
 
   @Test
   void getAndUpdate() {
     var ref = Ref.of("Hello World!");
 
-    var result = ref.getAndUpdate(String::toUpperCase);
+    var result = ref.getAndUpdate(s -> s.toUpperCase(Locale.ROOT));
     var afterUpdate = result.andThen(ref.get());
 
-    assertEquals("Hello World!", result.evalOrElseThrow());
-    assertEquals("HELLO WORLD!", afterUpdate.evalOrElseThrow());
+    assertThat(result.evalOrElseThrow()).isEqualTo("Hello World!");
+    assertThat(afterUpdate.evalOrElseThrow()).isEqualTo("HELLO WORLD!");
   }
 
   @Test
   void updateAndGet() {
     var ref = Ref.of("Hello World!");
 
-    var result = ref.updateAndGet(String::toUpperCase);
+    var result = ref.updateAndGet(s -> s.toUpperCase(Locale.ROOT));
 
-    assertEquals("HELLO WORLD!", result.evalOrElseThrow());
+    assertThat(result.evalOrElseThrow()).isEqualTo("HELLO WORLD!");
   }
 
   @Test
   void modify() {
     var program = pipe(
-    Ref.make("Hello World!"),
-    ref -> zip(
-        ref.modify(value -> tuple("result", value.toUpperCase())),
-        ref.get(), Tuple2::tuple
-        )
+      Ref.make("Hello World!"),
+      ref -> zip(
+            ref.modify(value -> tuple("result", value.toUpperCase(Locale.ROOT))),
+            ref.get(), Tuple2::tuple
+          )
     );
 
     var result = program.evalOrElseThrow();
 
-    assertEquals(result, tuple("result", "HELLO WORLD!"));
+    assertThat(result).isEqualTo(tuple("result", "HELLO WORLD!"));
+  }
+
+  @Test
+  void concurrentUpdatesAreNotLost() {
+    var ref = Ref.of(0);
+    var updates = IntStream.range(0, 1000)
+        .mapToObj(_ -> ref.<Void, Void>updateAndGet(x -> x + 1))
+        .toList();
+
+    var result = Concurrent.parAll(updates).andThen(ref.get());
+
+    assertThat(result.evalOrElseThrow()).isEqualTo(1000);
+  }
+
+  @Test
+  void concurrentModifiesAreNotLost() {
+    var ref = Ref.of(0);
+    var updates = IntStream.range(0, 1000)
+        .mapToObj(_ -> ref.<Void, Void, Integer>modify(x -> tuple(x, x + 1)))
+        .toList();
+
+    var previous = Concurrent.parSequence(updates).evalOrElseThrow();
+
+    assertThat(Set.copyOf(previous)).hasSize(1000);
+    assertThat(ref.get().evalOrElseThrow()).isEqualTo(1000);
   }
 }
