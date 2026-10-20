@@ -1005,8 +1005,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * {@link #runForked}.
    *
    * <p>The future is tracked by the parent from the start, so a cancelled parent can wait for it
-   * to stop. If the executor refuses to run the program, the future fails with the same error
-   * that is thrown, otherwise the parent would wait for it forever.
+   * to stop. If the executor refuses to run the program, the future fails with that error,
+   * otherwise the parent would wait for it forever. The error is not thrown, so the combinators,
+   * like {@code parZip}, see a failed program and cancel the ones they already started. An
+   * {@link Error} is thrown too.
    */
   private static <S, E, T> CompletableFuture<Result<E, T>> startFork(
       @Nullable S state, CancelToken parent, Program<S, E, T> program, Executor executor) {
@@ -1018,7 +1020,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     } catch (RuntimeException | Error e) {
       token.detachFromParent();
       future.completeExceptionally(e);
-      throw e;
+      if (e instanceof Error error) {
+        throw error;
+      }
     }
     return future;
   }
@@ -1312,6 +1316,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
    * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
+   *
+   * <p>If the executor refuses to run the program, like a {@code RejectedExecutionException} of a
+   * full or shut down executor, the fork doesn't fail: the returned future fails with that error.
    *
    * <p>The lifetime of the forked program depends on how the program that forked it ends:
    * <ul>

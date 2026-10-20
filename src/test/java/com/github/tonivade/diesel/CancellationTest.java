@@ -28,6 +28,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -223,8 +224,8 @@ class CancellationTest {
     Executor rejecting = _ -> {
       throw new RejectedExecutionException();
     };
-    var program = never().fork(rejecting).andThen(never())
-        .catchAll(e -> run(() -> error.set(e)).andThen(start()).andThen(never()));
+    var program = never().fork(rejecting)
+        .flatMap(rejected -> run(() -> error.set(rejected.exceptionNow())).andThen(start()).andThen(never()));
 
     var future = program.fork().evalOrElseThrow();
     allStarted.get(5, TimeUnit.SECONDS);
@@ -233,6 +234,24 @@ class CancellationTest {
     // get with a timeout: join can't be interrupted, so a regression would hang instead of failing
     assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
     assertThat(error.get()).isInstanceOf(RejectedExecutionException.class);
+  }
+
+  @Test
+  void parAllCancelsTheStartedProgramsWhenTheExecutorRejectsOne() {
+    expected = 1;
+    var program = parAll(rejectingAfterTheFirst(), blocked(), blocked());
+
+    assertThatThrownBy(program::eval).isInstanceOf(RejectedExecutionException.class);
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void parZipCancelsTheStartedProgramsWhenTheExecutorRejectsOne() {
+    expected = 1;
+    var program = parZip(blocked(), blocked(), (_, _) -> "done", rejectingAfterTheFirst());
+
+    assertThatThrownBy(program::eval).isInstanceOf(RejectedExecutionException.class);
+    assertThat(released).hasValue(1);
   }
 
   @Test
@@ -601,6 +620,22 @@ class CancellationTest {
   private Program<Void, String, Void> whenStarted(int count) {
     expected = count;
     return Program.join(allStarted);
+  }
+
+  /**
+   * An executor that runs the first program and rejects the others once it has started, so the
+   * rejection always happens with a program already running.
+   */
+  private Executor rejectingAfterTheFirst() {
+    var accepted = new AtomicBoolean();
+    return task -> {
+      if (accepted.compareAndSet(false, true)) {
+        Thread.startVirtualThread(task);
+      } else {
+        allStarted.join();
+        throw new RejectedExecutionException();
+      }
+    };
   }
 
   private Program<Void, String, Void> start() {
