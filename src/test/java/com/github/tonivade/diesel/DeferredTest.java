@@ -162,6 +162,7 @@ class DeferredTest {
     var future = deferred.<Void, Void>get().uncancelable().fork().evalOrElseThrow();
     awaitWaiting(1);
 
+    // the future of a fork isn't completed by cancel: it only asks the program to stop
     future.cancel(true);
     deferred.<Void, Void>complete("hello").evalOrElseThrow();
 
