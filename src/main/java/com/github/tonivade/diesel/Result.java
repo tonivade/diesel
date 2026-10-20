@@ -76,7 +76,8 @@ public sealed interface Result<F, S> {
 
   /**
    * Attempts to execute the provided supplier and returns a result.
-   * If the supplier throws a Throwable, a failure result is returned.
+   * If the supplier throws a Throwable, a failure result is returned, except for a
+   * {@link VirtualMachineError}, like an {@link OutOfMemoryError}, which is rethrown.
    * Otherwise, a success result is returned with the value from the supplier.
    *
    * @param supplier The supplier to execute.
@@ -87,6 +88,7 @@ public sealed interface Result<F, S> {
     try {
       return success(supplier.get());
     } catch (Throwable e) {
+      Fatal.rethrowIfFatal(e);
       return failure(e);
     }
   }

@@ -514,6 +514,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
             action.run();
             callback.complete(Result.unit());
           } catch (Throwable error) {
+            // a fatal error too: the waiting program rethrows it, and the FutureTask would swallow it
             callback.completeExceptionally(error);
           } finally {
             finished.complete(null);
@@ -877,6 +878,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           }
         }
       } catch (Throwable e) {
+        // a fatal error leaves right away: no catchAll and no finalizers, see Fatal
+        Fatal.rethrowIfFatal(e);
         // unwind to the nearest catchAll, discarding the continuations inside its scope and
         // running the finalizers found on the way
         var resumed = false;
@@ -1007,8 +1010,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <p>The future is tracked by the parent from the start, so a cancelled parent can wait for it
    * to stop. If the executor refuses to run the program, the future fails with that error,
    * otherwise the parent would wait for it forever. The error is not thrown, so the combinators,
-   * like {@code parZip}, see a failed program and cancel the ones they already started. An
-   * {@link Error} is thrown too.
+   * like {@code parZip}, see a failed program and cancel the ones they already started. A fatal
+   * error is thrown too, see {@link Fatal}.
    */
   private static <S, E, T> CompletableFuture<Result<E, T>> startFork(
       @Nullable S state, CancelToken parent, Program<S, E, T> program, Executor executor) {
@@ -1017,12 +1020,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     parent.trackFork(future);
     try {
       executor.execute(() -> runForked(state, token, program, future));
-    } catch (RuntimeException | Error e) {
+    } catch (Throwable e) {
       token.detachFromParent();
       future.completeExceptionally(e);
-      if (e instanceof Error error) {
-        throw error;
-      }
+      Fatal.rethrowIfFatal(e);
     }
     return future;
   }
@@ -1059,6 +1060,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     token.detachFromParent();
     if (error != null) {
       future.completeExceptionally(error);
+      // after completing the future, so the parent fails instead of waiting forever
+      Fatal.rethrowIfFatal(error);
     } else {
       future.complete(result);
     }

@@ -210,7 +210,8 @@ public final class Concurrent {
           try {
             var result = evalAll(state, forked).map(Concurrent::parAllFailFast);
             future.complete(result);
-          } catch (RuntimeException e) {
+          } catch (Throwable e) {
+            Fatal.rethrowIfFatal(e);
             future.completeExceptionally(e);
           }
         })
@@ -311,7 +312,8 @@ public final class Concurrent {
           try {
             var result = evalAll(state, forked).map(Concurrent::parAnySuccess);
             future.complete(result);
-          } catch (RuntimeException e) {
+          } catch (Throwable e) {
+            Fatal.rethrowIfFatal(e);
             future.completeExceptionally(e);
           }
         })
@@ -419,7 +421,8 @@ public final class Concurrent {
           try {
             var result = evalAll(state, forked).map(Concurrent::parSequenceFailFast);
             future.complete(result);
-          } catch (RuntimeException e) {
+          } catch (Throwable e) {
+            Fatal.rethrowIfFatal(e);
             future.completeExceptionally(e);
           }
         })
