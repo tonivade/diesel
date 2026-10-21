@@ -28,8 +28,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
-
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -42,12 +40,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoSettings;
+
+import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 @MockitoSettings
 class ProgramTest {
@@ -490,6 +491,17 @@ class ProgramTest {
     future.cancel(true);
 
     assertThat(stoppedWhenReleased.get(5, TimeUnit.SECONDS)).isTrue();
+  }
+
+  @Test
+  void taskReturnsUnitAndExecutesActionOnce() {
+    var calls = new AtomicInteger();
+
+    var result = Program.<Void, String>task(calls::incrementAndGet)
+        .evalOrElseThrow();
+
+    assertThat(result).isEqualTo(Unit.unit());
+    assertThat(calls).hasValue(1);
   }
 
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
