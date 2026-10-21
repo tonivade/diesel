@@ -854,8 +854,8 @@ public final class Combine {
    * @return a new program representing the chained computation
    */
   @SafeVarargs
-  public static <S, E> Program<S, E, Void> chainAll(Program<S, E, ?>... programs) {
-    Program<S, E, Void> result = unit();
+  public static <S, E> Program<S, E, Unit> chainAll(Program<S, E, ?>... programs) {
+    Program<S, E, Unit> result = unit();
     for (int i = programs.length - 1; i >= 0; i--) {
       result = programs[i].andThen(result);
     }

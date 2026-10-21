@@ -80,6 +80,6 @@ class CombineTest {
 
     var result = chainAll(programs).evalOrElseThrow();
 
-    assertThat(result).isNull();
+    assertThat(result).isEqualTo(Unit.unit());
   }
 }

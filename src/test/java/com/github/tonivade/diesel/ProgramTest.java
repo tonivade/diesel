@@ -292,7 +292,7 @@ class ProgramTest {
 
     var result = program.evalOrElseThrow();
 
-    assertThat(result).isNull();
+    assertThat(result).isEqualTo(Unit.unit());
   }
 
   @Test

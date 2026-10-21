@@ -57,7 +57,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * A program that completes successfully with no meaningful value.
    */
-  Program<?, ?, Void> UNIT = from(Result.UNIT);
+  Program<?, ?, Unit> UNIT = from(Result.UNIT);
 
   /**
    * Converts a higher-kinded {@link Kind} value back into a {@code Program}.
@@ -81,8 +81,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a program representing a computation that yields no result
    */
   @SuppressWarnings("unchecked")
-  static <S, E> Program<S, E, Void> unit() {
-    return (Program<S, E, Void>) UNIT;
+  static <S, E> Program<S, E, Unit> unit() {
+    return (Program<S, E, Unit>) UNIT;
   }
 
   /**
@@ -288,7 +288,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param validation
    * @return a new program representing the computation
    */
-  static <S, E> Program<S, E, Void> from(Validation<E> validation) {
+  static <S, E> Program<S, E, Unit> from(Validation<E> validation) {
     return validation.fold(Program::unit, Program::failure);
   }
 
@@ -316,7 +316,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing a successful computation
    */
-  static <S, E, T> Program<S, E, T> success(@Nullable T value) {
+  static <S, E, T> Program<S, E, T> success(T value) {
     return from(Result.success(value));
   }
 
@@ -329,7 +329,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing a failed computation
    */
-  static <S, E, T> Program<S, E, T> failure(@Nullable E error) {
+  static <S, E, T> Program<S, E, T> failure(E error) {
     return from(Result.failure(error));
   }
 
@@ -462,10 +462,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing a computation that executes a runnable
    */
-  static <S, E> Program<S, E, Void> task(Runnable runnable) {
+  static <S, E> Program<S, E, Unit> task(Runnable runnable) {
     return supply(() -> {
       runnable.run();
-      return null;
+      return Unit.unit();
     });
   }
 
@@ -482,7 +482,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing an interruptible task
    */
-  static <S, E> Program<S, E, Void> interruptibleTask(Runnable action) {
+  static <S, E> Program<S, E, Unit> interruptibleTask(Runnable action) {
     return interruptibleTask(ForkJoinPool.commonPool(), action);
   }
 
@@ -502,13 +502,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing an interruptible task
    */
-  static <S, E> Program<S, E, Void> interruptibleTask(Executor executor, Runnable action) {
+  static <S, E> Program<S, E, Unit> interruptibleTask(Executor executor, Runnable action) {
     return asyncCancelable((_, callback) -> {
       var claimed = new AtomicBoolean();
-      var finished = new CompletableFuture<Void>();
+      var finished = new CompletableFuture<Unit>();
       // a FutureTask interrupts the thread that runs it on cancel(true), whatever the executor: the
       // tasks of ForkJoinPool.submit don't when submitted from inside the pool, like from a fork
-      var future = new FutureTask<Void>(() -> {
+      var future = new FutureTask<Unit>(() -> {
         if (claimed.compareAndSet(false, true)) {
           try {
             action.run();
@@ -573,7 +573,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a cancelable asynchronous computation
    */
   static <S, E, T> Program<S, E, T> asyncCancelable(
-      BiFunction<? super S, ? super CompletableFuture<Result<E, T>>, ? extends Program<S, E, Void>> register) {
+      BiFunction<? super S, ? super CompletableFuture<Result<E, T>>, ? extends Program<S, E, Unit>> register) {
     // accessProgram defers all this to evaluation time: the operation has to start when the program
     // runs, not when it's built, with the state of that evaluation, and once per evaluation, so
     // each one has its own future and canceler. suspend would defer it too, but without the state.
@@ -581,7 +581,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     // onCancel never stops for a cancellation, so a started operation always has its canceler
     return accessProgram(state -> {
       var future = new CompletableFuture<Result<E, T>>();
-      Program<S, E, Void> canceler = register.apply(state, future);
+      Program<S, E, Unit> canceler = register.apply(state, future);
       return Program.<S, E, T>join(future).onCancel(canceler);
     });
   }
@@ -607,7 +607,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing a DSL access
    */
-  static <S, E> Program<S, E, Void> inspect(Consumer<S> consumer) {
+  static <S, E> Program<S, E, Unit> inspect(Consumer<S> consumer) {
     return accessResult(state -> {
       consumer.accept(state);
       return Result.unit();
@@ -1243,7 +1243,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param delay the delay program between retries
    * @return a new program representing the computation with retries and delay
    */
-  default Program<S, E, T> retry(int retries, Program<S, E, Void> delay) {
+  default Program<S, E, T> retry(int retries, Program<S, E, Unit> delay) {
     return flatMapError(error -> {
       if (retries > 0) {
         return delay.andThen(retry(retries - 1, delay));
@@ -1280,7 +1280,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param delay the delay program between repetitions
    * @return a new program representing the computation repeated with delay
    */
-  default Program<S, E, T> repeat(int times, Program<S, E, Void> delay) {
+  default Program<S, E, T> repeat(int times, Program<S, E, Unit> delay) {
     return flatMap(value -> {
       if (times > 0) {
         return delay.andThen(repeat(times - 1, delay));
@@ -1574,7 +1574,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing a sleep
    */
-  static <S, E> Program<S, E, Void> sleep(Duration duration) {
+  static <S, E> Program<S, E, Unit> sleep(Duration duration) {
     if (duration.isNegative() || duration.isZero()) {
       return unit();
     }

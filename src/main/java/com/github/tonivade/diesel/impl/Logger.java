@@ -7,6 +7,7 @@ package com.github.tonivade.diesel.impl;
 import static com.github.tonivade.diesel.Program.inspect;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Unit;
 
 /**
  * The Logger interface provides a domain-specific language (DSL) for logging operations.
@@ -51,7 +52,7 @@ public interface Logger {
    * @param <E>     the type of the error
    * @return a Program that logs the message when executed
    */
-  static <S extends Service, E> Program<S, E, Void> info(String message) {
+  static <S extends Service, E> Program<S, E, Unit> info(String message) {
     return inspect(state -> state.info(message));
   }
 
@@ -63,7 +64,7 @@ public interface Logger {
    * @param <E>     the type of the error
    * @return a Program that logs the message when executed
    */
-  static <S extends Service, E> Program<S, E, Void> warn(String message) {
+  static <S extends Service, E> Program<S, E, Unit> warn(String message) {
     return inspect(state -> state.warn(message));
   }
 
@@ -76,7 +77,7 @@ public interface Logger {
    * @param <E>     the type of the error
    * @return a Program that logs the message and exception when executed
    */
-  static <S extends Service, E> Program<S, E, Void> error(String message, Throwable error) {
+  static <S extends Service, E> Program<S, E, Unit> error(String message, Throwable error) {
     return inspect(state -> state.error(message, error));
   }
 }

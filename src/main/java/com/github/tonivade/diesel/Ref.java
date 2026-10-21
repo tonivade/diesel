@@ -48,7 +48,7 @@ public final class Ref<A> {
    * @param newValue the value to store
    * @return a program that sets the value and returns {@code null}
    */
-  public <S, E> Program<S, E, Void> set(A newValue) {
+  public <S, E> Program<S, E, Unit> set(A newValue) {
     return task(() -> value.set(newValue));
   }
 
@@ -63,7 +63,7 @@ public final class Ref<A> {
    * @param update the function used to compute the new value
    * @return a program that performs the update and returns {@code null}
    */
-  public <S, E> Program<S, E, Void> update(UnaryOperator<A> update) {
+  public <S, E> Program<S, E, Unit> update(UnaryOperator<A> update) {
     return task(() -> value.updateAndGet(update));
   }
 

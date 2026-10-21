@@ -11,6 +11,7 @@ import static com.github.tonivade.diesel.Program.inspect;
 import java.util.function.UnaryOperator;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Unit;
 
 /**
  * A {@code Reference} represents a program that operates on a {@link Service} to get or set a value.
@@ -49,7 +50,7 @@ public interface Reference<T> {
    * @param value the new value to be set
    * @return a program that sets the value in the reference
    */
-  static <T, S extends Service<T>, E> Program<S, E, Void> set(T value) {
+  static <T, S extends Service<T>, E> Program<S, E, Unit> set(T value) {
     return inspect(state -> state.set(value));
   }
 
@@ -74,7 +75,7 @@ public interface Reference<T> {
    * @param update the function used to update the value in the reference
    * @return a program that updates the value in the reference
    */
-  static <T, S extends Service<T>, E> Program<S, E, Void> update(UnaryOperator<T> update) {
+  static <T, S extends Service<T>, E> Program<S, E, Unit> update(UnaryOperator<T> update) {
     return pipe(get(), value -> set(update.apply(value)));
   }
 }

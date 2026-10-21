@@ -8,6 +8,7 @@ import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.inspect;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Unit;
 
 /**
  * Represents a program that can be executed on a {@link Service} that provides
@@ -47,7 +48,7 @@ public interface Queue<T> {
    * @param item the item to add
    * @return a {@link Program} instance that adds an item to the queue
    */
-  static <T, S extends Service<T>, E> Program<S, E, Void> offer(T item) {
+  static <T, S extends Service<T>, E> Program<S, E, Unit> offer(T item) {
     return inspect(state -> state.offer(item));
   }
 
