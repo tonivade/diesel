@@ -135,7 +135,7 @@ public final class Concurrent {
    * @return a new program representing the parallel computation
    */
   @SafeVarargs
-  public static <S, E, T> Program<S, E, Void> parAll(Program<S, E, T>... programs) {
+  public static <S, E, T> Program<S, E, Unit> parAll(Program<S, E, T>... programs) {
     return parAll(DEFAULT_EXECUTOR, programs);
   }
 
@@ -157,7 +157,7 @@ public final class Concurrent {
    * @return a new program representing the parallel computation
    */
   @SafeVarargs
-  public static <S, E> Program<S, E, Void> parAll(Executor executor, Program<S, E, ?>... programs) {
+  public static <S, E> Program<S, E, Unit> parAll(Executor executor, Program<S, E, ?>... programs) {
     return parAll(executor, List.of(programs));
   }
 
@@ -177,7 +177,7 @@ public final class Concurrent {
    * @param <E> the type of the error
    * @return a new program representing the parallel computation
    */
-  public static <S, E> Program<S, E, Void> parAll(Collection<? extends Program<S, E, ?>> programs) {
+  public static <S, E> Program<S, E, Unit> parAll(Collection<? extends Program<S, E, ?>> programs) {
     return parAll(DEFAULT_EXECUTOR, programs);
   }
 
@@ -198,14 +198,14 @@ public final class Concurrent {
    * @param <E> the type of the error
    * @return a new program representing the parallel computation
    */
-  public static <S, E> Program<S, E, Void> parAll(Executor executor, Collection<? extends Program<S, E, ?>> programs) {
+  public static <S, E> Program<S, E, Unit> parAll(Executor executor, Collection<? extends Program<S, E, ?>> programs) {
     if (programs.isEmpty()) {
       return unit();
     }
 
     var forked = forkAll(executor, programs);
 
-    return Program.<S, E, CompletableFuture<Result<E, Void>>>async(
+    return Program.<S, E, CompletableFuture<Result<E, Unit>>>async(
         (state, future) -> {
           try {
             var result = evalAll(state, forked).map(Concurrent::parAllFailFast);
@@ -1198,12 +1198,12 @@ public final class Concurrent {
             _ -> Result.sequence(futures.stream().map(CompletableFuture::join).toList())));
   }
 
-  private static <E> CompletableFuture<Result<E, Void>> parAllFailFast(
+  private static <E> CompletableFuture<Result<E, Unit>> parAllFailFast(
       Collection<? extends CompletableFuture<? extends Result<E, ?>>> futures) {
     if (futures.isEmpty()) {
       return CompletableFuture.completedFuture(Result.unit());
     }
-    var result = new CompletableFuture<Result<E, Void>>();
+    var result = new CompletableFuture<Result<E, Unit>>();
     var remaining = new AtomicInteger(futures.size());
 
     for (var future : futures) {

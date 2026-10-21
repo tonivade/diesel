@@ -7,6 +7,7 @@ package com.github.tonivade.diesel.impl;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.inspect;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.impl.Console.prompt;
 import static com.github.tonivade.diesel.impl.Console.writeLine;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Unit;
 
 interface Weather {
 
@@ -52,11 +54,8 @@ interface Weather {
     return access(service -> service.getForecast(city));
   }
 
-  static <S extends Service, E extends Error> Program<S, E, Void> setForecast(City city, Forecast forecast) {
-    return access(service -> {
-      service.setForecast(city, forecast);
-      return null;
-    });
+  static <S extends Service, E extends Error> Program<S, E, Unit> setForecast(City city, Forecast forecast) {
+    return inspect(service -> service.setForecast(city, forecast));
   }
 
   static <S extends Service, E extends Error> Program<S, E, Optional<City>> hottestCity() {
@@ -67,19 +66,19 @@ interface Weather {
     program().eval(new Context());
   }
 
-  static Program<Context, Error, Void> program() {
+  static Program<Context, Error, Unit> program() {
     return pipe(
         hostAndPort(),
         _ -> loop()
       );
   }
 
-  static Program<Context, Error, Void> loop() {
+  static Program<Context, Error, Unit> loop() {
     return pipe(askAndFetchAndPrint(), _ -> printHottestCity())
         .foldMap(Weather::printError, _ -> loop());
   }
 
-  static Program<Context, Error, Void> askAndFetchAndPrint() {
+  static Program<Context, Error, Unit> askAndFetchAndPrint() {
     return askCity()
         .peekError(error -> warn(": " + error))
         .peek(city -> info("getting city forecast: " + city))
@@ -88,14 +87,14 @@ interface Weather {
         .flatMap(Weather::printForecastAndPersist);
   }
 
-  static Program<Context, Error, Void> printHottestCity() {
+  static Program<Context, Error, Unit> printHottestCity() {
     return pipe(
         hottestCity(),
         city -> writeLine("Hottest city so far: " + city.map(City::name).orElse("None"))
       );
   }
 
-  static Program<Context, Error, Void> printError(Error error) {
+  static Program<Context, Error, Unit> printError(Error error) {
     return pipe(
         writeLine("Error: " + error),
         _ -> loop()
@@ -117,7 +116,7 @@ interface Weather {
       );
   }
 
-  static Program<Context, Error, Void> printForecastAndPersist(CityForecast cityForecast) {
+  static Program<Context, Error, Unit> printForecastAndPersist(CityForecast cityForecast) {
     return pipe(
         writeLine("Forecast for city " + cityForecast.city() + " is " + cityForecast.forecast()),
         _ -> setForecast(cityForecast.city(), cityForecast.forecast())
@@ -138,7 +137,7 @@ interface Weather {
     };
   }
 
-  static Program<Context, Error, Void> hostAndPort() {
+  static Program<Context, Error, Unit> hostAndPort() {
     return pipe(
         readConfig(),
         config -> writeLine("conecting to " + config)

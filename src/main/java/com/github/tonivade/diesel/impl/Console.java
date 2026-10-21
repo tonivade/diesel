@@ -9,6 +9,7 @@ import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.inspect;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Unit;
 
 /**
  * Represents a console interface that can be used to write to the console or read from the console.
@@ -46,7 +47,7 @@ public interface Console {
    * @param <E>  The type of error.
    * @return A new console operation that writes a line of text to the console.
    */
-  static <S extends Service, E> Program<S, E, Void> writeLine(String line) {
+  static <S extends Service, E> Program<S, E, Unit> writeLine(String line) {
     return inspect(state -> state.writeLine(line));
   }
 

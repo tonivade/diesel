@@ -22,17 +22,18 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.github.tonivade.diesel.ProgramTest.Tuple;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoSettings;
+
+import com.github.tonivade.diesel.ProgramTest.Tuple;
 
 @MockitoSettings
 class ConcurrentTest {
@@ -284,6 +285,28 @@ class ConcurrentTest {
         .catchAll(e -> success(e.getClass().getSimpleName()));
 
     assertThat(program.evalOrElseThrow()).isEqualTo("UnsupportedOperationException");
+  }
+
+  @Test
+  void emptyParAllCompletesWithUnit() {
+    var result = parAll(
+        List.<Program<Void, String, ?>>of())
+        .evalOrElseThrow();
+
+    assertThat(result).isEqualTo(Unit.unit());
+  }
+
+  @Test
+  void parAllCompletesWithUnitAfterAllProgramsFinish() {
+    var calls = new AtomicInteger();
+
+    var first = Program.<Void, String>task(calls::incrementAndGet);
+    var second = Program.<Void, String>task(calls::incrementAndGet);
+
+    var result = parAll(first, second).evalOrElseThrow();
+
+    assertThat(result).isEqualTo(Unit.unit());
+    assertThat(calls).hasValue(2);
   }
 
   private static Program<Void, String, Integer> boom() {

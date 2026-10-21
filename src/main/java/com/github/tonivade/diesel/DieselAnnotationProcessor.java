@@ -224,8 +224,11 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     if (future.isPresent()) {
       return lastTypeArgument(future.get());
     }
-    if (isPrimitive(returnType) || isVoid(returnType)) {
+    if (isPrimitive(returnType)) {
       return TypeName.get(returnType).box();
+    }
+    if (isVoid(returnType)) {
+      return TypeName.get(Unit.class);
     }
     return TypeName.get(returnType);
   }

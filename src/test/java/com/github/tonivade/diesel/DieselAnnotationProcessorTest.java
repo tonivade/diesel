@@ -34,9 +34,9 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Unit;
       import java.lang.String;
       import java.lang.SuppressWarnings;
-      import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
@@ -47,7 +47,7 @@ class DieselAnnotationProcessorTest {
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" } )
-        static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
+        static <S extends Console, E> Program<S, E, Unit> writeLine(String line) {
           return Program.inspect(state -> state.writeLine(line));
         }
       }""");
@@ -79,9 +79,9 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Unit;
       import java.lang.String;
       import java.lang.SuppressWarnings;
-      import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
@@ -92,7 +92,7 @@ class DieselAnnotationProcessorTest {
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" } )
-        static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
+        static <S extends Console, E> Program<S, E, Unit> writeLine(String line) {
           return Program.inspect(state -> state.writeLine(line));
         }
       }""");
@@ -124,9 +124,9 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Unit;
       import java.lang.Integer;
       import java.lang.SuppressWarnings;
-      import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
@@ -137,7 +137,7 @@ class DieselAnnotationProcessorTest {
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" } )
-        static <S extends State, E> Program<S, E, Void> set(int value) {
+        static <S extends State, E> Program<S, E, Unit> set(int value) {
           return Program.inspect(state -> state.set(value));
         }
       }""");
@@ -169,9 +169,9 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Unit;
       import java.lang.String;
       import java.lang.SuppressWarnings;
-      import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
@@ -182,7 +182,7 @@ class DieselAnnotationProcessorTest {
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" } )
-        static <S extends Console, E extends String> Program<S, E, Void> writeLine(String line) {
+        static <S extends Console, E extends String> Program<S, E, Unit> writeLine(String line) {
           return Program.inspect(state -> state.writeLine(line));
         }
       }""");
@@ -203,11 +203,12 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Diesel;
       import com.github.tonivade.diesel.Result;
+      import com.github.tonivade.diesel.Unit;
 
       @Diesel(errorType = Exception.class)
       public interface Console {
         Result<Exception, String> readLine();
-        Result<Exception, Void> writeLine(String line);
+        Result<Exception, Unit> writeLine(String line);
       }""");
 
     var expected = forSourceLines("test.ConsoleDsl",
@@ -216,10 +217,10 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Program;
       import com.github.tonivade.diesel.Result;
+      import com.github.tonivade.diesel.Unit;
       import java.lang.Exception;
       import java.lang.String;
       import java.lang.SuppressWarnings;
-      import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
@@ -230,7 +231,7 @@ class DieselAnnotationProcessorTest {
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" } )
-        static <S extends Console, E extends Exception> Program<S, E, Void> writeLine(String line) {
+        static <S extends Console, E extends Exception> Program<S, E, Unit> writeLine(String line) {
           return Program.accessResult(state -> (Result) state.writeLine(line));
         }
       }""");
@@ -251,11 +252,12 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Diesel;
       import com.github.tonivade.diesel.Result;
+      import com.github.tonivade.diesel.Unit;
 
       @Diesel(errorType = Exception.class)
       public interface Console {
         Result<Exception, ? extends String> readLine();
-        Result<Exception, ? extends Void> writeLine(String line);
+        Result<Exception, ? extends Unit> writeLine(String line);
       }""");
 
     var expected = forSourceLines("test.ConsoleDsl",
@@ -264,10 +266,10 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Program;
       import com.github.tonivade.diesel.Result;
+      import com.github.tonivade.diesel.Unit;
       import java.lang.Exception;
       import java.lang.String;
       import java.lang.SuppressWarnings;
-      import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
@@ -278,7 +280,7 @@ class DieselAnnotationProcessorTest {
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" } )
-        static <S extends Console, E extends Exception> Program<S, E, ? extends Void> writeLine(String line) {
+        static <S extends Console, E extends Exception> Program<S, E, ? extends Unit> writeLine(String line) {
           return Program.accessResult(state -> (Result) state.writeLine(line));
         }
       }""");
@@ -732,10 +734,10 @@ class DieselAnnotationProcessorTest {
       package test;
 
       import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Unit;
       import java.lang.Class;
       import java.lang.String;
       import java.lang.SuppressWarnings;
-      import java.lang.Void;
       import javax.annotation.processing.Generated;
 
       @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
@@ -746,7 +748,7 @@ class DieselAnnotationProcessorTest {
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" } )
-        static <S extends Store, E, T> Program<S, E, Void> put(String key, T value) {
+        static <S extends Store, E, T> Program<S, E, Unit> put(String key, T value) {
           return Program.inspect(state -> state.put(key,value));
         }
       }""");

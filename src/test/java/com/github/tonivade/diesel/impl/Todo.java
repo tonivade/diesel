@@ -7,9 +7,10 @@ package com.github.tonivade.diesel.impl;
 import static com.github.tonivade.diesel.Combine.chainAll;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.zip;
-import static com.github.tonivade.diesel.Program.attempt;
 import static com.github.tonivade.diesel.Program.access;
+import static com.github.tonivade.diesel.Program.attempt;
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.inspect;
 import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.impl.Console.prompt;
@@ -27,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Unit;
 
 interface Todo {
 
@@ -54,18 +56,12 @@ interface Todo {
     }
   }
 
-  static <S extends Repository, E extends Error> Program<S, E, Void> create(TodoEntity todo) {
-    return access(repository -> {
-      repository.create(todo);
-      return null;
-    });
+  static <S extends Repository, E extends Error> Program<S, E, Unit> create(TodoEntity todo) {
+    return inspect(repository -> repository.create(todo));
   }
 
-  static <S extends Repository, E extends Error> Program<S, E, Void> update(int id, UnaryOperator<TodoEntity> update) {
-    return access(repository -> {
-      repository.update(id, update);
-      return null;
-    });
+  static <S extends Repository, E extends Error> Program<S, E, Unit> update(int id, UnaryOperator<TodoEntity> update) {
+    return inspect(repository -> repository.update(id, update));
   }
 
   static <S extends Repository, E extends Error> Program<S, E, Optional<TodoEntity>> findOne(int id) {
@@ -76,21 +72,15 @@ interface Todo {
     return access(Repository::findAll);
   }
 
-  static <S extends Repository, E extends Error> Program<S, E, Void> deleteOne(int id) {
-    return access(repository -> {
-      repository.delete(id);
-      return null;
-    });
+  static <S extends Repository, E extends Error> Program<S, E, Unit> deleteOne(int id) {
+    return inspect(repository -> repository.delete(id));
   }
 
-  static <S extends Repository, E extends Error> Program<S, E, Void> deleteAll() {
-    return access(repository -> {
-      repository.deleteAll();
-      return null;
-    });
+  static <S extends Repository, E extends Error> Program<S, E, Unit> deleteAll() {
+    return inspect(repository -> repository.deleteAll());
   }
 
-  static Program<Context, Error, Void> program() {
+  static Program<Context, Error, Unit> program() {
     return pipe(
         printMenuAndGetOption(),
         Todo::executeAction
@@ -114,7 +104,7 @@ interface Todo {
       );
   }
 
-  static Program<Context, Error, Void> printMenu() {
+  static Program<Context, Error, Unit> printMenu() {
     return chainAll(
         writeLine("Menu"),
         writeLine("1. Create"),
@@ -127,7 +117,7 @@ interface Todo {
       );
   }
 
-  static Program<Context, Error, Void> executeAction(int action) {
+  static Program<Context, Error, Unit> executeAction(int action) {
     return switch (action) {
       case 1 -> createTodo();
       case 2 -> findAllTodos();
@@ -140,7 +130,7 @@ interface Todo {
     };
   }
 
-  static Program<Context, Error, Void> findAllTodos() {
+  static Program<Context, Error, Unit> findAllTodos() {
     return pipe(
         findAll(),
         success(list -> list.stream().map(Object::toString).collect(joining("\n"))),
@@ -149,14 +139,14 @@ interface Todo {
       );
   }
 
-  static Program<Context, Error, Void> deleteAllTodos() {
+  static Program<Context, Error, Unit> deleteAllTodos() {
     return pipe(
         deleteAll(),
         _ -> writeLine("all todo removed"),
         _ -> program());
   }
 
-  static Program<Context, Error, Void> createTodo() {
+  static Program<Context, Error, Unit> createTodo() {
     return pipe(
         zip(increment(), prompt("Enter title"), (id, title) -> new TodoEntity(id, title, NOT_COMPLETED)),
         Todo::create,
@@ -164,7 +154,7 @@ interface Todo {
         _ -> program());
   }
 
-  static Program<Context, Error, Void> deleteTodo() {
+  static Program<Context, Error, Unit> deleteTodo() {
     return pipe(
         promptId(),
         Todo::deleteOne,
@@ -172,7 +162,7 @@ interface Todo {
         _ -> program());
   }
 
-  static Program<Context, Error, Void> findTodo() {
+  static Program<Context, Error, Unit> findTodo() {
     return pipe(
         promptId(),
         Todo::findOne,
@@ -181,7 +171,7 @@ interface Todo {
         _ -> program());
   }
 
-  static Program<Context, Error, Void> markCompleted() {
+  static Program<Context, Error, Unit> markCompleted() {
     return pipe(
         promptId(),
         id -> update(id, entity -> entity.withState(COMPLETED)),

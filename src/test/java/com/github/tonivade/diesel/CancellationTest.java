@@ -51,10 +51,10 @@ class CancellationTest {
   private final AtomicInteger executed = new AtomicInteger();
   private final AtomicInteger released = new AtomicInteger();
   private final AtomicInteger started = new AtomicInteger();
-  private final CompletableFuture<Result<String, Void>> allStarted = new CompletableFuture<>();
+  private final CompletableFuture<Result<String, Unit>> allStarted = new CompletableFuture<>();
   private int expected;
   // keeps a program waiting until the test opens it
-  private final CompletableFuture<Result<String, Void>> gate = new CompletableFuture<>();
+  private final CompletableFuture<Result<String, Unit>> gate = new CompletableFuture<>();
 
   @Test
   void parZipCancelsTheOtherProgramsOnFailure() {
@@ -106,7 +106,7 @@ class CancellationTest {
 
     var result = parAny(blocked(), blocked(), winner).eval();
 
-    assertThat(result).isEqualTo(Result.success(null));
+    assertThat(result).isEqualTo(Result.unit());
     assertThat(released).hasValue(2);
   }
 
@@ -194,7 +194,7 @@ class CancellationTest {
 
   @Test
   void finalizerCanRecoverFromAnExceptionWhenCancelled() {
-    var finalizer = Program.<Void, String, Void>raise(IllegalStateException::new)
+    var finalizer = Program.<Void, String, Unit>raise(IllegalStateException::new)
         .catchAll(_ -> run(released::incrementAndGet));
     var program = start().andThen(never()).ensuring(finalizer);
 
@@ -269,7 +269,7 @@ class CancellationTest {
 
   @Test
   void bracketReleasesTheResourceWhenUseThrows() {
-    var program = Program.<Void, String, String, Void>bracket(
+    var program = Program.<Void, String, String, Unit>bracket(
         success("resource"),
         _ -> raise(IllegalStateException::new),
         _ -> run(released::incrementAndGet));
@@ -280,7 +280,7 @@ class CancellationTest {
 
   @Test
   void ensuringRunsTheFinalizerWhenThrows() {
-    var program = Program.<Void, String, Void>raise(IllegalStateException::new)
+    var program = Program.<Void, String, Unit>raise(IllegalStateException::new)
         .ensuring(run(released::incrementAndGet));
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
@@ -326,9 +326,9 @@ class CancellationTest {
 
   @Test
   void combinatorsWaitForUncancelablePrograms() throws Exception {
-    var failed = new CompletableFuture<Void>();
+    var failed = new CompletableFuture<Unit>();
     var program = start().andThen(Program.join(gate)).andThen(run(executed::incrementAndGet)).uncancelable();
-    var failing = whenStarted(1).andThen(run(() -> failed.complete(null))).andThen(Program.<Void, String, Void>failure("error"));
+    var failing = whenStarted(1).andThen(run(() -> failed.complete(Unit.unit()))).andThen(Program.<Void, String, Unit>failure("error"));
 
     var future = parZip(program, failing, (_, _) -> "done").fork().evalOrElseThrow();
     failed.get(5, TimeUnit.SECONDS);
@@ -342,8 +342,8 @@ class CancellationTest {
 
   @Test
   void forksInsideUncancelableAreNotCancelled() throws Exception {
-    var forked = new CompletableFuture<CompletableFuture<Result<String, Void>>>();
-    var child = Program.<Void, String, Void>join(gate).andThen(run(executed::incrementAndGet));
+    var forked = new CompletableFuture<CompletableFuture<Result<String, Unit>>>();
+    var child = Program.<Void, String, Unit>join(gate).andThen(run(executed::incrementAndGet));
     var program = child.fork().flatMap(f -> run(() -> forked.complete(f))).uncancelable()
         .andThen(start()).andThen(never());
 
@@ -354,7 +354,7 @@ class CancellationTest {
     assertThat(result).isEqualTo(Result.failure("error"));
     assertThat(fork.isDone()).isFalse();
     gate.complete(Result.unit());
-    assertThat(fork.get(5, TimeUnit.SECONDS)).isEqualTo(Result.success(null));
+    assertThat(fork.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
     assertThat(executed).hasValue(1);
   }
 
@@ -374,14 +374,14 @@ class CancellationTest {
 
     var result = program.eval();
 
-    assertThat(result).isEqualTo(Result.success(null));
+    assertThat(result).isEqualTo(Result.unit());
     assertThat(executed).hasValue(1);
     assertThat(released).hasValue(0);
   }
 
   @Test
   void onCancelDoesNotRunWhenTheProgramFails() {
-    var program = Program.<Void, String, Void>failure("error").onCancel(run(released::incrementAndGet));
+    var program = Program.<Void, String, Unit>failure("error").onCancel(run(released::incrementAndGet));
 
     var result = program.eval();
 
@@ -391,7 +391,7 @@ class CancellationTest {
 
   @Test
   void onCancelDoesNotRunWhenTheProgramThrows() {
-    var program = Program.<Void, String, Void>raise(IllegalStateException::new)
+    var program = Program.<Void, String, Unit>raise(IllegalStateException::new)
         .onCancel(run(released::incrementAndGet));
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
@@ -504,7 +504,7 @@ class CancellationTest {
   @Test
   void asyncCancelableWaitsForTheOperationInAnUncancelableRegion() throws Exception {
     expected = 1;
-    var operation = Program.<Void, String, Void>asyncCancelable((_, future) -> {
+    var operation = Program.<Void, String, Unit>asyncCancelable((_, future) -> {
       var _ = gate.whenComplete((_, _) -> future.complete(Result.unit()));
       signalStarted();
       return run(released::incrementAndGet);
@@ -518,7 +518,7 @@ class CancellationTest {
 
     // the operation isn't cancelled, the region waits for it instead. The whole program is the
     // region, so there is no step left where the cancellation could stop it: it completes normally
-    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.success(null));
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
     assertThat(executed).hasValue(1);
     assertThat(released).hasValue(0);
   }
@@ -545,7 +545,7 @@ class CancellationTest {
   void forkCancelledBeforeItStartsNeverRuns() throws Exception {
     var executor = Executors.newSingleThreadExecutor();
     try {
-      var busy = new CompletableFuture<Void>();
+      var busy = new CompletableFuture<Unit>();
       executor.execute(busy::join);
 
       var future = run(executed::incrementAndGet).fork(executor).evalOrElseThrow();
@@ -553,7 +553,7 @@ class CancellationTest {
 
       // completes right away, while the program is still queued
       assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
-      busy.complete(null);
+      busy.complete(Unit.unit());
       CompletableFuture.runAsync(() -> {}, executor).get(5, TimeUnit.SECONDS);
       assertThat(executed).hasValue(0);
     } finally {
@@ -606,18 +606,18 @@ class CancellationTest {
    * A program that installs its finalizer, signals that it has started and then waits forever,
    * so it only finishes when it is cancelled.
    */
-  private Program<Void, String, Void> blocked() {
+  private Program<Void, String, Unit> blocked() {
     return start().andThen(never()).ensuring(run(released::incrementAndGet));
   }
 
   /**
    * A program that fails once the given number of programs have started.
    */
-  private Program<Void, String, Void> failingWhenStarted(int count) {
+  private Program<Void, String, Unit> failingWhenStarted(int count) {
     return whenStarted(count).andThen(failure("error"));
   }
 
-  private Program<Void, String, Void> whenStarted(int count) {
+  private Program<Void, String, Unit> whenStarted(int count) {
     expected = count;
     return Program.join(allStarted);
   }
@@ -638,7 +638,7 @@ class CancellationTest {
     };
   }
 
-  private Program<Void, String, Void> start() {
+  private Program<Void, String, Unit> start() {
     return run(this::signalStarted);
   }
 
@@ -659,11 +659,11 @@ class CancellationTest {
     }
   }
 
-  private static Program<Void, String, Void> never() {
+  private static Program<Void, String, Unit> never() {
     return Program.never();
   }
 
-  private static Program<Void, String, Void> run(Runnable runnable) {
+  private static Program<Void, String, Unit> run(Runnable runnable) {
     return task(runnable);
   }
 }

@@ -9,12 +9,11 @@ import static java.util.function.Function.identity;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-
-import org.jspecify.annotations.Nullable;
 
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
@@ -37,7 +36,7 @@ public sealed interface Result<F, S> {
   /**
    * A successful result with no meaningful value.
    */
-  Result<?, Void> UNIT = success(null);
+  Result<?, Unit> UNIT = success(Unit.unit());
 
   /**
    * Returns a result representing a successful operation with no meaningful value.
@@ -46,8 +45,8 @@ public sealed interface Result<F, S> {
    * @return A result representing a successful operation with no meaningful value.
    */
   @SuppressWarnings("unchecked")
-  static <F> Result<F, Void> unit() {
-    return (Result<F, Void>) UNIT;
+  static <F> Result<F, Unit> unit() {
+    return (Result<F, Unit>) UNIT;
   }
 
   /**
@@ -58,19 +57,19 @@ public sealed interface Result<F, S> {
    * @param <S> The type of the success value.
    * @return A new failure result.
    */
-  static <F, S> Result<F, S> failure(@Nullable F error) {
+  static <F, S> Result<F, S> failure(F error) {
     return new Failure<>(error);
   }
 
   /**
    * Creates a new success result.
    *
-   * @param value The success value, which may be null.
+   * @param value The success value
    * @param <F> The type of the failure value.
    * @param <S> The type of the success value.
    * @return A new success result.
    */
-  static <F, S> Result<F, S> success(@Nullable S value) {
+  static <F, S> Result<F, S> success(S value) {
     return new Success<>(value);
   }
 
@@ -400,16 +399,26 @@ public sealed interface Result<F, S> {
    * @param <F> The type of the failure value.
    * @param <S> The type of the success value.
    */
-  record Failure<F, S>(@Nullable F error) implements Result<F, S> {}
+  record Failure<F, S>(F error) implements Result<F, S> {
+
+    public Failure {
+      Objects.requireNonNull(error);
+    }
+  }
 
   /**
    * A record representing a success result.
    *
-   * @param value The success value, it can be null.
+   * @param value The success value
    * @param <F> The type of the failure value.
    * @param <S> The type of the success value.
    */
-  record Success<F, S>(@Nullable S value) implements Result<F, S> {}
+  record Success<F, S>(S value) implements Result<F, S> {
+
+    public Success {
+      Objects.requireNonNull(value);
+    }
+  }
 
   /**
    * Maps the success value of this result using the provided mapper function.
@@ -484,7 +493,7 @@ public sealed interface Result<F, S> {
    * @return An Optional containing the success value if present, or empty if this is a failure.
    */
   default Optional<S> toOptional() {
-    return fold(_ -> Optional.empty(), Optional::ofNullable);
+    return fold(_ -> Optional.empty(), Optional::of);
   }
 
   /**

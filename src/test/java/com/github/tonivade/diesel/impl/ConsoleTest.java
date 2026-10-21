@@ -15,12 +15,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Unit;
 import com.github.tonivade.diesel.impl.Console.Service;
 
 @ExtendWith(MockitoExtension.class)
 class ConsoleTest {
 
-  static <S extends Service, E> Program<S, E, Void> sayHello(String name) {
+  static <S extends Service, E> Program<S, E, Unit> sayHello(String name) {
     return writeLine("Hello " + name);
   }
 

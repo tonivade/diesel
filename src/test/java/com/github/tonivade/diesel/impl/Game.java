@@ -17,6 +17,7 @@ import static com.github.tonivade.diesel.impl.Reference.get;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Unit;
 
 interface Game {
 
@@ -28,7 +29,7 @@ interface Game {
     game().eval(new Context() {});
   }
 
-  static Program<Context, Error, Void> game() {
+  static Program<Context, Error, Unit> game() {
     return pipe(
         prompt("Do you want to play a game? (Y/y)"),
         branch(answer -> answer.equalsIgnoreCase("y"),
@@ -38,14 +39,14 @@ interface Game {
       );
   }
 
-  static Program<Context, Error, Void> randomNumber() {
+  static Program<Context, Error, Unit> randomNumber() {
     return pipe(
         nextInt(10),
         Reference::set
       );
   }
 
-  static Program<Context, Error, Void> loop() {
+  static Program<Context, Error, Unit> loop() {
     return pipe(
         readNumber(),
         Game::checkNumber,
