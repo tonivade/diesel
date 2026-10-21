@@ -7,6 +7,7 @@ package com.github.tonivade.diesel.impl;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.inspect;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.impl.Console.prompt;
 import static com.github.tonivade.diesel.impl.Console.writeLine;
@@ -54,10 +55,7 @@ interface Weather {
   }
 
   static <S extends Service, E extends Error> Program<S, E, Unit> setForecast(City city, Forecast forecast) {
-    return access(service -> {
-      service.setForecast(city, forecast);
-      return null;
-    });
+    return inspect(service -> service.setForecast(city, forecast));
   }
 
   static <S extends Service, E extends Error> Program<S, E, Optional<City>> hottestCity() {

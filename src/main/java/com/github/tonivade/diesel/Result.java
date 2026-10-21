@@ -64,7 +64,7 @@ public sealed interface Result<F, S> {
   /**
    * Creates a new success result.
    *
-   * @param value The success value, which may be null.
+   * @param value The success value
    * @param <F> The type of the failure value.
    * @param <S> The type of the success value.
    * @return A new success result.
@@ -409,7 +409,7 @@ public sealed interface Result<F, S> {
   /**
    * A record representing a success result.
    *
-   * @param value The success value, it can be null.
+   * @param value The success value
    * @param <F> The type of the failure value.
    * @param <S> The type of the success value.
    */
