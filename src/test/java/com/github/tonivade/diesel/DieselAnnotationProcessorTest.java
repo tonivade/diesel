@@ -245,6 +245,70 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
+  void shouldFailWithResultVoid() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+
+      @Diesel(errorType = Exception.class)
+      public interface Console {
+        Result<Exception, String> readLine();
+        Result<Exception, Void> writeLine(String line);
+      }""");
+
+    assert_().about(javaSource()).that(file)
+        .processedWith(new DieselAnnotationProcessor())
+        .failsToCompile()
+        .withErrorContaining("the return type of method writeLine is not valid: cannot be Void, use Unit");
+  }
+
+  @Test
+  void shouldFailWithFutureVoid() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel(errorType = Exception.class)
+      public interface Console {
+        CompletableFuture<String> readLine();
+        CompletableFuture<Void> writeLine(String line);
+      }""");
+
+    assert_().about(javaSource()).that(file)
+        .processedWith(new DieselAnnotationProcessor())
+        .failsToCompile()
+        .withErrorContaining("the return type of method writeLine is not valid: cannot be Void, use Unit");
+  }
+
+  @Test
+  void shouldFailWithFutureResultVoid() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+      import java.util.concurrent.CompletableFuture;
+
+      @Diesel(errorType = Exception.class)
+      public interface Console {
+        CompletableFuture<String> readLine();
+        CompletableFuture<Result<Exception, Void>> writeLine(String line);
+      }""");
+
+    assert_().about(javaSource()).that(file)
+        .processedWith(new DieselAnnotationProcessor())
+        .failsToCompile()
+        .withErrorContaining("the return type of method writeLine is not valid: cannot be Void, use Unit");
+  }
+
+  @Test
   void shouldGenerateDslCodeWithResultWildcard() {
     var file = forSourceLines("test.Console",
       """

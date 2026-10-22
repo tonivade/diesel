@@ -141,6 +141,9 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         } else if (!hasValidErrorType(method, errorBound)) {
           printError("the error type of method " + method.getSimpleName()
               + " is not assignable to the errorType of @Diesel: " + errorBound, method);
+        } else if (!hasValidReturnType(method)) {
+          printError("the return type of method " + method.getSimpleName()
+              + " is not valid: cannot be Void, use Unit", method);
         } else {
           dslTypeBuilder.addMethod(createFactoryMethod(method, service, errorType));
         }
@@ -252,6 +255,25 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         // a raw Result, or an unknown error like Result<?, T>, can't be checked
         .map(error -> processingEnv.getTypeUtils().isAssignable(error, errorBound))
         .orElse(true);
+  }
+
+  private boolean hasValidReturnType(ExecutableElement method) {
+    return valueTypeOf(method.getReturnType())
+        .map(value -> !processingEnv.getTypeUtils().isSameType(value, typeElement(Void.class).asType()))
+        // a raw type, or an unbounded wildcard like Result<E, ?>, can't be checked
+        .orElse(true);
+  }
+
+  /**
+   * The type of the value returned by the method: of the Result, returned directly or in a
+   * CompletableFuture, or of the CompletableFuture.
+   */
+  private Optional<TypeMirror> valueTypeOf(TypeMirror returnType) {
+    return resultTypeOf(returnType)
+        .or(() -> asSupertype(returnType, CompletableFuture.class))
+        .filter(type -> !type.getTypeArguments().isEmpty())
+        .map(type -> type.getTypeArguments().getLast())
+        .map(value -> value instanceof WildcardType wildcard ? wildcard.getExtendsBound() : value);
   }
 
   /**

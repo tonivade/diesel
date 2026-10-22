@@ -27,6 +27,7 @@ import java.lang.annotation.Target;
  *
  * <pre>
  * import com.github.tonivade.diesel.Program;
+ * import com.github.tonivade.diesel.Unit;
  * import javax.annotation.processing.Generated;
  *
  * &#64;Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
@@ -36,11 +37,8 @@ import java.lang.annotation.Target;
  *     return Program.access(Console::readLine);
  *   }
  *
- *   static &lt;S extends Console, E&gt; Program&lt;S, E, Void&gt; writeLine(String line) {
- *     return Program.access(console -&gt; {
- *       console.writeLine(line);
- *       return null;
- *     });
+ *   static &lt;S extends Console, E&gt; Program&lt;S, E, Unit&gt; writeLine(String line) {
+ *     return Program.inspect(console -&gt; console.writeLine(line));
  *   }
  * }
  * </pre>
