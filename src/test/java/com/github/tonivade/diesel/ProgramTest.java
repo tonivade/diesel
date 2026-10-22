@@ -17,6 +17,7 @@ import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.recursive;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
 import static com.github.tonivade.diesel.Program.unit;
@@ -27,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 import java.math.BigInteger;
 import java.time.Duration;
@@ -47,8 +50,6 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoSettings;
-
-import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
 @MockitoSettings
 class ProgramTest {
@@ -368,6 +369,16 @@ class ProgramTest {
   @Test
   void shouldReleaseResource(@Mock AutoCloseable resource) throws Exception {
     var program = bracket(() -> resource, Program::success);
+
+    var result = program.evalOrElseThrow();
+
+    assertThat(result).isEqualTo(resource);
+    verify(resource).close();
+  }
+
+  @Test
+  void shouldReleaseResourceUsingProgram(@Mock AutoCloseable resource) throws Exception {
+    var program = bracket(supply(() -> resource), Program::success);
 
     var result = program.evalOrElseThrow();
 

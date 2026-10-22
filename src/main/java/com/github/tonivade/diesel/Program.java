@@ -133,7 +133,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
       Function<? super E, ? extends Program<S, F, R>> onFailure,
-          Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {}
+      Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {}
 
   /**
    * Represents an asynchronous computation within the program.
@@ -1703,13 +1703,27 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return bracket(
         attempt(acquire),
         use,
-        resource -> task(() -> {
-          try {
-            resource.close();
-          } catch (Exception e) {
-            throw new UndeclaredThrowableException(e);
-          }
-        }));
+        Program::close);
+  }
+
+  /**
+   * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it
+   *
+   * <p>Acquiring and releasing the resource can't be cancelled, and once acquired the resource is
+   * released whether {@code use} succeeds, fails, throws an exception or is cancelled.
+   *
+   * @param acquire the supplier of the resource to be acquired
+   * @param use the function used to use the acquired resource
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the resource
+   * @param <R> the type of the result
+   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
+   */
+  static <S, E, T extends AutoCloseable, R> Program<S, E, R> bracket(
+      Program<S, E, T> acquire,
+      Function<? super T, ? extends Program<S, E, R>> use) {
+    return bracket(acquire, use, Program::close);
   }
 
   /**
@@ -1750,6 +1764,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record ElapsedTime<T>(Duration duration, T value) {}
+
+  private static <S, E, T extends AutoCloseable> Program<S, E, Unit> close(T resource) {
+    return task(() -> {
+      try {
+        resource.close();
+      } catch (Exception e) {
+        throw new UndeclaredThrowableException(e);
+      }
+    });
+  }
 
   private static <S, E> Program<S, E, Long> start() {
     return supply(System::nanoTime);
