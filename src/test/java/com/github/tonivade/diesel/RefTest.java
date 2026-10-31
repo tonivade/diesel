@@ -18,6 +18,15 @@ import org.junit.jupiter.api.Test;
 class RefTest {
 
   @Test
+  void canBeUsedInMoreSpecificProgramContext() {
+    Ref<Object, Exception, Integer> ref = Ref.of(10);
+
+    Program<String, RuntimeException, Integer> program = ref.get();
+
+    assertThat(program.evalOrElseThrow()).isEqualTo(10);
+  }
+
+  @Test
   void makeCreatesANewRefForEachEvaluation() {
     var program = Ref.make(0);
 
