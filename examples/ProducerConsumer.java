@@ -1,4 +1,5 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
+
 //DEPS com.github.tonivade:diesel:0.14-SNAPSHOT
 
 /*
@@ -16,11 +17,9 @@ import static com.github.tonivade.diesel.Program.task;
 import static com.github.tonivade.diesel.Tuple2.tuple;
 import static com.github.tonivade.diesel.Unit.unit;
 
-import com.github.tonivade.diesel.Combine;
 import com.github.tonivade.diesel.Deferred;
 import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Ref;
-import com.github.tonivade.diesel.Tuple2;
 import com.github.tonivade.diesel.Unit;
 
 import java.util.ArrayList;
@@ -34,14 +33,6 @@ public class ProducerConsumer {
   // Queue
   // ---------------------------------------------------------------------------
 
-  /**
-   * A simple unbounded FIFO queue implemented with Ref and Deferred.
-   *
-   * This is an educational example, not a production-ready queue:
-   * - It copies the list on every offer/take.
-   * - It does not provide backpressure.
-   * - It does not guarantee fairness between consumers.
-   */
   static final class SignalQueue<S, E, A> {
 
     private record State<S, E, A>(List<A> values, Deferred<S, E, Unit> changed) {}
@@ -55,12 +46,15 @@ public class ProducerConsumer {
 
     static <S, E, A> Program<S, E, SignalQueue<S, E, A>> make() {
       return suspend(() ->
-          Ref.<S, E, State<S, E, A>>make(
-              new State<>(
-                  List.of(),
-                  Deferred.<S, E, Unit>create()
-              )
-          ).map(SignalQueue::new)
+          pipe(
+              Ref.<S, E, State<S, E, A>>make(
+                  new State<>(
+                      List.of(),
+                      Deferred.<S, E, Unit>create()
+                  )
+              ),
+              success(state -> new SignalQueue<>(state))
+          )
       );
     }
 
@@ -70,52 +64,53 @@ public class ProducerConsumer {
       return suspend(() -> {
         var nextSignal = Deferred.<S, E, Unit>create();
 
-        return state.modify(current -> {
-          var values = new ArrayList<>(current.values());
-          values.add(value);
+        return pipe(
+            state.modify(current -> {
+              var values = new ArrayList<>(current.values());
+              values.add(value);
 
-          return tuple(
-              current.changed(),
-              new State<>(List.copyOf(values), nextSignal)
-          );
-        }).flatMap(previous -> previous.complete(unit()).map(_ -> unit()));
+              return tuple(
+                  current.changed(),
+                  new State<>(List.copyOf(values), nextSignal)
+              );
+            }),
+            previous -> previous.complete(unit()).discard()
+        );
       });
     }
 
     Program<S, E, A> take() {
-      return state.modify(current -> {
-        if (current.values().isEmpty()) {
-          return tuple(
-              new Poll<S, E, A>(
-                  Optional.empty(),
-                  current.changed()
-              ),
-              current
-          );
-        }
+      return pipe(
+          state.modify(current -> {
+            if (current.values().isEmpty()) {
+              return tuple(
+                  new Poll<S, E, A>(
+                      Optional.empty(),
+                      current.changed()
+                  ),
+                  current
+              );
+            }
 
-        A value = current.values().getFirst();
+            A value = current.values().getFirst();
 
-        return tuple(
-            new Poll<S, E, A>(
-                Optional.of(value),
-                current.changed()
-            ),
-            new State<>(
-                List.copyOf(current.values().subList(
-                    1, current.values().size()
-                )),
-                current.changed()
-            )
-        );
-      }).flatMap(poll -> {
-        if (poll.value().isPresent()) {
-          return success(poll.value().get());
-        }
-
-        return poll.changed().get()
-            .andThen(suspend(this::take));
-      });
+            return tuple(
+                new Poll<>(
+                    Optional.of(value),
+                    current.changed()
+                ),
+                new State<>(
+                    List.copyOf(current.values().subList(
+                        1, current.values().size()
+                    )),
+                    current.changed()
+                )
+            );
+          }),
+          poll -> poll.value()
+              .map(Program::<S, E, A>success)
+              .orElseGet(() -> poll.changed().get().andThen(suspend(this::take)))
+      );
     }
   }
 
@@ -138,32 +133,46 @@ public class ProducerConsumer {
   // Producers
   // ---------------------------------------------------------------------------
 
-  static Program<Void, Void, Unit> produce(SignalQueue<Void, Void, Message> queue, List<Integer> values) {
-    return traverse(value -> queue.offer(Message.data(value)), values)
-        .map(_ -> unit());
+  static Program<Void, Void, Unit> produce(
+      SignalQueue<Void, Void, Message> queue,
+      List<Integer> values
+  ) {
+    return traverse(
+        value -> queue.offer(Message.data(value)),
+        values
+    ).discard();
   }
 
   // ---------------------------------------------------------------------------
   // Consumers
   // ---------------------------------------------------------------------------
 
-  static Program<Void, Void, Unit> consume(int id, SignalQueue<Void, Void, Message> queue, Ref<Void, Void, Integer> processed) {
+  static Program<Void, Void, Unit> consume(
+      int id,
+      SignalQueue<Void, Void, Message> queue,
+      Ref<Void, Void, Integer> processed
+  ) {
     return suspend(() ->
         pipe(
-          queue.take(),
-          message -> {
-            if (message.poison()) {
-              System.out.printf("Consumer %d stopped%n", id);
-              return Program.unit();
+            queue.take(),
+            message -> {
+              if (message.poison()) {
+                return task(() -> System.out.printf("Consumer %d stopped%n", id));
+              }
+
+              return pipe(
+                  task(() ->
+                      System.out.printf(
+                          "Consumer %d processed %d%n",
+                          id,
+                          message.value()
+                      )
+                  ),
+                  _ -> processed.updateAndGet(n -> n + 1),
+                  _ -> suspend(() -> consume(id, queue, processed))
+              );
             }
-            
-            return pipe(
-              task(() -> System.out.printf("Consumer %d processed %d%n", id, message.value())),
-              _ -> processed.updateAndGet(n -> n + 1).map(_ -> unit()),
-              _ -> suspend(() -> consume(id, queue, processed))
-            );
-          }
-       )
+        )
     );
   }
 
@@ -175,9 +184,10 @@ public class ProducerConsumer {
     if (count == 0) {
       return Program.unit();
     }
-
-    return queue.offer(Message.stop())
-        .andThen(suspend(() -> stopWorkers(queue, count - 1)));
+    return pipe(
+        queue.offer(Message.stop()),
+        _ -> suspend(() -> stopWorkers(queue, count - 1))
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -186,23 +196,25 @@ public class ProducerConsumer {
 
   static Program<Void, Void, Integer> program() {
     return pipe(
-      SignalQueue.<Void, Void, Message>make(),
-      queue -> pipe(
-        Ref.make(0),
-        processed -> {
-          var producers = parAll(
-            produce(queue, List.of(1, 2, 3, 4, 5)),
-            produce(queue, List.of(6, 7, 8, 9, 10))
-            ).andThen(stopWorkers(queue, 3));
-
-          return parAll(
-            producers,
-            consume(1, queue, processed),
-            consume(2, queue, processed),
-            consume(3, queue, processed)
-            ).andThen(processed.get());
-        }
-      )
+        SignalQueue.<Void, Void, Message>make(),
+        queue -> pipe(
+            Ref.make(0),
+            processed -> pipe(
+                parAll(
+                    pipe(
+                        parAll(
+                            produce(queue, List.of(1, 2, 3, 4, 5)),
+                            produce(queue, List.of(6, 7, 8, 9, 10))
+                        ),
+                        _ -> stopWorkers(queue, 3)
+                    ),
+                    consume(1, queue, processed),
+                    consume(2, queue, processed),
+                    consume(3, queue, processed)
+                ),
+                _ -> processed.get()
+            )
+        )
     );
   }
 
@@ -213,13 +225,15 @@ public class ProducerConsumer {
   public static void main(String[] args) {
     int total = program().evalOrElseThrow();
 
-    IO.println();
-    IO.println("================================");
-    IO.println("Processed messages: " + total);
-    IO.println("================================");
+    System.out.println();
+    System.out.println("================================");
+    System.out.println("Processed messages: " + total);
+    System.out.println("================================");
 
     if (total != 10) {
-      throw new AssertionError("Expected 10 processed messages, but got " + total);
+      throw new AssertionError(
+          "Expected 10 processed messages, but got " + total
+      );
     }
   }
 }

@@ -1079,6 +1079,15 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
+   * It just discard the result of the computation
+   *
+   * @return the program with the result discarded
+   */
+  default Program<S, E, Unit> discard() {
+    return andThen(unit());
+  }
+
+  /**
    * Maps the program to a new program using the provided mapper function for errors.
    *
    * @param mapper the function used to map the program
