@@ -2,7 +2,7 @@
 
 //DEPS org.openjdk.jmh:jmh-core:1.37
 //DEPS org.openjdk.jmh:jmh-generator-annprocess:1.37
-//DEPS com.github.tonivade:diesel:0.12
+//DEPS com.github.tonivade:diesel:0.13
 
 //JAVA 27+
 
@@ -55,7 +55,7 @@ public class DieselBenchmark {
     Function<Integer, Program<Void, Void, Integer>> fib = Program.memoizeRecursive((self, k) -> k < 2
         ? Program.success(1)
         : Combine.zip(self.apply(k - 2), self.apply(k - 1), Integer::sum));
-    return fib.apply(n).eval(null);
+    return fib.apply(n).eval();
   }
 
   public static void main(String[] args) throws Exception {

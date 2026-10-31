@@ -19,10 +19,12 @@ A `Program<S, E, T>` describes a computation that uses a context of type `S`, ca
 - [Errors and recovery](#errors-and-recovery)
 - [Validation](#validation)
 - [Concurrency](#concurrency)
+- [Shared state and synchronization](#shared-state-and-synchronization)
 - [Asynchronous operations](#asynchronous-operations)
 - [Cancellation and resource safety](#cancellation-and-resource-safety)
 - [Retries, repetition and timing](#retries-repetition-and-timing)
 - [Evaluation](#evaluation)
+- [Source](#source)
 - [License](#license)
 
 ## Requirements
@@ -42,8 +44,8 @@ Add Diesel to both the compile classpath and the annotation processor path:
 
 ```kotlin
 dependencies {
-    implementation("com.github.tonivade:diesel:0.12")
-    annotationProcessor("com.github.tonivade:diesel:0.12")
+    implementation("com.github.tonivade:diesel:0.13")
+    annotationProcessor("com.github.tonivade:diesel:0.13")
 }
 ```
 
@@ -63,7 +65,7 @@ Add the library as a dependency:
 <dependency>
     <groupId>com.github.tonivade</groupId>
     <artifactId>diesel</artifactId>
-    <version>0.12</version>
+    <version>0.13</version>
 </dependency>
 ```
 
@@ -79,7 +81,7 @@ Configure the annotation processor in the Maven Compiler Plugin as well:
       <path>
         <groupId>com.github.tonivade</groupId>
         <artifactId>diesel</artifactId>
-        <version>0.12</version>
+        <version>0.13</version>
       </path>
     </annotationProcessorPaths>
   </configuration>
@@ -108,14 +110,13 @@ public interface ConsoleDsl {
         return Program.access(Console::readLine);
     }
 
-    static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-        return Program.access(console -> {
-            console.writeLine(line);
-            return null;
-        });
+    static <S extends Console, E> Program<S, E, Unit> writeLine(String line) {
+        return Program.inspect(console -> console.writeLine(line));
     }
 }
 ```
+
+Void-returning service methods use `Unit` as the program result, so they compose like any other successful operation without introducing a nullable `Void` value.
 
 Compose the generated operations, then supply a concrete implementation of the context when evaluating:
 
@@ -156,7 +157,7 @@ The example assumes the interface and generated DSL are in the indicated package
 - `@Diesel("CustomName")` lets you choose the generated type name.
 - `@Diesel(errorType = MyError.class)` sets the default error type used by generated programs. The default is `Void.class`, meaning no specific typed error is declared.
 - Generic service methods are supported. Their type variables are carried into the generated methods; avoid naming service type variables `S` or `E`, which Diesel reserves for program context and error types.
-- Methods returning ordinary values, `void`, `Result` values, or `CompletableFuture` values can be represented in the generated DSL. Subtypes of `Result` and `CompletableFuture` are supported too, including subclasses such as `class StringFuture extends CompletableFuture<String>`.
+- Methods returning ordinary values, `void`, `Result` values, or `CompletableFuture` values can be represented in the generated DSL. Subtypes of `Result` and `CompletableFuture` are supported, as are bounded wildcard return types when their bounds provide a usable value type. A method returning `void` is represented as `Program<S, E, Unit>`; `Void` is not a valid result type inside `Result` or `CompletableFuture`—use `Unit` instead. The processor also checks that the error type of a returned `Result` is compatible with the `errorType` declared by `@Diesel`.
 
 For asynchronous DSL operations, Diesel bridges the future into program evaluation. Cancellation of a generated future-backed operation cancels the returned future; if the future is shared or cached, return a copy when cancellation must not affect other consumers.
 
@@ -184,7 +185,7 @@ Program.<MyContext, MyError>task(() -> performSideEffect());
 
 `success` and `failure` create completed program descriptions. `suspend` delays construction of the next program until evaluation, which is useful for recursive programs because recursion is handled by Diesel's interpreter rather than by recursively evaluating on the Java call stack. `attempt` captures thrown exceptions as failures; an overload lets you map exceptions to your own error type.
 
-The interpreter uses an explicit continuation stack to process program composition. This makes deeply composed and suspended programs stack-safe without requiring a chain of nested Java calls.
+The interpreter uses an explicit continuation stack to process program composition. This makes deeply composed and suspended programs stack-safe without requiring a chain of nested Java calls. `Unit` is Diesel's single-value type for computations whose meaningful outcome is completion rather than a data value; `Program.task(...)`, `Program.sleep(...)`, and generated DSL methods returning `void` use it.
 
 ## Composing programs
 
@@ -333,13 +334,66 @@ var result = parZip(
 
 Choose an executor appropriate to the work. Virtual threads are a good default for blocking I/O; a bounded platform-thread pool may be more appropriate for CPU-bound work or when you need an explicit concurrency limit.
 
+## Shared state and synchronization
+
+Diesel provides two small primitives for coordinating programs that share state.
+
+### Atomic references: `Ref`
+
+`Ref<A>` is a mutable, thread-safe reference intended for storing immutable values. Its operations are programs, so reads and updates participate in normal composition, cancellation, and evaluation.
+
+Create a reference inside a program with `Ref.make(initialValue)` when each evaluation must get independent state, or use `Ref.of(initialValue)` to create one immediately:
+
+```java
+Program<Void, Void, Integer> counter = Ref.<Void, Void, Integer>make(0)
+    .flatMap(ref -> Program.task(() -> ref.update(n -> n + 1))
+        .andThen(ref.get()));
+
+counter.evalOrElseThrow(); // 1
+```
+
+Available operations include:
+
+- `get()` — read the current value.
+- `set(value)` — replace it.
+- `getAndSet(value)` — replace it and return the previous value.
+- `update(function)` — atomically update it.
+- `updateAndGet(function)` — update it and return the new value.
+- `getAndUpdate(function)` — update it and return the previous value.
+- `modify(function)` — atomically compute a result and a replacement value, returning the result.
+
+Updates are atomic. Functions passed to `update`, `updateAndGet`, `getAndUpdate`, and `modify` may be invoked more than once under contention, so keep them free of side effects.
+
+### One-shot synchronization: `Deferred`
+
+`Deferred<A>` starts empty and can be completed once. Programs calling `get()` wait for the value; completing it wakes all current waiters. A later completion returns `false` and leaves the original value unchanged.
+
+```java
+Program<Void, Void, String> exchange = Deferred.<String>make()
+    .flatMap(deferred ->
+        deferred.get().fork()
+            .flatMap(waiter ->
+                deferred.complete("ready")
+                    .andThen(Program.join(waiter))));
+```
+
+The main operations are:
+
+- `get()` — wait for the value; returns immediately if it is already available.
+- `complete(value)` — set the value once and wake waiting programs; returns whether this call completed it.
+- `tryGet()` — inspect the value without waiting, as an `Optional<A>`.
+- `Deferred.make()` — create a fresh deferred when the returned program is evaluated.
+- `Deferred.create()` — create an empty deferred immediately.
+
+A program waiting in `get()` can be cancelled without cancelling other waiters or changing the deferred value. The value cannot be `null`. Waiting holds a thread, which is inexpensive with virtual threads; avoid waiting forever inside an uncancelable region.
+
 ## Asynchronous operations
 
 Diesel can wait for external asynchronous work and integrate it into a program.
 
 ### Wait for a future
 
-`Program.join(future)` waits for a `CompletableFuture<Result<E, T>>`. Cancelling the waiting program does **not** cancel the original future.
+`Program.join(future)` waits for a `CompletableFuture<Result<E, T>>`. Cancelling the waiting program does **not** cancel the original future. Generated DSL methods can also return `CompletableFuture<Result<E, T>>` directly; Diesel unwraps the `Result` into the program's typed success or failure. This works with subclasses of `CompletableFuture` and `Result` as well.
 
 ### Register a cancelable asynchronous operation
 
@@ -366,7 +420,7 @@ Use `Program.async` when cancellation should stop waiting but the external opera
 
 ## Cancellation and resource safety
 
-Cancellation is cooperative and integrated with the interpreter. A cancelled program stops at its next cancellation point, unwinds its continuation stack, and runs registered finalizers. A running arbitrary Java function is not forcibly stopped unless the operation itself supports interruption or cancellation.
+Cancellation is cooperative and integrated with the interpreter. A cancelled program stops at its next cancellation point, unwinds its continuation stack, and runs registered finalizers. A running arbitrary Java function is not forcibly stopped unless the operation itself supports interruption or cancellation. Fatal JVM errors such as `VirtualMachineError` (including `OutOfMemoryError` and `StackOverflowError`) are rethrown rather than converted into ordinary program failures; `catchAll` does not recover from them and finalizers are not run after such a fatal error.
 
 ### Finalizers: `ensuring` and `onCancel`
 
@@ -434,6 +488,132 @@ Result<MyError, String> result = program.eval(context);
 - `evalOrElseThrow(mapper)` maps a typed error to the exception to throw.
 
 Prefer inspecting the `Result` when the error is part of normal application control flow. Use `evalOrElseThrow` at boundaries where exception-based handling is appropriate.
+
+## Source
+
+`Source<S, E, T>` is a lazy sequence of `Program`s, similar to a stream in fs2 or ZIO Streams.
+Each element is a `Program<S, E, T>` that is evaluated one at a time, only when the source is
+traversed, so a `Source` can be infinite and its elements can have effects and fail.
+
+A `Source` is **cold**: nothing is memoized between traversals, so each traversal (`foldLeft`,
+`toList`, ...) evaluates the programs again, including their effects. Elements can't be `null`.
+
+```java
+var program = Source.<Void, Void, Integer>iterate(1, x -> x + 1)
+    .filter(x -> x % 2 == 0)
+    .map(x -> x * x)
+    .take(5)
+    .toList();
+
+program.evalOrElseThrow(); // [4, 16, 36, 64, 100]
+```
+
+### Creating a source
+
+| Method | Description |
+|---|---|
+| `Source.empty()` | A source with no elements |
+| `Source.of(value)` / `Source.of(values...)` | A source with the given values |
+| `Source.eval(program)` | A source with one program |
+| `Source.nonEmpty(head, tail)` | A source with a head program and a tail source |
+| `Source.supply(supplier)` | Obtains the program lazily, when traversed |
+| `Source.suspend(supplier)` | Obtains the source lazily, when traversed |
+| `Source.iterate(seed, f)` | Infinite source: `seed`, `f(seed)`, `f(f(seed))`, ... |
+| `Source.iterate(supplier)` | Infinite source calling the supplier for each element |
+| `Source.from(iterable)` | From an `Iterable`, calling `iterator()` on each traversal |
+| `Source.fromIterator(supplier)` | From an iterator obtained on each traversal |
+| `Source.fromStream(supplier)` | From a `Stream` obtained on each traversal |
+
+`from`, `fromIterator` and `fromStream` obtain the iterator inside the evaluation, not when the
+source is built, so the source can be traversed more than once if the supplier creates a new one.
+Inside a traversal the elements are memoized, so a tail obtained with `split()` can be traversed
+several times without advancing the iterator again.
+
+### Transforming a source
+
+```java
+Source<Void, String, Integer> source = Source.of(1, 2, 3, 4);
+
+source.map(x -> x * 2);                          // 2, 4, 6, 8
+source.mapEval(x -> Program.success(x + 1));     // effectful map: 2, 3, 4, 5
+source.flatMap(x -> Source.of(x, x * 10));       // 1, 10, 2, 20, ...
+source.filter(x -> x % 2 == 0);                  // 2, 4
+source.filterNot(x -> x % 2 == 0);               // 1, 3
+source.collect(x -> x % 2 == 0, x -> x * 10);    // filter + map: 20, 40
+source.take(2);                                  // 1, 2
+source.drop(2);                                  // 3, 4
+source.takeWhile(x -> x < 3);                    // 1, 2
+source.dropWhile(x -> x < 3);                    // 3, 4
+```
+
+### Combining sources
+
+```java
+Source.zip(Source.of("a", "b"), Source.of(1, 2, 3)); // (a, 1), (b, 2)
+Source.zipWithIndex(Source.of("a", "b", "c"));       // (a, 0), (b, 1), (c, 2)
+Source.interleave(Source.of(1, 2, 3), Source.of(4, 5, 6)); // 1, 4, 2, 5, 3, 6
+
+Source.of(1, 2).concat(Source.of(3));  // 1, 2, 3
+Source.of(2, 3).prepend(Program.success(1)); // 1, 2, 3
+Source.of(1, 2).append(Program.success(3));  // 1, 2, 3
+```
+
+`concat` and `append` can be used in a loop: the concatenations are reassociated, so traversing
+a source built with 100,000 of them is linear.
+
+### Consuming a source
+
+A source does nothing until you build a `Program` that traverses it and evaluate it:
+
+```java
+Source<Void, Void, Integer> source = Source.of(1, 2, 3);
+
+source.toList();                      // Program<Void, Void, List<Integer>>
+source.foldLeft(0, Integer::sum);     // Program<Void, Void, Integer>
+source.headOption();                  // Program<Void, Void, Optional<Integer>>
+source.split();                       // head program and tail source, without evaluating the head
+```
+
+`foldRight` receives the folded remainder as a `Program`, so it is stack safe and can stop early,
+even on an infinite source:
+
+```java
+var exists = Source.<Void, Void, Integer>iterate(0, x -> x + 1)
+    .foldRight(
+        Program.<Void, Void, Boolean>success(false),
+        (x, rest) -> x > 3 ? Program.success(true) : rest);
+
+exists.evalOrElseThrow(); // true, only 5 elements are evaluated
+```
+
+### Things to keep in mind
+
+- **`tail()` and `drop(n)` evaluate the discarded elements**, so their effects happen and their
+  failures are propagated. Use `split()` to get the remaining source without evaluating the head.
+- **`take(n)` doesn't evaluate the element after the last one taken**, so it stops filters and
+  infinite sources safely.
+- **`head()` of an empty source raises a `NoSuchElementException`** (it is thrown, not a failure of
+  type `E`). Use `headOption()` or `split()` to handle it without an exception.
+- **The `begin` of `foldLeft` is shared by every evaluation**, so it must be immutable. For a
+  mutable accumulator create it inside the evaluation, like `toList()` does:
+  `Program.suspend(() -> source.foldLeft(new ArrayList<>(), ...))`.
+- **`fromStream` never closes the stream.** If it holds a resource, acquire it with
+  `Program.bracket`:
+
+```java
+Program<Void, String, String> readFile(String file) {
+  return Program.bracket(
+      Program.supply(() -> newBufferedReader(file)),
+      reader -> Source.<Void, String, String>fromStream(reader::lines)
+          .foldLeft("", (a, b) -> a + '\n' + b));
+}
+```
+
+- Traversals are programs, so everything else works with them: `timeout`, `retry`, `catchAll`,
+  cancellation, `parZip`, etc. For example, `source.foldLeft(...).timeout(Duration.ofMillis(100))`
+  stops the traversal of an infinite source.
+- The same tail must not be traversed concurrently (from two forks): the iterator behind
+  `from*` isn't thread-safe.
 
 ## License
 
