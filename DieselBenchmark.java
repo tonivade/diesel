@@ -2,7 +2,7 @@
 
 //DEPS org.openjdk.jmh:jmh-core:1.37
 //DEPS org.openjdk.jmh:jmh-generator-annprocess:1.37
-//DEPS com.github.tonivade:diesel:0.13-SNAPSHOT
+//DEPS com.github.tonivade:diesel:0.13
 
 //JAVA 27+
 
