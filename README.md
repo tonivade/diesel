@@ -19,6 +19,7 @@ A `Program<S, E, T>` describes a computation that uses a context of type `S`, ca
 - [Errors and recovery](#errors-and-recovery)
 - [Validation](#validation)
 - [Concurrency](#concurrency)
+- [Shared state and synchronization](#shared-state-and-synchronization)
 - [Asynchronous operations](#asynchronous-operations)
 - [Cancellation and resource safety](#cancellation-and-resource-safety)
 - [Retries, repetition and timing](#retries-repetition-and-timing)
@@ -109,14 +110,13 @@ public interface ConsoleDsl {
         return Program.access(Console::readLine);
     }
 
-    static <S extends Console, E> Program<S, E, Void> writeLine(String line) {
-        return Program.access(console -> {
-            console.writeLine(line);
-            return null;
-        });
+    static <S extends Console, E> Program<S, E, Unit> writeLine(String line) {
+        return Program.inspect(console -> console.writeLine(line));
     }
 }
 ```
+
+Void-returning service methods use `Unit` as the program result, so they compose like any other successful operation without introducing a nullable `Void` value.
 
 Compose the generated operations, then supply a concrete implementation of the context when evaluating:
 
@@ -157,7 +157,7 @@ The example assumes the interface and generated DSL are in the indicated package
 - `@Diesel("CustomName")` lets you choose the generated type name.
 - `@Diesel(errorType = MyError.class)` sets the default error type used by generated programs. The default is `Void.class`, meaning no specific typed error is declared.
 - Generic service methods are supported. Their type variables are carried into the generated methods; avoid naming service type variables `S` or `E`, which Diesel reserves for program context and error types.
-- Methods returning ordinary values, `void`, `Result` values, or `CompletableFuture` values can be represented in the generated DSL. Subtypes of `Result` and `CompletableFuture` are supported too, including subclasses such as `class StringFuture extends CompletableFuture<String>`.
+- Methods returning ordinary values, `void`, `Result` values, or `CompletableFuture` values can be represented in the generated DSL. Subtypes of `Result` and `CompletableFuture` are supported, as are bounded wildcard return types when their bounds provide a usable value type. A method returning `void` is represented as `Program<S, E, Unit>`; `Void` is not a valid result type inside `Result` or `CompletableFuture`—use `Unit` instead. The processor also checks that the error type of a returned `Result` is compatible with the `errorType` declared by `@Diesel`.
 
 For asynchronous DSL operations, Diesel bridges the future into program evaluation. Cancellation of a generated future-backed operation cancels the returned future; if the future is shared or cached, return a copy when cancellation must not affect other consumers.
 
@@ -185,7 +185,7 @@ Program.<MyContext, MyError>task(() -> performSideEffect());
 
 `success` and `failure` create completed program descriptions. `suspend` delays construction of the next program until evaluation, which is useful for recursive programs because recursion is handled by Diesel's interpreter rather than by recursively evaluating on the Java call stack. `attempt` captures thrown exceptions as failures; an overload lets you map exceptions to your own error type.
 
-The interpreter uses an explicit continuation stack to process program composition. This makes deeply composed and suspended programs stack-safe without requiring a chain of nested Java calls.
+The interpreter uses an explicit continuation stack to process program composition. This makes deeply composed and suspended programs stack-safe without requiring a chain of nested Java calls. `Unit` is Diesel's single-value type for computations whose meaningful outcome is completion rather than a data value; `Program.task(...)`, `Program.sleep(...)`, and generated DSL methods returning `void` use it.
 
 ## Composing programs
 
@@ -334,13 +334,66 @@ var result = parZip(
 
 Choose an executor appropriate to the work. Virtual threads are a good default for blocking I/O; a bounded platform-thread pool may be more appropriate for CPU-bound work or when you need an explicit concurrency limit.
 
+## Shared state and synchronization
+
+Diesel provides two small primitives for coordinating programs that share state.
+
+### Atomic references: `Ref`
+
+`Ref<A>` is a mutable, thread-safe reference intended for storing immutable values. Its operations are programs, so reads and updates participate in normal composition, cancellation, and evaluation.
+
+Create a reference inside a program with `Ref.make(initialValue)` when each evaluation must get independent state, or use `Ref.of(initialValue)` to create one immediately:
+
+```java
+Program<Void, Void, Integer> counter = Ref.<Void, Void, Integer>make(0)
+    .flatMap(ref -> Program.task(() -> ref.update(n -> n + 1))
+        .andThen(ref.get()));
+
+counter.evalOrElseThrow(); // 1
+```
+
+Available operations include:
+
+- `get()` — read the current value.
+- `set(value)` — replace it.
+- `getAndSet(value)` — replace it and return the previous value.
+- `update(function)` — atomically update it.
+- `updateAndGet(function)` — update it and return the new value.
+- `getAndUpdate(function)` — update it and return the previous value.
+- `modify(function)` — atomically compute a result and a replacement value, returning the result.
+
+Updates are atomic. Functions passed to `update`, `updateAndGet`, `getAndUpdate`, and `modify` may be invoked more than once under contention, so keep them free of side effects.
+
+### One-shot synchronization: `Deferred`
+
+`Deferred<A>` starts empty and can be completed once. Programs calling `get()` wait for the value; completing it wakes all current waiters. A later completion returns `false` and leaves the original value unchanged.
+
+```java
+Program<Void, Void, String> exchange = Deferred.<String>make()
+    .flatMap(deferred ->
+        deferred.get().fork()
+            .flatMap(waiter ->
+                deferred.complete("ready")
+                    .andThen(Program.join(waiter))));
+```
+
+The main operations are:
+
+- `get()` — wait for the value; returns immediately if it is already available.
+- `complete(value)` — set the value once and wake waiting programs; returns whether this call completed it.
+- `tryGet()` — inspect the value without waiting, as an `Optional<A>`.
+- `Deferred.make()` — create a fresh deferred when the returned program is evaluated.
+- `Deferred.create()` — create an empty deferred immediately.
+
+A program waiting in `get()` can be cancelled without cancelling other waiters or changing the deferred value. The value cannot be `null`. Waiting holds a thread, which is inexpensive with virtual threads; avoid waiting forever inside an uncancelable region.
+
 ## Asynchronous operations
 
 Diesel can wait for external asynchronous work and integrate it into a program.
 
 ### Wait for a future
 
-`Program.join(future)` waits for a `CompletableFuture<Result<E, T>>`. Cancelling the waiting program does **not** cancel the original future.
+`Program.join(future)` waits for a `CompletableFuture<Result<E, T>>`. Cancelling the waiting program does **not** cancel the original future. Generated DSL methods can also return `CompletableFuture<Result<E, T>>` directly; Diesel unwraps the `Result` into the program's typed success or failure. This works with subclasses of `CompletableFuture` and `Result` as well.
 
 ### Register a cancelable asynchronous operation
 
@@ -367,7 +420,7 @@ Use `Program.async` when cancellation should stop waiting but the external opera
 
 ## Cancellation and resource safety
 
-Cancellation is cooperative and integrated with the interpreter. A cancelled program stops at its next cancellation point, unwinds its continuation stack, and runs registered finalizers. A running arbitrary Java function is not forcibly stopped unless the operation itself supports interruption or cancellation.
+Cancellation is cooperative and integrated with the interpreter. A cancelled program stops at its next cancellation point, unwinds its continuation stack, and runs registered finalizers. A running arbitrary Java function is not forcibly stopped unless the operation itself supports interruption or cancellation. Fatal JVM errors such as `VirtualMachineError` (including `OutOfMemoryError` and `StackOverflowError`) are rethrown rather than converted into ordinary program failures; `catchAll` does not recover from them and finalizers are not run after such a fatal error.
 
 ### Finalizers: `ensuring` and `onCancel`
 
