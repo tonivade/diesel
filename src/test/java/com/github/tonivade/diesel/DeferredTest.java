@@ -29,6 +29,15 @@ class DeferredTest {
   private final Deferred<Void, Void, String> deferred = Deferred.create();
 
   @Test
+  void canBeUsedInMoreSpecificProgramContext() {
+    Deferred<Object, Exception, Integer> deferred = Deferred.create();
+
+    Program<String, RuntimeException, Optional<Integer>> program = deferred.tryGet();
+
+    assertThat(program.evalOrElseThrow()).isEmpty();
+  }
+
+  @Test
   void makeCreatesANewDeferredForEachEvaluation() {
     var program = Deferred.<Void, Void, String>make();
 
