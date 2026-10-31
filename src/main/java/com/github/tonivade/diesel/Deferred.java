@@ -4,9 +4,11 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Program.asyncCancelable;
 import static com.github.tonivade.diesel.Program.supply;
+import static com.github.tonivade.diesel.Program.task;
+import static java.util.Objects.requireNonNull;
 
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -29,9 +31,11 @@ import java.util.function.Consumer;
  *
  * <p>The value can't be {@code null}.
  *
+ * @param <S> the type of the state
+ * @param <E> the type of the error
  * @param <A> type of stored value
  */
-public final class Deferred<A> {
+public final class Deferred<S, E, A> {
 
   private final CompletableFuture<A> value = new CompletableFuture<>();
   // the programs waiting in get: each one leaves when it's woken up or cancelled, so the waiters
@@ -45,12 +49,12 @@ public final class Deferred<A> {
    *
    * <p>If the value is already set, it returns it at once.
    *
-   * @param <S> the type of the state
-   * @param <E> the type of the error
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
    * @return a program that waits for the value when evaluated
    */
-  public <S, E> Program<S, E, A> get() {
-    return Program.asyncCancelable((_, callback) -> {
+  public <S1 extends S, E1 extends E> Program<S1, E1, A> get() {
+    return asyncCancelable((_, callback) -> {
       Consumer<A> waiter = current -> callback.complete(Result.success(current));
       waiters.add(waiter);
       // complete sets the value before it wakes up the waiters, so a value set before the waiter
@@ -59,22 +63,22 @@ public final class Deferred<A> {
         waiters.remove(waiter);
         waiter.accept(value.join());
       }
-      return Program.task(() -> waiters.remove(waiter));
+      return task(() -> waiters.remove(waiter));
     });
   }
 
   /**
    * Sets the value, if it isn't set yet, and wakes up the programs waiting for it.
    *
-   * @param <S> the type of the state
-   * @param <E> the type of the error
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
    * @param newValue the value to set, not {@code null}
    * @return a program that returns {@code true} if it set the value, or {@code false} if the value
    *     was already set, in which case the value doesn't change
    * @throws NullPointerException if the value is {@code null}
    */
-  public <S, E> Program<S, E, Boolean> complete(A newValue) {
-    Objects.requireNonNull(newValue, "the value of a deferred can't be null");
+  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> complete(A newValue) {
+    requireNonNull(newValue, "the value of a deferred can't be null");
     return supply(() -> {
       if (value.complete(newValue)) {
         // a waiter added after this point sees the value in get and wakes itself up, so clearing
@@ -90,11 +94,11 @@ public final class Deferred<A> {
   /**
    * Returns the value if it's set, without waiting.
    *
-   * @param <S> the type of the state
-   * @param <E> the type of the error
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
    * @return a program that returns the value, or an empty optional if it isn't set yet
    */
-  public <S, E> Program<S, E, Optional<A>> tryGet() {
+  public <S1 extends S, E1 extends E> Program<S1, E1, Optional<A>> tryGet() {
     return supply(this::current);
   }
 
@@ -106,17 +110,19 @@ public final class Deferred<A> {
    * @param <A> the type of the value
    * @return a program that creates a fresh deferred when evaluated
    */
-  public static <S, E, A> Program<S, E, Deferred<A>> make() {
+  public static <S, E, A> Program<S, E, Deferred<S, E, A>> make() {
     return supply(Deferred::create);
   }
 
   /**
    * Creates a new, empty deferred immediately.
    *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @param <A> the type of the value
    * @return a new deferred
    */
-  public static <A> Deferred<A> create() {
+  public static <S, E, A> Deferred<S, E, A> create() {
     return new Deferred<>();
   }
 
@@ -127,7 +133,9 @@ public final class Deferred<A> {
    */
   @Override
   public String toString() {
-    return current().map(v -> String.format("Deferred(%s)", v)).orElse("Deferred(<empty>)");
+    return current()
+        .map(v -> "Deferred(%s)".formatted(v))
+        .orElse("Deferred(<empty>)");
   }
 
   // the number of programs waiting in get, for the tests
