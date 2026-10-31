@@ -177,20 +177,6 @@ public class ProducerConsumer {
   }
 
   // ---------------------------------------------------------------------------
-  // Shutdown
-  // ---------------------------------------------------------------------------
-
-  static Program<Void, Void, Unit> stopWorkers(SignalQueue<Void, Void, Message> queue, int count) {
-    if (count == 0) {
-      return Program.unit();
-    }
-    return pipe(
-        queue.offer(Message.stop()),
-        _ -> suspend(() -> stopWorkers(queue, count - 1))
-    );
-  }
-
-  // ---------------------------------------------------------------------------
   // Program
   // ---------------------------------------------------------------------------
 
@@ -206,7 +192,7 @@ public class ProducerConsumer {
                             produce(queue, List.of(1, 2, 3, 4, 5)),
                             produce(queue, List.of(6, 7, 8, 9, 10))
                         ),
-                        _ -> stopWorkers(queue, 3)
+                        _ -> queue.offer(Message.stop()).repeat(3)
                     ),
                     consume(1, queue, processed),
                     consume(2, queue, processed),
