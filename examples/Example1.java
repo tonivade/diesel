@@ -1,8 +1,5 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-
 //DEPS com.github.tonivade:diesel:0.14-SNAPSHOT
-
-//JAVA 27+
 
 /*
  * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
@@ -13,7 +10,6 @@ package examples;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.join;
 
-import com.github.tonivade.diesel.Combine;
 import com.github.tonivade.diesel.Deferred;
 import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Ref;
