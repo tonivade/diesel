@@ -46,6 +46,7 @@ dependencies {
   compileOnly(libs.jspecify)
   implementation(libs.javapoet)
   api(libs.purefunAnnotation)
+  api(libs.pcollections)
 
   testImplementation(libs.assertj)
   testImplementation(platform(libs.junitBom))

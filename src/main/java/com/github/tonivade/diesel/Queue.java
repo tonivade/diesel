@@ -14,13 +14,13 @@ import static com.github.tonivade.diesel.Program.unit;
 import static com.github.tonivade.diesel.Tuple2.tuple;
 import static java.util.Objects.requireNonNull;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.NoSuchElementException;
 import java.util.Optional;
-import java.util.function.Predicate;
 
-import org.jspecify.annotations.Nullable;
+import org.pcollections.ConsPStack;
+import org.pcollections.PStack;
+import org.pcollections.PVector;
+import org.pcollections.TreePVector;
 
 /**
  * A concurrent FIFO queue, bounded or unbounded, with semantic blocking: {@link #take()} waits
@@ -41,7 +41,7 @@ public final class Queue<S, E, A> {
   private final Ref<S, E, State<S, E, A>> state;
 
   private Queue(int capacity) {
-    State<S, E, A> initial = new State<>(capacity, Fifo.empty(), Fifo.empty(), Fifo.empty());
+    State<S, E, A> initial = new State<>(capacity, Fifo.empty(), TreePVector.empty(), TreePVector.empty());
     this.state = Ref.of(initial);
   }
 
@@ -220,9 +220,9 @@ public final class Queue<S, E, A> {
   }
 
   private <S1 extends S, E1 extends E> Program<S1, E1, Unit> removeOfferer(Deferred<S, E, Unit> done) {
-    return chain(
+    return pipe(
         state.modify(s -> s.removeOfferer(done)),
-        _ -> Unit.unit());
+        _ -> unit());
   }
 
   private <S1 extends S, E1 extends E> Program<S1, E1, Unit> releaseTaker(Deferred<S, E, A> waiter) {
@@ -252,18 +252,28 @@ public final class Queue<S, E, A> {
   private record Waiting<S, E, A>() implements TakeResult<S, E, A> {}
   private record Empty<S, E, A>() implements TakeResult<S, E, A> {}
 
-  private record Offerer<S, E, A>(A value, Deferred<S, E, Unit> done) {}
+  private record Offerer<S, E, A>(A value, Deferred<S, E, Unit> done) {
+
+    @Override
+    public final boolean equals(Object other) {
+      return other instanceof Offerer offerer && done == offerer.done;
+    }
+
+    @Override
+    public final int hashCode() {
+      return done.hashCode();
+    }
+  }
 
   private record State<S, E, A>(
       int capacity,
       Fifo<A> items,
-      Fifo<Deferred<S, E, A>> takers,
-      Fifo<Offerer<S, E, A>> offerers) {
+      PVector<Deferred<S, E, A>> takers,
+      PVector<Offerer<S, E, A>> offerers) {
 
     Tuple2<OfferResult<S, E, A>, State<S, E, A>> offer(A value, Deferred<S, E, Unit> done, Mode mode) {
       if (!takers.isEmpty()) {
-        var next = takers.poll();
-        return tuple(new Handoff<>(next.first(), value), new State<>(capacity, items, next.second(), offerers));
+        return tuple(new Handoff<>(takers.getFirst(), value), new State<>(capacity, items, takers.minus(0), offerers));
       }
       if (items.size() < capacity || mode == Mode.FORCE) {
         return tuple(new Stored<>(), new State<>(capacity, items.offer(value), takers, offerers));
@@ -273,7 +283,7 @@ public final class Queue<S, E, A> {
       }
       return tuple(
           new Blocked<>(done),
-          new State<>(capacity, items, takers, offerers.offer(new Offerer<>(value, done))));
+          new State<>(capacity, items, takers, offerers.plus(new Offerer<>(value, done))));
     }
 
     Tuple2<TakeResult<S, E, A>, State<S, E, A>> take(Deferred<S, E, A> waiter, boolean wait) {
@@ -281,10 +291,9 @@ public final class Queue<S, E, A> {
         var head = items.poll();
         if (!offerers.isEmpty()) {
           // a place was freed: the first blocked offer enters the queue and is woken up
-          var offerer = offerers.poll();
           return tuple(
-              new Taken<>(head.first(), Optional.of(offerer.first().done())),
-              new State<>(capacity, head.second().offer(offerer.first().value()), takers, offerer.second()));
+              new Taken<>(head.first(), Optional.of(offerers.getFirst().done())),
+              new State<>(capacity, head.second().offer(offerers.getFirst().value()), takers, offerers.minus(0)));
         }
         return tuple(
             new Taken<>(head.first(), Optional.empty()),
@@ -293,32 +302,29 @@ public final class Queue<S, E, A> {
       if (!wait) {
         return tuple(new Empty<>(), this);
       }
-      return tuple(new Waiting<>(), new State<>(capacity, items, takers.offer(waiter), offerers));
+      return tuple(new Waiting<>(), new State<>(capacity, items, takers.plus(waiter), offerers));
     }
 
     Tuple2<Boolean, State<S, E, A>> removeTaker(Deferred<S, E, A> waiter) {
-      var rest = takers.removeIf(t -> t == waiter);
+      var rest = takers.minus(waiter);
       return tuple(rest != takers, new State<>(capacity, items, rest, offerers));
     }
 
     Tuple2<Boolean, State<S, E, A>> removeOfferer(Deferred<S, E, Unit> done) {
-      var rest = offerers.removeIf(o -> o.done() == done);
+      var rest = offerers.minus(new Offerer<>(Unit.unit(), done));
       return tuple(rest != offerers, new State<>(capacity, items, takers, rest));
     }
   }
 
-  /** Immutable FIFO, amortized O(1) offer and poll. Removal is O(n), only used on cancellation. */
   private static final class Fifo<T> {
 
-    private record Cons<T>(T head, @Nullable Cons<T> tail) {}
+    private static final Fifo<Object> EMPTY = new Fifo<>(ConsPStack.empty(), ConsPStack.empty(), 0);
 
-    private static final Fifo<Object> EMPTY = new Fifo<>(null, null, 0);
-
-    private final @Nullable Cons<T> front;
-    private final @Nullable Cons<T> back; // reversed
+    private final PStack<T> front;
+    private final PStack<T> back; // reversed
     private final int size;
 
-    private Fifo(@Nullable Cons<T> front, @Nullable Cons<T> back, int size) {
+    private Fifo(PStack<T> front, PStack<T> back, int size) {
       this.front = front;
       this.back = back;
       this.size = size;
@@ -338,51 +344,26 @@ public final class Queue<S, E, A> {
     }
 
     Fifo<T> offer(T value) {
-      return new Fifo<>(front, new Cons<>(value, back), size + 1);
+      return new Fifo<>(front, back.plus(value), size + 1);
     }
 
     Tuple2<T, Fifo<T>> poll() {
       var f = front;
       var b = back;
-      if (f == null) {
+      if (f.isEmpty()) {
         f = reverse(b);
-        b = null;
+        b = ConsPStack.empty();
       }
-      if (f == null) {
+      if (f.isEmpty()) {
         throw new NoSuchElementException();
       }
-      return tuple(f.head(), new Fifo<>(f.tail(), b, size - 1));
+      return tuple(f.getFirst(), new Fifo<>(f.minus(0), b, size - 1));
     }
 
-    /** Removes the first element that matches, returns {@code this} if none does. */
-    Fifo<T> removeIf(Predicate<? super T> matcher) {
-      var all = new ArrayList<T>(size);
-      for (var c = front; c != null; c = c.tail()) {
-        all.add(c.head());
-      }
-      var pending = new ArrayList<T>();
-      for (var c = back; c != null; c = c.tail()) {
-        pending.add(c.head());
-      }
-      Collections.reverse(pending);
-      all.addAll(pending);
-
-      var removed = false;
-      Fifo<T> result = empty();
-      for (var t : all) {
-        if (!removed && matcher.test(t)) {
-          removed = true;
-        } else {
-          result = result.offer(t);
-        }
-      }
-      return removed ? result : this;
-    }
-
-    private static <T> @Nullable Cons<T> reverse(@Nullable Cons<T> list) {
-      Cons<T> result = null;
-      for (var c = list; c != null; c = c.tail()) {
-        result = new Cons<>(c.head(), result);
+    private static <T> PStack<T> reverse(PStack<T> list) {
+      PStack<T> result = ConsPStack.empty();
+      for (T t : list) {
+        result = result.plus(t);
       }
       return result;
     }

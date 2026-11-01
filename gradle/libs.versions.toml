@@ -10,6 +10,7 @@ errorpronePluginVersion = "5.1.1"
 nullawayVersion = "0.14.3"
 compileTestingVersion = "0.24.0"
 purefunVersion = "5.2"
+pcollectionsVersion = "5.0.0"
 
 [libraries]
 jspecify = { group = "org.jspecify", name = "jspecify", version.ref = "jspecifyVersion" }
@@ -24,6 +25,7 @@ compileTesting = { group = "com.google.testing.compile", name = "compile-testing
 nullaway = { group = "com.uber.nullaway", name = "nullaway", version.ref = "nullawayVersion" }
 errorprone = { group = "com.google.errorprone", name = "error_prone_core", version.ref = "errorproneVersion" }
 purefunAnnotation = { group = "com.github.tonivade", name = "purefun-annotation", version.ref = "purefunVersion" }
+pcollections = { group = "org.pcollections", name = "pcollections", version.ref = "pcollectionsVersion" }
 
 [plugins]
 errorprone = { id = "net.ltgt.errorprone", version.ref = "errorpronePluginVersion"}
