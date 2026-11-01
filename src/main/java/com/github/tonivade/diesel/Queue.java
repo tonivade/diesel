@@ -17,8 +17,6 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.NoSuchElementException;
 import java.util.Optional;
-import java.util.function.Function;
-
 import org.pcollections.ConsPStack;
 import org.pcollections.PStack;
 import org.pcollections.PVector;
@@ -176,22 +174,6 @@ public final class Queue<S, E, A> {
             result -> result instanceof Taken<S, E, A>(var value, _)
                 ? Optional.of(value)
                 : Optional.empty())));
-  }
-
-  /**
-   * Takes the first value, waiting while the queue is empty, and processes it. Waiting can be
-   * cancelled, but once a value is taken, {@code process} runs to completion before any
-   * cancellation takes effect, so the value is never dropped.
-   *
-   * @param process function to process an element
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
-   * @param <B> type of the result
-   * @return the result of processing an element
-   */
-  public <S1 extends S, E1 extends E, B> Program<S1, E1, B> takeAndProcess(
-      Function<? super A, ? extends Program<S1, E1, B>> process) {
-    return uncancelable(poll -> pipe(poll.apply(this.<S1, E1>take()), process));
   }
 
   /**
