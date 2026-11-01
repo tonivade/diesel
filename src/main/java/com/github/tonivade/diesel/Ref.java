@@ -128,7 +128,7 @@ public final class Ref<S, E, A> {
    * @param change a function from the current value to the result and replacement value
    * @return a program that returns the result associated with the successfully applied change
    */
-  public <S1 extends S, E1 extends E, B> Program<S1, E1, B> modify(Function<? super A, Tuple2<B, A>> change) {
+  public <S1 extends S, E1 extends E, B> Program<S1, E1, B> modify(Function<? super A, ? extends Tuple2<B, A>> change) {
     return supply(() -> {
       while (true) {
         A current = value.get();
