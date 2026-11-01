@@ -183,7 +183,11 @@ public final class Queue<S, E, A> {
    * cancelled, but once a value is taken, {@code process} runs to completion before any
    * cancellation takes effect, so the value is never dropped.
    *
-   * @param process function to process the message
+   * @param process function to process an element
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @param <B> type of the result
+   * @return the result of processing an element
    */
   public <S1 extends S, E1 extends E, B> Program<S1, E1, B> takeAndProcess(
       Function<? super A, ? extends Program<S1, E1, B>> process) {
@@ -266,7 +270,7 @@ public final class Queue<S, E, A> {
 
     @Override
     public boolean equals(Object other) {
-      return other instanceof Offerer offerer && done == offerer.done;
+      return other instanceof Offerer<?, ?, ?> offerer && done == offerer.done;
     }
 
     @Override
