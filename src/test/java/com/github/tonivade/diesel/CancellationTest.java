@@ -786,13 +786,17 @@ class CancellationTest {
   }
 
   @Test
-  void timeoutCancelsThePollWaitAndRunsItsFinalizer() {
+  void cancellingThePollWaitRunsItsFinalizer() throws Exception {
+    expected = 1;
     var program = Program.<Void, String, Unit>uncancelable(poll -> poll.apply(
-        start().andThen(never()).ensuring(run(released::incrementAndGet))))
-        .timeout(Duration.ofMillis(50));
+        start().andThen(never()).ensuring(run(released::incrementAndGet))));
 
-    assertThatThrownBy(program::eval).isInstanceOf(TimeoutException.class);
-    assertThat(released).hasValue(started.get());
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(released).hasValue(1);
   }
 
   @Test
@@ -880,7 +884,7 @@ class CancellationTest {
   }
 
   @Test
-  void anEscapedPollOpensARegionAtTheSameDepth() throws Exception {
+  void anEscapedPollDoesNothingAtTheSameDepth() throws Exception {
     expected = 1;
     var escaped = new CompletableFuture<Program.Poll>();
     Program.<Void, String, Unit>uncancelable(poll -> {

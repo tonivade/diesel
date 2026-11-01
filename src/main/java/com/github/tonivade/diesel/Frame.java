@@ -4,14 +4,14 @@
  */
 package com.github.tonivade.diesel;
 
-import com.github.tonivade.diesel.Program.Region;
-
 import java.util.function.Function;
 
 /**
  * Continuation frames used by {@link Program#eval(Object)}.
  */
 sealed interface Frame<S> {
+
+  final class Region {}
 
   record FoldFrame<S>(
     Function<Object, Program<S, ?, ?>> onFailure,

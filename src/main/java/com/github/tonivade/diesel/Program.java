@@ -13,6 +13,7 @@ import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
 import com.github.tonivade.diesel.Frame.OnCancelFrame;
+import com.github.tonivade.diesel.Frame.Region;
 import com.github.tonivade.diesel.Frame.RemaskFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.purefun.Kind;
@@ -819,7 +820,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return run(state, CancelToken.current());
   }
 
-  final class Region {}
 
   @SuppressWarnings({ "unchecked", "rawtypes" })
   private Result<E, T> run(@Nullable S state, CancelToken token) {
