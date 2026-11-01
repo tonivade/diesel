@@ -825,14 +825,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     Program<S, ?, ?> current = this;
     Deque<Frame<S>> stack = new ArrayDeque<>();
     Deque<Region> regions = new ArrayDeque<>();
-    // depth of nested uncancelable regions, a cancellation only takes effect outside of them
-    int masked = 0;
 
     while (true) {
       try {
         // a cancelled program stops at the start of its next step, unwinding the stack like an
         // exception so the finalizers run
-        if (shouldStop(token, masked, current)) {
+        if (shouldStop(token, regions, current)) {
           throw new CancelToken.Cancelled();
         }
         switch (current) {
@@ -853,18 +851,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
                 case FinalizerFrame(var finalizer) -> {
                   // run the finalizer and then continue with the result, unless the finalizer fails
                   stack.push(Frame.fold(Program::failure, _ -> from(result)));
-                  masked = enterUncancelable(stack, regions, masked, new Region());
+                  enterUncancelable(stack, regions);
                   current = finalizer;
                   resumed = true;
                 }
-                case UnmaskFrame(var region) -> {
-                  masked--;
-                  regions.remove(region);
-                }
-                case RemaskFrame(var previous, var region) -> {
-                  masked = previous;
-                  regions.push(region);
-                }
+                case UnmaskFrame(var region) -> regions.remove(region);
+                case RemaskFrame(var region) -> regions.push(region);
                 case OnCancelFrame<S> _ -> {
                   // the program completed, so it wasn't cancelled
                 }
@@ -879,7 +871,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           }
           case Async(var callback) -> {
             var async = (BiConsumer<S, CompletableFuture<?>>) callback;
-            var result = masked == 0 ? awaitCancelable(state, async, token) : awaitUncancelable(state, async);
+            var result = regions.isEmpty() ? awaitCancelable(state, async, token) : awaitUncancelable(state, async);
             current = from(result);
           }
           case Ensuring(var source, var finalizer) -> {
@@ -891,12 +883,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
             current = source;
           }
           case Uncancelable(var source) -> {
-            masked = enterUncancelable(stack, regions, masked, new Region());
+            enterUncancelable(stack, regions);
             current = source;
           }
           case UncancelableWith(var body) -> {
-            var region = new Region();
-            masked = enterUncancelable(stack, regions, masked, region);
+            var region = enterUncancelable(stack, regions);
             current = body.apply(new Poll() {
               @Override
               public <S1, E1, T1> Program<S1, E1, T1> apply(Program<S1, E1, T1> program) {
@@ -907,8 +898,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           case Polled(var source, var region) -> {
             if (regions.peek() == region) {
               regions.pop();
-              stack.push(Frame.remask(masked, region));
-              masked--;
+              stack.push(Frame.remask(region));
             }
             current = source;
           }
@@ -916,7 +906,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
             // a fork started in an uncancelable region, like a finalizer, can't be cancelled either.
             // It isn't tracked by the parent either, so a cancelled parent doesn't wait for it: the
             // programs that wait for their forks, like timeout or par*, are not affected
-            var parent = masked == 0 ? token : CancelToken.NONE;
+            var parent = regions.isEmpty() ? token : CancelToken.NONE;
             current = success(startFork(state, parent, forked.current, forked.executor));
           }
           case FoldMap(var source, var onFailure, var onSuccess) -> {
@@ -974,31 +964,25 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
               stack.push(Frame.fold(
                   _ -> raise(() -> e),
                   _ -> raise(() -> e)));
-              masked = enterUncancelable(stack, regions, masked, new Region());
+              enterUncancelable(stack, regions);
               current = finalizer;
               resumed = true;
             }
             case OnCancelFrame(var finalizer) -> {
               // only when this program is being cancelled, not for an ordinary exception or a
               // cancelled fork joined by this program
-              if (masked == 0 && token.isCancelled()) {
+              if (regions.isEmpty() && token.isCancelled()) {
                 // run the finalizer, then keep unwinding with the same exception
                 stack.push(Frame.fold(
                     _ -> raise(() -> e),
                     _ -> raise(() -> e)));
-                masked = enterUncancelable(stack, regions, masked, new Region());
+                enterUncancelable(stack, regions);
                 current = finalizer;
                 resumed = true;
               }
             }
-            case UnmaskFrame(var region) -> {
-              masked--;
-              regions.remove(region);
-            }
-            case RemaskFrame(var previous, var region) -> {
-              masked = previous;
-              regions.push(region);
-            }
+            case UnmaskFrame(var region) -> regions.remove(region);
+            case RemaskFrame(var region) -> regions.push(region);
             case FoldFrame<S> _ -> {
               // a continuation inside the catchAll scope, discarded
             }
@@ -1021,8 +1005,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *   and the program stops at the step after it, running the finalizer while it unwinds.</li>
    * </ul>
    */
-  private static boolean shouldStop(CancelToken token, int masked, Program<?, ?, ?> current) {
-    if (masked > 0 || current instanceof Ensuring || current instanceof OnCancel) {
+  private static boolean shouldStop(CancelToken token, Deque<Region> regions, Program<?, ?, ?> current) {
+    if (!regions.isEmpty() || current instanceof Ensuring || current instanceof OnCancel) {
       return false;
     }
     return token.isCancelled();
@@ -1075,10 +1059,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   // the region ends when the UnmaskFrame is popped
-  private static <S> int enterUncancelable(Deque<Frame<S>> stack, Deque<Region> regions, int masked, Region token) {
-    regions.push(token);
-    stack.push(Frame.unmask(token));
-    return masked + 1;
+  private static <S> Region enterUncancelable(Deque<Frame<S>> stack, Deque<Region> regions) {
+    var region = new Region();
+    regions.push(region);
+    stack.push(Frame.unmask(region));
+    return region;
   }
 
   /**
