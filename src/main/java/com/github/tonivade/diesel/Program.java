@@ -9,6 +9,14 @@ import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Concurrent.race;
 import static java.util.function.Function.identity;
 
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FinalizerFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Frame.OnCancelFrame;
+import com.github.tonivade.diesel.Frame.RemaskFrame;
+import com.github.tonivade.diesel.Frame.UnmaskFrame;
+import com.github.tonivade.purefun.Kind;
+
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -33,14 +41,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
-
-import com.github.tonivade.diesel.Frame.CatchFrame;
-import com.github.tonivade.diesel.Frame.FinalizerFrame;
-import com.github.tonivade.diesel.Frame.FoldFrame;
-import com.github.tonivade.diesel.Frame.OnCancelFrame;
-import com.github.tonivade.diesel.Frame.RemaskFrame;
-import com.github.tonivade.diesel.Frame.UnmaskFrame;
-import com.github.tonivade.purefun.Kind;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
