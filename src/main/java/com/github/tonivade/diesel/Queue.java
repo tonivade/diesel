@@ -17,6 +17,7 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.function.Function;
 
 import org.pcollections.ConsPStack;
 import org.pcollections.PStack;
@@ -150,8 +151,8 @@ public final class Queue<S, E, A> {
         waiter -> pipe(
             claim(waiter, true),
             result -> {
-              if (result instanceof Taken<S, E, A> taken) {
-                return success(taken.value());
+              if (result instanceof Taken<S, E, A>(var value, _)) {
+                return success(value);
               }
               if (result instanceof Waiting) {
                 return poll.apply(waiter.<S1, E1>get().onCancel(releaseTaker(waiter)));
@@ -172,9 +173,21 @@ public final class Queue<S, E, A> {
         newWaiter(),
         waiter -> chain(
             claim(waiter, false),
-            result -> result instanceof Taken<S, E, A> taken
-                ? Optional.of(taken.value())
+            result -> result instanceof Taken<S, E, A>(var value, _)
+                ? Optional.of(value)
                 : Optional.empty())));
+  }
+
+  /**
+   * Takes the first value, waiting while the queue is empty, and processes it. Waiting can be
+   * cancelled, but once a value is taken, {@code process} runs to completion before any
+   * cancellation takes effect, so the value is never dropped.
+   *
+   * @param process function to process the message
+   */
+  public <S1 extends S, E1 extends E, B> Program<S1, E1, B> takeAndProcess(
+      Function<? super A, ? extends Program<S1, E1, B>> process) {
+    return uncancelable(poll -> pipe(poll.apply(this.<S1, E1>take()), process));
   }
 
   /**
@@ -202,8 +215,8 @@ public final class Queue<S, E, A> {
       A value, Deferred<S, E, Unit> done, Mode mode) {
     return pipe(
         state.modify(s -> s.offer(value, done, mode)),
-        result -> result instanceof Handoff<S, E, A> handoff
-            ? chain(handoff.taker().<S1, E1>complete(handoff.value()), _ -> result)
+        result -> result instanceof Handoff<S, E, A>(var taker, var next)
+            ? chain(taker.<S1, E1>complete(next), _ -> result)
             : success(result));
   }
 
@@ -211,8 +224,8 @@ public final class Queue<S, E, A> {
       Deferred<S, E, A> waiter, boolean wait) {
     return pipe(
         state.modify(s -> s.take(waiter, wait)),
-        result -> result instanceof Taken<S, E, A> taken && taken.wake().isPresent()
-            ? chain(taken.wake().get().<S1, E1>complete(Unit.unit()), _ -> result)
+        result -> result instanceof Taken<S, E, A>(_, var wake) && wake.isPresent()
+            ? chain(wake.get().<S1, E1>complete(Unit.unit()), _ -> result)
             : success(result));
   }
 
