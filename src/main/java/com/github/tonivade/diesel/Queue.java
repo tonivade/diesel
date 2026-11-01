@@ -28,7 +28,8 @@ import org.pcollections.TreePVector;
  * while the queue is empty and, if it's bounded, {@link #offer(Object)} waits while it's full.
  *
  * <p>Waiting programs can be cancelled, like by a {@code timeout} or a {@code race}, without
- * losing elements. Elements can't be {@code null}.
+ * losing elements inside the queue but an already delivered element to a canceled consumer it
+ * depends to the consumer. Elements can't be {@code null}.
  *
  * <p>After a cancelled {@code take} gives back a value that an offer had already handed to it,
  * the queue can temporarily exceed its capacity.
@@ -231,11 +232,11 @@ public final class Queue<S, E, A> {
                 waiter.get(),
                 value -> pipe(
                     newDone(),
-                    done -> register(value, done, Mode.FORCE)),
+                    done -> register(value, done, Mode.REQUEUE)),
                 _ -> unit())));
   }
 
-  private enum Mode { WAIT, TRY, FORCE }
+  private enum Mode { WAIT, TRY, REQUEUE }
 
   private sealed interface OfferResult<S, E, A> {}
   private record Stored<S, E, A>() implements OfferResult<S, E, A> {}
@@ -271,8 +272,11 @@ public final class Queue<S, E, A> {
       if (!takers.isEmpty()) {
         return tuple(new Handoff<>(takers.getFirst(), value), new State<>(capacity, items, takers.minus(0), offerers));
       }
-      if (items.size() < capacity || mode == Mode.FORCE) {
-        return tuple(new Stored<>(), new State<>(capacity, items.offer(value), takers, offerers));
+      if (mode == Mode.REQUEUE) {
+        return tuple(new Stored<>(), new State<>(capacity, items.prepend(value), takers, offerers));
+      }
+      if (items.size() < capacity) {
+        return tuple(new Stored<>(), new State<>(capacity, items.append(value), takers, offerers));
       }
       if (mode == Mode.TRY) {
         return tuple(new Full<>(), this);
@@ -289,7 +293,7 @@ public final class Queue<S, E, A> {
           // a place was freed: the first blocked offer enters the queue and is woken up
           return tuple(
               new Taken<>(head.first(), Optional.of(offerers.getFirst().done())),
-              new State<>(capacity, head.second().offer(offerers.getFirst().value()), takers, offerers.minus(0)));
+              new State<>(capacity, head.second().append(offerers.getFirst().value()), takers, offerers.minus(0)));
         }
         return tuple(
             new Taken<>(head.first(), Optional.empty()),
@@ -339,8 +343,12 @@ public final class Queue<S, E, A> {
       return size;
     }
 
-    Fifo<T> offer(T value) {
+    Fifo<T> append(T value) {
       return new Fifo<>(front, back.plus(value), size + 1);
+    }
+
+    Fifo<T> prepend(T value) {
+      return new Fifo<>(front.plus(value), back, size + 1);
     }
 
     Tuple2<T, Fifo<T>> poll() {

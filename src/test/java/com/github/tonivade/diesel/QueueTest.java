@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Distributed under the terms of the MIT License
+ */
 package com.github.tonivade.diesel;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,7 +42,7 @@ class QueueTest {
     var queue = Queue.<Void, Void, Integer>bounded(1);
 
     var program = Concurrent.parZip(
-        queue.offer(1).andThen(queue.offer(2)),          // el segundo bloquea
+        queue.offer(1).andThen(queue.offer(2)),
         Program.<Void, Void>sleep(Duration.ofMillis(50)).andThen(queue.take()),
         (_, taken) -> taken);
 
