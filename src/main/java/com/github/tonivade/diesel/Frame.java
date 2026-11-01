@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel;
 
+import com.github.tonivade.diesel.Program.Region;
+
 import java.util.function.Function;
 
 /**
@@ -24,9 +26,9 @@ sealed interface Frame<S> {
   record OnCancelFrame<S>(Program<S, ?, ?> finalizer) implements Frame<S> {}
 
   // marks the end of an uncancelable region
-  record UnmaskFrame<S>() implements Frame<S> {}
+  record UnmaskFrame<S>(Region region) implements Frame<S> {}
 
-  record RemaskFrame<S>(int previous) implements Frame<S> {}
+  record RemaskFrame<S>(int previous, Region reopen) implements Frame<S> {}
 
   @SuppressWarnings("unchecked")
   static <S> FoldFrame<S> fold(Function<?, ? extends Program<S, ?, ?>> onFailure,
@@ -49,11 +51,11 @@ sealed interface Frame<S> {
     return new OnCancelFrame<>(finalizer);
   }
 
-  static <S> UnmaskFrame<S> unmask() {
-    return new UnmaskFrame<>();
+  static <S> UnmaskFrame<S> unmask(Region region) {
+    return new UnmaskFrame<>(region);
   }
 
-  static <S> RemaskFrame<S> remask(int previous) {
-    return new RemaskFrame<>(previous);
+  static <S> RemaskFrame<S> remask(int previous, Region reopen) {
+    return new RemaskFrame<>(previous, reopen);
   }
 }

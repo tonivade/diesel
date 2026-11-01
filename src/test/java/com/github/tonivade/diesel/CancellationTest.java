@@ -888,9 +888,9 @@ class CancellationTest {
     expected = 1;
     var escaped = new CompletableFuture<Program.Poll>();
     Program.<Void, String, Unit>uncancelable(poll -> {
-      escaped.complete(poll);
-      return Program.unit();
-    }).evalOrElseThrow();
+        escaped.complete(poll);
+        return Program.unit();
+      }).evalOrElseThrow();
 
     var program = Program.<Void, String, Unit>uncancelable(_ ->
         closedWait().andThen(escaped.join().apply(run(executed::incrementAndGet))));
@@ -898,9 +898,8 @@ class CancellationTest {
     var future = program.fork().evalOrElseThrow();
     cancelAndOpen(future);
 
-    // mismo id (1): abre. Con tokens únicos sería un no-op y el resultado, normal
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
-    assertThat(executed).hasValue(0);
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
   }
 
   @Test
@@ -908,9 +907,9 @@ class CancellationTest {
     expected = 1;
     var escaped = new CompletableFuture<Program.Poll>();
     Program.<Void, String, Unit>uncancelable(poll -> {
-      escaped.complete(poll);
-      return Program.unit();
-    }).evalOrElseThrow();
+        escaped.complete(poll);
+        return Program.unit();
+      }).evalOrElseThrow();
 
     var program = Program.<Void, String, Unit>uncancelable(_ ->
         Program.<Void, String, Unit>uncancelable(_ ->

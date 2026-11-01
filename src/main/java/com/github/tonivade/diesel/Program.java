@@ -273,11 +273,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * Represents a computation that can be cancelled inside an uncacellable region.
    *
    * @param current the current program
+   * @param region the identifier of the cancellable region
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Polled<S, E, T>(Program<S, E, T> current, int id) implements Program<S, E, T> {}
+  record Polled<S, E, T>(Program<S, E, T> current, Region region) implements Program<S, E, T> {}
 
   /**
    * Makes a program cancelable inside the uncancelable region it comes from, see
@@ -818,10 +819,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return run(state, CancelToken.current());
   }
 
+  final class Region {}
+
   @SuppressWarnings({ "unchecked", "rawtypes" })
   private Result<E, T> run(@Nullable S state, CancelToken token) {
     Program<S, ?, ?> current = this;
     Deque<Frame<S>> stack = new ArrayDeque<>();
+    Deque<Region> regions = new ArrayDeque<>();
     // depth of nested uncancelable regions, a cancellation only takes effect outside of them
     int masked = 0;
 
@@ -850,12 +854,20 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
                 case FinalizerFrame(var finalizer) -> {
                   // run the finalizer and then continue with the result, unless the finalizer fails
                   stack.push(Frame.fold(Program::failure, _ -> from(result)));
-                  masked = enterUncancelable(stack, masked);
+                  masked = enterUncancelable(stack, masked, null);
                   current = finalizer;
                   resumed = true;
                 }
-                case UnmaskFrame<S> _ -> masked--;
-                case RemaskFrame(var previous) -> masked = previous;
+                case UnmaskFrame(var region) -> {
+                  masked--;
+                  if (region != null) {
+                    regions.remove(region);
+                  }
+                }
+                case RemaskFrame(var previous, var region) -> {
+                  masked = previous;
+                  regions.push(region);
+                }
                 case OnCancelFrame<S> _ -> {
                   // the program completed, so it wasn't cancelled
                 }
@@ -882,22 +894,24 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
             current = source;
           }
           case Uncancelable(var source) -> {
-            masked = enterUncancelable(stack, masked);
+            masked = enterUncancelable(stack, masked, null);
             current = source;
           }
           case UncancelableWith(var body) -> {
-            masked = enterUncancelable(stack, masked);
-            final int id = masked;
+            var region = new Region();
+            regions.push(region);
+            masked = enterUncancelable(stack, masked, region);
             current = body.apply(new Poll() {
               @Override
               public <S1, E1, T1> Program<S1, E1, T1> apply(Program<S1, E1, T1> program) {
-                return new Polled<>(program, id);
+                return new Polled<>(program, region);
               }
             });
           }
-          case Polled(var source, int id) -> {
-            if (masked == id) {
-              stack.push(Frame.remask(masked));
+          case Polled(var source, var region) -> {
+            if (regions.peek() == region) {
+              regions.pop();
+              stack.push(Frame.remask(masked, region));
               masked--;
             }
             current = source;
@@ -964,7 +978,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
               stack.push(Frame.fold(
                   _ -> raise(() -> e),
                   _ -> raise(() -> e)));
-              masked = enterUncancelable(stack, masked);
+              masked = enterUncancelable(stack, masked, null);
               current = finalizer;
               resumed = true;
             }
@@ -976,13 +990,21 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
                 stack.push(Frame.fold(
                     _ -> raise(() -> e),
                     _ -> raise(() -> e)));
-                masked = enterUncancelable(stack, masked);
+                masked = enterUncancelable(stack, masked, null);
                 current = finalizer;
                 resumed = true;
               }
             }
-            case UnmaskFrame<S> _ -> masked--;
-            case RemaskFrame(var previous) -> masked = previous;
+            case UnmaskFrame(var region) -> {
+              masked--;
+              if (region != null) {
+                regions.remove(region);
+              }
+            }
+            case RemaskFrame(var previous, var region) -> {
+              masked = previous;
+              regions.push(region);
+            }
             case FoldFrame<S> _ -> {
               // a continuation inside the catchAll scope, discarded
             }
@@ -1059,8 +1081,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   // the region ends when the UnmaskFrame is popped
-  private static <S> int enterUncancelable(Deque<Frame<S>> stack, int masked) {
-    stack.push(Frame.unmask());
+  private static <S> int enterUncancelable(Deque<Frame<S>> stack, int masked, Region token) {
+    stack.push(Frame.unmask(token));
     return masked + 1;
   }
 
