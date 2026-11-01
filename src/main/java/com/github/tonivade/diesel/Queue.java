@@ -1,0 +1,374 @@
+/*
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Distributed under the terms of the MIT License
+ */
+package com.github.tonivade.diesel;
+
+import static com.github.tonivade.diesel.Combine.chain;
+import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Program.branch;
+import static com.github.tonivade.diesel.Program.raise;
+import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Program.supply;
+import static com.github.tonivade.diesel.Program.uncancelable;
+import static com.github.tonivade.diesel.Program.unit;
+import static com.github.tonivade.diesel.Tuple2.tuple;
+import static java.util.Objects.requireNonNull;
+
+import java.util.NoSuchElementException;
+import java.util.Optional;
+import org.pcollections.ConsPStack;
+import org.pcollections.PStack;
+import org.pcollections.PVector;
+import org.pcollections.TreePVector;
+
+/**
+ * A concurrent FIFO queue, bounded or unbounded, with semantic blocking: {@link #take()} waits
+ * while the queue is empty and, if it's bounded, {@link #offer(Object)} waits while it's full.
+ *
+ * <p>Waiting programs can be cancelled, like by a {@code timeout} or a {@code race}, without
+ * losing elements inside the queue but an already delivered element to a canceled consumer it
+ * depends to the consumer. Elements can't be {@code null}.
+ *
+ * <p>After a cancelled {@code take} gives back a value that an offer had already handed to it,
+ * the queue can temporarily exceed its capacity.
+ *
+ * @param <S> the type of the state
+ * @param <E> the type of the error
+ * @param <A> the type of the elements
+ */
+public final class Queue<S, E, A> {
+
+  private final Ref<S, E, State<S, E, A>> state;
+
+  private Queue(int capacity) {
+    State<S, E, A> initial = new State<>(capacity, Fifo.empty(), TreePVector.empty(), TreePVector.empty());
+    this.state = Ref.of(initial);
+  }
+
+  /**
+   * Creates a bounded queue.
+   *
+   * @param capacity the maximum number of elements, at least 1
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <A> the type of the elements
+   * @return a new queue
+   */
+  public static <S, E, A> Queue<S, E, A> bounded(int capacity) {
+    if (capacity < 1) {
+      throw new IllegalArgumentException("capacity must be at least 1");
+    }
+    return new Queue<>(capacity);
+  }
+
+  /**
+   * Creates an unbounded queue.
+   *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <A> the type of the elements
+   * @return a new queue
+   */
+  public static <S, E, A> Queue<S, E, A> unbounded() {
+    return new Queue<>(Integer.MAX_VALUE);
+  }
+
+  /**
+   * Creates a program that allocates a new bounded queue each time it is evaluated.
+   *
+   * @param capacity the maximum number of elements, at least 1
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <A> the type of the elements
+   * @return a program that creates a fresh queue
+   */
+  public static <S, E, A> Program<S, E, Queue<S, E, A>> makeBounded(int capacity) {
+    return supply(() -> bounded(capacity));
+  }
+
+  /**
+   * Creates a program that allocates a new unbounded queue each time it is evaluated.
+   *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <A> the type of the elements
+   * @return a program that creates a fresh queue
+   */
+  public static <S, E, A> Program<S, E, Queue<S, E, A>> makeUnbounded() {
+    return supply(Queue::unbounded);
+  }
+
+  /**
+   * Adds the value, waiting while the queue is full.
+   *
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @param value the value to add, not {@code null}
+   * @return a program that completes once the value is in the queue
+   */
+  public <S1 extends S, E1 extends E> Program<S1, E1, Unit> offer(A value) {
+    requireNonNull(value, "the value of a queue can't be null");
+    return uncancelable(poll -> pipe(
+        newDone(),
+        done -> pipe(
+            register(value, done, Mode.WAIT),
+            branch(
+                result -> result instanceof Blocked,
+                () -> poll.apply(done.<S1, E1>get().onCancel(removeOfferer(done))),
+                Program::unit))));
+  }
+
+  /**
+   * Adds the value if there is room, without waiting.
+   *
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @param value the value to add, not {@code null}
+   * @return a program that returns {@code true} if the value was added
+   */
+  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> tryOffer(A value) {
+    requireNonNull(value, "the value of a queue can't be null");
+    return uncancelable(_ -> pipe(
+        newDone(),
+        done -> chain(
+            register(value, done, Mode.TRY),
+            result -> !(result instanceof Full))));
+  }
+
+  /**
+   * Removes and returns the first value, waiting while the queue is empty.
+   *
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @return a program that yields the first value
+   */
+  public <S1 extends S, E1 extends E> Program<S1, E1, A> take() {
+    return uncancelable(poll -> pipe(
+        newWaiter(),
+        waiter -> pipe(
+            claim(waiter, true),
+            result -> {
+              if (result instanceof Taken<S, E, A>(var value, _)) {
+                return success(value);
+              }
+              if (result instanceof Waiting) {
+                return poll.apply(waiter.<S1, E1>get().onCancel(releaseTaker(waiter)));
+              }
+              return raise(IllegalStateException::new);
+            })));
+  }
+
+  /**
+   * Removes and returns the first value if there is one, without waiting.
+   *
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @return a program that yields the first value, or an empty optional
+   */
+  public <S1 extends S, E1 extends E> Program<S1, E1, Optional<A>> tryTake() {
+    return uncancelable(_ -> pipe(
+        newWaiter(),
+        waiter -> chain(
+            claim(waiter, false),
+            result -> result instanceof Taken<S, E, A>(var value, _)
+                ? Optional.of(value)
+                : Optional.empty())));
+  }
+
+  /**
+   * Number of elements in the queue, not counting the waiting offers.
+   *
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @return a program that yields the current size
+   */
+  public <S1 extends S, E1 extends E> Program<S1, E1, Integer> size() {
+    return chain(
+        state.get(),
+        s -> s.items().size());
+  }
+
+  private <S1 extends S, E1 extends E> Program<S1, E1, Deferred<S, E, Unit>> newDone() {
+    return supply(Deferred::create);
+  }
+
+  private <S1 extends S, E1 extends E> Program<S1, E1, Deferred<S, E, A>> newWaiter() {
+    return supply(Deferred::create);
+  }
+
+  private <S1 extends S, E1 extends E> Program<S1, E1, OfferResult<S, E, A>> register(
+      A value, Deferred<S, E, Unit> done, Mode mode) {
+    return pipe(
+        state.modify(s -> s.offer(value, done, mode)),
+        result -> result instanceof Handoff<S, E, A>(var taker, var next)
+            ? chain(taker.<S1, E1>complete(next), _ -> result)
+            : success(result));
+  }
+
+  private <S1 extends S, E1 extends E> Program<S1, E1, TakeResult<S, E, A>> claim(
+      Deferred<S, E, A> waiter, boolean wait) {
+    return pipe(
+        state.modify(s -> s.take(waiter, wait)),
+        result -> result instanceof Taken<S, E, A>(_, var wake) && wake.isPresent()
+            ? chain(wake.get().<S1, E1>complete(Unit.unit()), _ -> result)
+            : success(result));
+  }
+
+  private <S1 extends S, E1 extends E> Program<S1, E1, Unit> removeOfferer(Deferred<S, E, Unit> done) {
+    return pipe(
+        state.modify(s -> s.removeOfferer(done)),
+        _ -> unit());
+  }
+
+  private <S1 extends S, E1 extends E> Program<S1, E1, Unit> releaseTaker(Deferred<S, E, A> waiter) {
+    return pipe(
+        state.modify(s -> s.removeTaker(waiter)),
+        branch(
+            Program::unit,
+            // an offer already handed it a value: put it back instead of losing it
+            () -> pipe(
+                waiter.get(),
+                value -> pipe(
+                    newDone(),
+                    done -> register(value, done, Mode.REQUEUE)),
+                _ -> unit())));
+  }
+
+  private enum Mode { WAIT, TRY, REQUEUE }
+
+  private sealed interface OfferResult<S, E, A> {}
+  private record Stored<S, E, A>() implements OfferResult<S, E, A> {}
+  private record Handoff<S, E, A>(Deferred<S, E, A> taker, A value) implements OfferResult<S, E, A> {}
+  private record Blocked<S, E, A>(Deferred<S, E, Unit> done) implements OfferResult<S, E, A> {}
+  private record Full<S, E, A>() implements OfferResult<S, E, A> {}
+
+  private sealed interface TakeResult<S, E, A> {}
+  private record Taken<S, E, A>(A value, Optional<Deferred<S, E, Unit>> wake) implements TakeResult<S, E, A> {}
+  private record Waiting<S, E, A>() implements TakeResult<S, E, A> {}
+  private record Empty<S, E, A>() implements TakeResult<S, E, A> {}
+
+  private record Offerer<S, E, A>(A value, Deferred<S, E, Unit> done) {
+
+    @Override
+    public boolean equals(Object other) {
+      return other instanceof Offerer<?, ?, ?> offerer && done == offerer.done;
+    }
+
+    @Override
+    public int hashCode() {
+      return done.hashCode();
+    }
+  }
+
+  private record State<S, E, A>(
+      int capacity,
+      Fifo<A> items,
+      PVector<Deferred<S, E, A>> takers,
+      PVector<Offerer<S, E, A>> offerers) {
+
+    Tuple2<OfferResult<S, E, A>, State<S, E, A>> offer(A value, Deferred<S, E, Unit> done, Mode mode) {
+      if (!takers.isEmpty()) {
+        return tuple(new Handoff<>(takers.getFirst(), value), new State<>(capacity, items, takers.minus(0), offerers));
+      }
+      if (mode == Mode.REQUEUE) {
+        return tuple(new Stored<>(), new State<>(capacity, items.prepend(value), takers, offerers));
+      }
+      if (items.size() < capacity) {
+        return tuple(new Stored<>(), new State<>(capacity, items.append(value), takers, offerers));
+      }
+      if (mode == Mode.TRY) {
+        return tuple(new Full<>(), this);
+      }
+      return tuple(
+          new Blocked<>(done),
+          new State<>(capacity, items, takers, offerers.plus(new Offerer<>(value, done))));
+    }
+
+    Tuple2<TakeResult<S, E, A>, State<S, E, A>> take(Deferred<S, E, A> waiter, boolean wait) {
+      if (!items.isEmpty()) {
+        var head = items.poll();
+        if (!offerers.isEmpty()) {
+          // a place was freed: the first blocked offer enters the queue and is woken up
+          return tuple(
+              new Taken<>(head.first(), Optional.of(offerers.getFirst().done())),
+              new State<>(capacity, head.second().append(offerers.getFirst().value()), takers, offerers.minus(0)));
+        }
+        return tuple(
+            new Taken<>(head.first(), Optional.empty()),
+            new State<>(capacity, head.second(), takers, offerers));
+      }
+      if (!wait) {
+        return tuple(new Empty<>(), this);
+      }
+      return tuple(new Waiting<>(), new State<>(capacity, items, takers.plus(waiter), offerers));
+    }
+
+    Tuple2<Boolean, State<S, E, A>> removeTaker(Deferred<S, E, A> waiter) {
+      var rest = takers.minus(waiter);
+      return tuple(rest != takers, new State<>(capacity, items, rest, offerers));
+    }
+
+    Tuple2<Boolean, State<S, E, A>> removeOfferer(Deferred<S, E, Unit> done) {
+      var rest = offerers.minus(new Offerer<>(Unit.unit(), done));
+      return tuple(rest != offerers, new State<>(capacity, items, takers, rest));
+    }
+  }
+
+  private static final class Fifo<T> {
+
+    private static final Fifo<?> EMPTY = new Fifo<>(ConsPStack.empty(), ConsPStack.empty(), 0);
+
+    private final PStack<T> front;
+    private final PStack<T> back; // reversed
+    private final int size;
+
+    private Fifo(PStack<T> front, PStack<T> back, int size) {
+      this.front = front;
+      this.back = back;
+      this.size = size;
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T> Fifo<T> empty() {
+      return (Fifo<T>) EMPTY;
+    }
+
+    boolean isEmpty() {
+      return size == 0;
+    }
+
+    int size() {
+      return size;
+    }
+
+    Fifo<T> append(T value) {
+      return new Fifo<>(front, back.plus(value), size + 1);
+    }
+
+    Fifo<T> prepend(T value) {
+      return new Fifo<>(front.plus(value), back, size + 1);
+    }
+
+    Tuple2<T, Fifo<T>> poll() {
+      var f = front;
+      var b = back;
+      if (f.isEmpty()) {
+        f = reverse(b);
+        b = ConsPStack.empty();
+      }
+      if (f.isEmpty()) {
+        throw new NoSuchElementException();
+      }
+      return tuple(f.getFirst(), new Fifo<>(f.minus(0), b, size - 1));
+    }
+
+    private static <T> PStack<T> reverse(PStack<T> list) {
+      PStack<T> result = ConsPStack.empty();
+      for (T t : list) {
+        result = result.plus(t);
+      }
+      return result;
+    }
+  }
+}

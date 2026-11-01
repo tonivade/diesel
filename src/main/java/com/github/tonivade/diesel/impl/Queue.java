@@ -15,7 +15,9 @@ import com.github.tonivade.diesel.Unit;
  * queue operations.
  *
  * @param <T> the type of items in the queue
+ * @deprecated use {@link com.github.tonivade.diesel.Queue}
  */
+@Deprecated(forRemoval = true)
 public interface Queue<T> {
 
   /**
@@ -23,6 +25,7 @@ public interface Queue<T> {
    *
    * @param <T> the type of items in the queue
    */
+  @Deprecated(forRemoval = true)
   interface Service<T> {
     /**
      * Adds an item to the queue.
@@ -48,6 +51,7 @@ public interface Queue<T> {
    * @param item the item to add
    * @return a {@link Program} instance that adds an item to the queue
    */
+  @Deprecated(forRemoval = true)
   static <T, S extends Service<T>, E> Program<S, E, Unit> offer(T item) {
     return inspect(state -> state.offer(item));
   }
@@ -62,6 +66,7 @@ public interface Queue<T> {
    * @return a {@link Program} instance that removes and returns the next item
    *         from the queue
    */
+  @Deprecated(forRemoval = true)
   static <T, S extends Service<T>, E> Program<S, E, T> take() {
     return access(Service::take);
   }
