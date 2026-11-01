@@ -602,6 +602,360 @@ class CancellationTest {
     assertThat(DelayScheduler.pendingLongerThan(LONG_DELAY)).isZero();
   }
 
+  @Test
+  void pollMakesTheWaitCancelable() {
+    var after = new AtomicInteger();
+    var program = Program.<Void, String, Unit>uncancelable(poll -> run(executed::incrementAndGet)
+        .andThen(start())
+        .andThen(poll.apply(never()))
+        .andThen(run(after::incrementAndGet)));
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(executed).hasValue(1);
+    assertThat(after).hasValue(0);
+  }
+
+  @Test
+  void cancellationRequestedBeforeThePollStopsAtThePoll() throws Exception {
+    expected = 1;
+    var inPoll = new AtomicInteger();
+    var after = new AtomicInteger();
+    var program = Program.<Void, String, Unit>uncancelable(poll -> start()
+        .andThen(Program.join(gate))
+        .andThen(run(executed::incrementAndGet))
+        .andThen(poll.apply(run(inPoll::incrementAndGet)))
+        .andThen(run(after::incrementAndGet)));
+
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+    gate.complete(Result.unit());
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(1);
+    assertThat(inPoll).hasValue(0);
+    assertThat(after).hasValue(0);
+  }
+
+  @Test
+  void theMaskIsRestoredAfterThePoll() throws Exception {
+    expected = 1;
+    var after = new AtomicInteger();
+    var program = Program.<Void, String, Unit>uncancelable(poll -> poll.apply(run(executed::incrementAndGet))
+        .andThen(start())
+        .andThen(Program.join(gate))
+        .andThen(run(after::incrementAndGet)));
+
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+    gate.complete(Result.unit());
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(after).hasValue(1);
+  }
+
+  @Test
+  void aPollOnlyOpensItsOwnRegion() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(_ ->
+        Program.<Void, String, Unit>uncancelable(inner -> inner.apply(
+            start().andThen(Program.join(gate)).andThen(run(executed::incrementAndGet)))));
+
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+    gate.complete(Result.unit());
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void anUncancelableInsideAPollStaysUncancelable() throws Exception {
+    expected = 1;
+    var inner = start()
+        .andThen(Program.join(gate))
+        .andThen(run(executed::incrementAndGet))
+        .uncancelable();
+    var program = Program.<Void, String, Unit>uncancelable(poll ->
+        poll.apply(inner.andThen(never())));
+
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+    gate.complete(Result.unit());
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void theMaskIsRestoredWhenThePollThrows() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(poll ->
+        poll.apply(Program.<Void, String, Unit>raise(IllegalStateException::new))
+            .catchAll(_ -> Program.unit())
+            .andThen(start())
+            .andThen(Program.join(gate))
+            .andThen(run(executed::incrementAndGet)));
+
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+    gate.complete(Result.unit());
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void theMaskIsRestoredWhenThePollFails() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(poll ->
+        Program.recover(poll.apply(Program.<Void, String, Unit>failure("e")), _ -> Program.<Void, String>unit())
+            .andThen(start())
+            .andThen(Program.join(gate))
+            .andThen(run(executed::incrementAndGet)));
+
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+    gate.complete(Result.unit());
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void finalizersInsideThePollRunWhenCancelled() {
+    var program = Program.<Void, String, Unit>uncancelable(poll -> poll.apply(
+        start().andThen(never()).ensuring(run(released::incrementAndGet))));
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void onCancelInsideThePollRunsWhenCancelled() {
+    var program = Program.<Void, String, Unit>uncancelable(poll -> poll.apply(
+        start().andThen(never()).onCancel(run(released::incrementAndGet))));
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void onCancelOutsideThePollInsideTheRegion() {
+    var program = Program.<Void, String, Unit>uncancelable(poll ->
+        poll.apply(start().andThen(never())).onCancel(run(released::incrementAndGet)));
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(0);
+  }
+
+  @Test
+  void pollOutsideARegionDoesNothing() {
+    var result = Program.<Void, String, Program.Poll>uncancelable(Program::success)
+        .flatMap(poll -> poll.apply(run(executed::incrementAndGet)))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void manyPollsDoNotLeakMaskOrStack() {
+    var program = Program.<Void, String, Unit>uncancelable(poll -> {
+      Program<Void, String, Unit> body = Program.unit();
+      for (int i = 0; i < 100_000; i++) {
+        body = body.andThen(poll.apply(Program.<Void, String>unit()));
+      }
+      return body;
+    });
+
+    assertThat(program.eval()).isEqualTo(Result.unit());
+  }
+
+  @Test
+  void cancellingThePollWaitRunsItsFinalizer() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(poll -> poll.apply(
+        start().andThen(never()).ensuring(run(released::incrementAndGet))));
+
+    var future = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void nestedPollsInTheRightOrderOpenBothRegions() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(outer ->
+        Program.<Void, String, Unit>uncancelable(inner ->
+            closedWait().andThen(
+                inner.apply(outer.apply(run(executed::incrementAndGet))))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(0);
+  }
+
+  @Test
+  void nestedPollsInTheWrongOrderDoNotOpenTheRegions() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(outer ->
+        Program.<Void, String, Unit>uncancelable(inner ->
+            closedWait().andThen(
+                outer.apply(inner.apply(run(executed::incrementAndGet))))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void anOuterPollInsideAnInnerRegionDoesNothing() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(outer ->
+        Program.<Void, String, Unit>uncancelable(_ ->
+            closedWait().andThen(outer.apply(run(executed::incrementAndGet)))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void anInnerPollOnlyOpensItsOwnLevel() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(_ ->
+        Program.<Void, String, Unit>uncancelable(inner ->
+            closedWait().andThen(inner.apply(run(executed::incrementAndGet)))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void applyingThePollTwiceIsTheSameAsOnce() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(poll ->
+        closedWait().andThen(poll.apply(poll.apply(run(executed::incrementAndGet)))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(0);
+  }
+
+  @Test
+  void aSingleRegionPollOpensIt() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(poll ->
+        closedWait().andThen(poll.apply(run(executed::incrementAndGet))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(0);
+  }
+
+  @Test
+  void anEscapedPollDoesNothingAtTheSameDepth() throws Exception {
+    expected = 1;
+    var escaped = new CompletableFuture<Program.Poll>();
+    Program.<Void, String, Unit>uncancelable(poll -> {
+        escaped.complete(poll);
+        return Program.unit();
+      }).evalOrElseThrow();
+
+    var program = Program.<Void, String, Unit>uncancelable(_ ->
+        closedWait().andThen(escaped.join().apply(run(executed::incrementAndGet))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void anEscapedPollAtADifferentDepthDoesNothing() throws Exception {
+    expected = 1;
+    var escaped = new CompletableFuture<Program.Poll>();
+    Program.<Void, String, Unit>uncancelable(poll -> {
+        escaped.complete(poll);
+        return Program.unit();
+      }).evalOrElseThrow();
+
+    var program = Program.<Void, String, Unit>uncancelable(_ ->
+        Program.<Void, String, Unit>uncancelable(_ ->
+            closedWait().andThen(escaped.join().apply(run(executed::incrementAndGet)))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void anOuterPollInsideANormalUncancelableDoesNothing() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(outer ->
+        closedWait()
+            .andThen(outer.apply(run(executed::incrementAndGet)))
+            .uncancelable());
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void anOuterPollInsideAFinalizerDoesNothing() throws Exception {
+    expected = 1;
+    var escaped = new CompletableFuture<Program.Poll>();
+    var program = Program.<Void, String, Unit>uncancelable(poll -> {
+      escaped.complete(poll);
+      return start().andThen(Program.join(gate));
+    }).ensuring(Program.<Void, String, Unit>suspend(() ->
+        escaped.join().apply(run(executed::incrementAndGet))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    // the deferred cancellation takes effect when the finalizer exits, but the whole finalizer
+    // ran: its escaped poll didn't open it
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(1);
+  }
+
   /**
    * A program that installs its finalizer, signals that it has started and then waits forever,
    * so it only finishes when it is cancelled.
@@ -657,6 +1011,16 @@ class CancellationTest {
       }
       Thread.onSpinWait();
     }
+  }
+
+  private Program<Void, String, Unit> closedWait() {
+    return start().andThen(Program.join(gate));
+  }
+
+  private void cancelAndOpen(CompletableFuture<?> future) throws Exception {
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+    gate.complete(Result.unit());
   }
 
   private static Program<Void, String, Unit> never() {

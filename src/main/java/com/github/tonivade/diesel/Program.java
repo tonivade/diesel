@@ -13,6 +13,8 @@ import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
 import com.github.tonivade.diesel.Frame.OnCancelFrame;
+import com.github.tonivade.diesel.Frame.Region;
+import com.github.tonivade.diesel.Frame.RemaskFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.purefun.Kind;
 
@@ -253,6 +255,52 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record Uncancelable<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {}
+
+  /**
+   * Represents a computation that can't be cancelled, a cancellation requested while it runs
+   * takes effect after it finishes.
+   *
+   * <p>The body function receives a {@link Poll} object that can be used to create a cancellable
+   * region inside this uncancelable region.
+   *
+   * @param body body of the region that is uncancelable
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record UncancelableWith<S, E, T>(Function<? super Poll, ? extends Program<S, E, T>> body) implements Program<S, E, T> {}
+
+  /**
+   * Represents a computation that can be cancelled inside an uncancelable region.
+   *
+   * @param current the current program
+   * @param region the identifier of the cancellable region
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Polled<S, E, T>(Program<S, E, T> current, Region region) implements Program<S, E, T> {}
+
+  /**
+   * Makes a program cancelable inside the uncancelable region it comes from, see
+   * {@link Program#uncancelable(Function)}.
+   */
+  interface Poll {
+
+    /**
+     * Makes the given program cancelable.
+     *
+     * <p>If a cancellation was requested while the region was closed, the program doesn't start:
+     * the cancellation takes effect before it. Once it finishes, the region is closed again.
+     *
+     * @param program the program to make cancelable
+     * @param <S> the type of the state
+     * @param <E> the type of the error
+     * @param <T> the type of the result
+     * @return a program that is cancelable even if it runs inside the region
+     */
+    <S, E, T> Program<S, E, T> apply(Program<S, E, T> program);
+  }
 
   /**
    * Creates a new program that represents a computation that can be executed in a specific context.
@@ -776,14 +824,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   private Result<E, T> run(@Nullable S state, CancelToken token) {
     Program<S, ?, ?> current = this;
     Deque<Frame<S>> stack = new ArrayDeque<>();
-    // depth of nested uncancelable regions, a cancellation only takes effect outside of them
-    int masked = 0;
+    Deque<Region> regions = new ArrayDeque<>();
 
     while (true) {
       try {
         // a cancelled program stops at the start of its next step, unwinding the stack like an
         // exception so the finalizers run
-        if (shouldStop(token, masked, current)) {
+        if (shouldStop(token, regions, current)) {
           throw new CancelToken.Cancelled();
         }
         switch (current) {
@@ -804,11 +851,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
                 case FinalizerFrame(var finalizer) -> {
                   // run the finalizer and then continue with the result, unless the finalizer fails
                   stack.push(Frame.fold(Program::failure, _ -> from(result)));
-                  masked = enterUncancelable(stack, masked);
+                  enterUncancelable(stack, regions);
                   current = finalizer;
                   resumed = true;
                 }
-                case UnmaskFrame<S> _ -> masked--;
+                case UnmaskFrame(var region) -> regions.remove(region);
+                case RemaskFrame(var region) -> regions.push(region);
                 case OnCancelFrame<S> _ -> {
                   // the program completed, so it wasn't cancelled
                 }
@@ -823,7 +871,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           }
           case Async(var callback) -> {
             var async = (BiConsumer<S, CompletableFuture<?>>) callback;
-            var result = masked == 0 ? awaitCancelable(state, async, token) : awaitUncancelable(state, async);
+            var result = regions.isEmpty() ? awaitCancelable(state, async, token) : awaitUncancelable(state, async);
             current = from(result);
           }
           case Ensuring(var source, var finalizer) -> {
@@ -835,14 +883,30 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
             current = source;
           }
           case Uncancelable(var source) -> {
-            masked = enterUncancelable(stack, masked);
+            enterUncancelable(stack, regions);
+            current = source;
+          }
+          case UncancelableWith(var body) -> {
+            var region = enterUncancelable(stack, regions);
+            current = body.apply(new Poll() {
+              @Override
+              public <S1, E1, T1> Program<S1, E1, T1> apply(Program<S1, E1, T1> program) {
+                return new Polled<>(program, region);
+              }
+            });
+          }
+          case Polled(var source, var region) -> {
+            if (regions.peek() == region) {
+              regions.pop();
+              stack.push(Frame.remask(region));
+            }
             current = source;
           }
           case Forked forked -> {
             // a fork started in an uncancelable region, like a finalizer, can't be cancelled either.
             // It isn't tracked by the parent either, so a cancelled parent doesn't wait for it: the
             // programs that wait for their forks, like timeout or par*, are not affected
-            var parent = masked == 0 ? token : CancelToken.NONE;
+            var parent = regions.isEmpty() ? token : CancelToken.NONE;
             current = success(startFork(state, parent, forked.current, forked.executor));
           }
           case FoldMap(var source, var onFailure, var onSuccess) -> {
@@ -900,24 +964,25 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
               stack.push(Frame.fold(
                   _ -> raise(() -> e),
                   _ -> raise(() -> e)));
-              masked = enterUncancelable(stack, masked);
+              enterUncancelable(stack, regions);
               current = finalizer;
               resumed = true;
             }
             case OnCancelFrame(var finalizer) -> {
               // only when this program is being cancelled, not for an ordinary exception or a
               // cancelled fork joined by this program
-              if (masked == 0 && token.isCancelled()) {
+              if (regions.isEmpty() && token.isCancelled()) {
                 // run the finalizer, then keep unwinding with the same exception
                 stack.push(Frame.fold(
                     _ -> raise(() -> e),
                     _ -> raise(() -> e)));
-                masked = enterUncancelable(stack, masked);
+                enterUncancelable(stack, regions);
                 current = finalizer;
                 resumed = true;
               }
             }
-            case UnmaskFrame<S> _ -> masked--;
+            case UnmaskFrame(var region) -> regions.remove(region);
+            case RemaskFrame(var region) -> regions.push(region);
             case FoldFrame<S> _ -> {
               // a continuation inside the catchAll scope, discarded
             }
@@ -940,8 +1005,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *   and the program stops at the step after it, running the finalizer while it unwinds.</li>
    * </ul>
    */
-  private static boolean shouldStop(CancelToken token, int masked, Program<?, ?, ?> current) {
-    if (masked > 0 || current instanceof Ensuring || current instanceof OnCancel) {
+  private static boolean shouldStop(CancelToken token, Deque<Region> regions, Program<?, ?, ?> current) {
+    if (!regions.isEmpty() || current instanceof Ensuring || current instanceof OnCancel) {
       return false;
     }
     return token.isCancelled();
@@ -994,9 +1059,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   // the region ends when the UnmaskFrame is popped
-  private static <S> int enterUncancelable(Deque<Frame<S>> stack, int masked) {
-    stack.push(Frame.unmask());
-    return masked + 1;
+  private static <S> Region enterUncancelable(Deque<Frame<S>> stack, Deque<Region> regions) {
+    var region = new Region();
+    regions.push(region);
+    stack.push(Frame.unmask(region));
+    return region;
   }
 
   /**
@@ -1404,6 +1471,50 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       return this;
     }
     return new Uncancelable<>(this);
+  }
+
+  /**
+   * Creates a program that runs in an uncancelable region, giving the body a {@link Poll} to make
+   * parts of it cancelable again.
+   *
+   * <p>Everything the body does is uncancelable, like with {@link #uncancelable()}, except the
+   * programs wrapped with {@link Poll#apply(Program)}: a cancellation requested while the region
+   * runs is deferred until the body reaches one of them, and takes effect there, before it starts.
+   * Use it for operations that have to acquire something and then wait for it, like taking an
+   * element out of a queue: the element is taken in the closed part, so it can't be lost, and only
+   * the wait is cancelable.
+   *
+   * <pre>{@code
+   * Program<S, E, A> take = Program.uncancelable(poll ->
+   *     pipe(
+   *         acquire(),
+   *         resource -> poll.apply(waitFor(resource))));
+   * }</pre>
+   *
+   * <p>Keep in mind that:
+   * <ul>
+   *   <li>A {@code poll} only opens the region it comes from. Inside a nested {@code uncancelable},
+   *   or inside a finalizer, a {@code poll} of an outer region doesn't make anything cancelable.</li>
+   *   <li>Once the polled program finishes, whether it succeeds, fails or throws, the region is
+   *   closed again.</li>
+   *   <li>The finalizers installed inside a polled program, like {@link #ensuring(Program)} or
+   *   {@link #onCancel(Program)}, run if it is cancelled. An {@code onCancel} placed outside the
+   *   {@code poll}, in the closed part, doesn't run: the program is only cancelled inside the
+   *   {@code poll}.</li>
+   *   <li>A {@code poll} used outside of the region it comes from, or in a program that isn't in
+   *   any uncancelable region, does nothing.</li>
+   *   <li>As with {@link #uncancelable()}, the concurrent combinators, like {@code parZip} or
+   *   {@link #timeout(Duration)}, wait for the closed part to finish before they complete.</li>
+   * </ul>
+   *
+   * @param body the function that receives the {@link Poll} and returns the program to run
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the computation, uncancelable except for the polled parts
+   */
+  static <S, E, T> Program<S, E, T> uncancelable(Function<? super Poll, ? extends Program<S, E, T>> body) {
+    return new UncancelableWith<>(body);
   }
 
   /**

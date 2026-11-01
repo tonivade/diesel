@@ -11,6 +11,8 @@ import java.util.function.Function;
  */
 sealed interface Frame<S> {
 
+  final class Region {}
+
   record FoldFrame<S>(
     Function<Object, Program<S, ?, ?>> onFailure,
     Function<Object, Program<S, ?, ?>> onSuccess) implements Frame<S> {
@@ -24,7 +26,9 @@ sealed interface Frame<S> {
   record OnCancelFrame<S>(Program<S, ?, ?> finalizer) implements Frame<S> {}
 
   // marks the end of an uncancelable region
-  record UnmaskFrame<S>() implements Frame<S> {}
+  record UnmaskFrame<S>(Region region) implements Frame<S> {}
+
+  record RemaskFrame<S>(Region region) implements Frame<S> {}
 
   @SuppressWarnings("unchecked")
   static <S> FoldFrame<S> fold(Function<?, ? extends Program<S, ?, ?>> onFailure,
@@ -47,7 +51,11 @@ sealed interface Frame<S> {
     return new OnCancelFrame<>(finalizer);
   }
 
-  static <S> UnmaskFrame<S> unmask() {
-    return new UnmaskFrame<>();
+  static <S> UnmaskFrame<S> unmask(Region region) {
+    return new UnmaskFrame<>(region);
+  }
+
+  static <S> RemaskFrame<S> remask(Region region) {
+    return new RemaskFrame<>(region);
   }
 }
