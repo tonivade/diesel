@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.sequence;
+import static com.github.tonivade.diesel.Concurrent.parZip;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
@@ -19,8 +21,10 @@ class QueueTest {
   void keepsFifoOrder() {
     var queue = Queue.<Void, Void, Integer>unbounded();
 
-    var program = queue.offer(1).andThen(queue.offer(2)).andThen(queue.offer(3))
-        .andThen(Combine.sequence(queue.take(), queue.take(), queue.take()));
+    var program = queue.offer(1)
+        .andThen(queue.offer(2))
+        .andThen(queue.offer(3))
+        .andThen(sequence(queue.take(), queue.take(), queue.take()));
 
     assertThat(program.evalOrElseThrow()).containsExactly(1, 2, 3);
   }
@@ -29,7 +33,7 @@ class QueueTest {
   void takeWaitsUntilThereIsAnElement() {
     var queue = Queue.<Void, Void, String>unbounded();
 
-    var program = Concurrent.parZip(
+    var program = parZip(
         queue.take(),
         Program.<Void, Void>sleep(Duration.ofMillis(50)).andThen(queue.offer("hello")),
         (value, _) -> value);
@@ -41,7 +45,7 @@ class QueueTest {
   void boundedOfferWaitsUntilThereIsRoom() {
     var queue = Queue.<Void, Void, Integer>bounded(1);
 
-    var program = Concurrent.parZip(
+    var program = parZip(
         queue.offer(1).andThen(queue.offer(2)),
         Program.<Void, Void>sleep(Duration.ofMillis(50)).andThen(queue.take()),
         (_, taken) -> taken);
@@ -54,9 +58,12 @@ class QueueTest {
   void cancelledTakeDoesNotLoseTheNextElement() {
     var queue = Queue.<Void, Void, Integer>unbounded();
 
-    var timedOut = queue.<Void, Void>take().timeout(Duration.ofMillis(50))
+    var timedOut = queue.take()
+        .timeout(Duration.ofMillis(50))
         .catchAll(_ -> Program.success(-1));
-    var program = timedOut.andThen(queue.offer(7)).andThen(queue.take());
+    var program = timedOut
+        .andThen(queue.offer(7))
+        .andThen(queue.take());
 
     assertThat(program.evalOrElseThrow()).isEqualTo(7);
   }
@@ -65,12 +72,36 @@ class QueueTest {
   void cancelledOfferIsRemoved() {
     var queue = Queue.<Void, Void, Integer>bounded(1);
 
-    var program = queue.<Void, Void>offer(1)
-        .andThen(queue.<Void, Void>offer(2).timeout(Duration.ofMillis(50))
+    var program = queue.offer(1)
+        .andThen(queue.offer(2).timeout(Duration.ofMillis(50))
             .catchAll(_ -> Program.unit()))
-        .andThen(Combine.sequence(queue.take(), queue.tryTake().map(o -> o.orElse(-1))));
+        .andThen(sequence(queue.take(), queue.tryTake().map(o -> o.orElse(-1))));
 
     assertThat(program.evalOrElseThrow()).containsExactly(1, -1);
+  }
+
+  @Test
+  void tryOfferReturnsFalseWhenFull() {
+    var queue = Queue.<Void, Void, Integer>bounded(1);
+
+    var program = queue.offer(1)
+        .andThen(queue.tryOffer(2));
+
+    assertThat(program.evalOrElseThrow()).isFalse();
+  }
+
+  @Test
+  void tryTakeReturnsEmptyWhenEmpty() {
+    var queue = Queue.<Void, Void, Integer>unbounded();
+
+    assertThat(queue.tryTake().evalOrElseThrow()).isEmpty();
+  }
+
+  @Test
+  void tryTakeReturnsValueWhenNotEmpty() {
+    var queue = Queue.<Void, Void, Integer>unbounded();
+
+    assertThat(queue.offer(1).andThen(queue.tryTake()).evalOrElseThrow()).contains(1);
   }
 
   @Test
