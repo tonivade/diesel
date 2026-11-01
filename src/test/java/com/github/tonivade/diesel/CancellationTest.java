@@ -653,7 +653,6 @@ class CancellationTest {
     future.cancel(true);
     gate.complete(Result.unit());
 
-    // todo el programa es la región: no queda ningún paso donde parar
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
     assertThat(after).hasValue(1);
   }
@@ -670,7 +669,6 @@ class CancellationTest {
     future.cancel(true);
     gate.complete(Result.unit());
 
-    // el uncancelable exterior sigue cerrado: el poll interior no lo abre
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
     assertThat(executed).hasValue(1);
   }
@@ -691,7 +689,7 @@ class CancellationTest {
     gate.complete(Result.unit());
 
     assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
-    assertThat(executed).hasValue(1);   // el interior se completó pese a la cancelación
+    assertThat(executed).hasValue(1);
   }
 
   @Test
@@ -710,7 +708,7 @@ class CancellationTest {
     gate.complete(Result.unit());
 
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
-    assertThat(executed).hasValue(1);   // sigue enmascarado tras la excepción
+    assertThat(executed).hasValue(1);
   }
 
   @Test
@@ -823,7 +821,6 @@ class CancellationTest {
     var future = program.fork().evalOrElseThrow();
     cancelAndOpen(future);
 
-    // sigue cerrada: el programa termina con normalidad
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
     assertThat(executed).hasValue(1);
   }
@@ -865,7 +862,6 @@ class CancellationTest {
     var future = program.fork().evalOrElseThrow();
     cancelAndOpen(future);
 
-    // un solo nivel, así que el poll abre y la cancelación se aplica antes de ejecutar
     assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
     assertThat(executed).hasValue(0);
   }
@@ -919,6 +915,40 @@ class CancellationTest {
     cancelAndOpen(future);
 
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void anOuterPollInsideANormalUncancelableDoesNothing() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(outer ->
+        closedWait()
+            .andThen(outer.apply(run(executed::incrementAndGet)))
+            .uncancelable());
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void anOuterPollInsideAFinalizerDoesNothing() throws Exception {
+    expected = 1;
+    var escaped = new CompletableFuture<Program.Poll>();
+    var program = Program.<Void, String, Unit>uncancelable(poll -> {
+      escaped.complete(poll);
+      return start().andThen(Program.join(gate));
+    }).ensuring(Program.<Void, String, Unit>suspend(() ->
+        escaped.join().apply(run(executed::incrementAndGet))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    // the deferred cancellation takes effect when the finalizer exits, but the whole finalizer
+    // ran: its escaped poll didn't open it
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
     assertThat(executed).hasValue(1);
   }
 
