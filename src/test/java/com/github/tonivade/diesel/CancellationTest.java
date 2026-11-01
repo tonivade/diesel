@@ -761,13 +761,12 @@ class CancellationTest {
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
 
     assertThat(result).isEqualTo(Result.failure("error"));
-    // decide: ¿debe ser 1 (como en cats-effect) o 0?
-    assertThat(released).hasValue(/* 0 o 1 */ 0);
+    assertThat(released).hasValue(0);
   }
 
   @Test
   void pollOutsideARegionDoesNothing() {
-    var result = Program.<Void, String, Program.Poll>uncancelable(poll -> success(poll))
+    var result = Program.<Void, String, Program.Poll>uncancelable(Program::success)
         .flatMap(poll -> poll.apply(run(executed::incrementAndGet)))
         .eval();
 
@@ -796,6 +795,132 @@ class CancellationTest {
 
     assertThatThrownBy(program::eval).isInstanceOf(TimeoutException.class);
     assertThat(released).hasValue(started.get());
+  }
+
+  @Test
+  void nestedPollsInTheRightOrderOpenBothRegions() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(outer ->
+        Program.<Void, String, Unit>uncancelable(inner ->
+            closedWait().andThen(
+                inner.apply(outer.apply(run(executed::incrementAndGet))))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(0);
+  }
+
+  @Test
+  void nestedPollsInTheWrongOrderDoNotOpenTheRegions() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(outer ->
+        Program.<Void, String, Unit>uncancelable(inner ->
+            closedWait().andThen(
+                outer.apply(inner.apply(run(executed::incrementAndGet))))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    // sigue cerrada: el programa termina con normalidad
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void anOuterPollInsideAnInnerRegionDoesNothing() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(outer ->
+        Program.<Void, String, Unit>uncancelable(_ ->
+            closedWait().andThen(outer.apply(run(executed::incrementAndGet)))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void anInnerPollOnlyOpensItsOwnLevel() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(_ ->
+        Program.<Void, String, Unit>uncancelable(inner ->
+            closedWait().andThen(inner.apply(run(executed::incrementAndGet)))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
+  }
+
+  @Test
+  void applyingThePollTwiceIsTheSameAsOnce() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(poll ->
+        closedWait().andThen(poll.apply(poll.apply(run(executed::incrementAndGet)))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    // un solo nivel, así que el poll abre y la cancelación se aplica antes de ejecutar
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(0);
+  }
+
+  @Test
+  void aSingleRegionPollOpensIt() throws Exception {
+    expected = 1;
+    var program = Program.<Void, String, Unit>uncancelable(poll ->
+        closedWait().andThen(poll.apply(run(executed::incrementAndGet))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(0);
+  }
+
+  @Test
+  void anEscapedPollOpensARegionAtTheSameDepth() throws Exception {
+    expected = 1;
+    var escaped = new CompletableFuture<Program.Poll>();
+    Program.<Void, String, Unit>uncancelable(poll -> {
+      escaped.complete(poll);
+      return Program.unit();
+    }).evalOrElseThrow();
+
+    var program = Program.<Void, String, Unit>uncancelable(_ ->
+        closedWait().andThen(escaped.join().apply(run(executed::incrementAndGet))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    // mismo id (1): abre. Con tokens únicos sería un no-op y el resultado, normal
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(executed).hasValue(0);
+  }
+
+  @Test
+  void anEscapedPollAtADifferentDepthDoesNothing() throws Exception {
+    expected = 1;
+    var escaped = new CompletableFuture<Program.Poll>();
+    Program.<Void, String, Unit>uncancelable(poll -> {
+      escaped.complete(poll);
+      return Program.unit();
+    }).evalOrElseThrow();
+
+    var program = Program.<Void, String, Unit>uncancelable(_ ->
+        Program.<Void, String, Unit>uncancelable(_ ->
+            closedWait().andThen(escaped.join().apply(run(executed::incrementAndGet)))));
+
+    var future = program.fork().evalOrElseThrow();
+    cancelAndOpen(future);
+
+    assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
+    assertThat(executed).hasValue(1);
   }
 
   /**
@@ -853,6 +978,16 @@ class CancellationTest {
       }
       Thread.onSpinWait();
     }
+  }
+
+  private Program<Void, String, Unit> closedWait() {
+    return start().andThen(Program.join(gate));
+  }
+
+  private void cancelAndOpen(CompletableFuture<?> future) throws Exception {
+    allStarted.get(5, TimeUnit.SECONDS);
+    future.cancel(true);
+    gate.complete(Result.unit());
   }
 
   private static Program<Void, String, Unit> never() {
