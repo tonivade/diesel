@@ -96,7 +96,7 @@ public final class Queue<S, E, A> {
    * @return a program that creates a fresh queue
    */
   public static <S, E, A> Program<S, E, Queue<S, E, A>> makeUnbounded() {
-    return supply(() -> unbounded());
+    return supply(Queue::unbounded);
   }
 
   /**
@@ -251,12 +251,12 @@ public final class Queue<S, E, A> {
   private record Offerer<S, E, A>(A value, Deferred<S, E, Unit> done) {
 
     @Override
-    public final boolean equals(Object other) {
+    public boolean equals(Object other) {
       return other instanceof Offerer offerer && done == offerer.done;
     }
 
     @Override
-    public final int hashCode() {
+    public int hashCode() {
       return done.hashCode();
     }
   }
