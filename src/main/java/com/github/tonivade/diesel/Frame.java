@@ -26,6 +26,8 @@ sealed interface Frame<S> {
   // marks the end of an uncancelable region
   record UnmaskFrame<S>() implements Frame<S> {}
 
+  record RemaskFrame<S>(int previous) implements Frame<S> {}
+
   @SuppressWarnings("unchecked")
   static <S> FoldFrame<S> fold(Function<?, ? extends Program<S, ?, ?>> onFailure,
       Function<?, ? extends Program<S, ?, ?>> onSuccess) {
@@ -49,5 +51,9 @@ sealed interface Frame<S> {
 
   static <S> UnmaskFrame<S> unmask() {
     return new UnmaskFrame<>();
+  }
+
+  static <S> RemaskFrame<S> remask(int previous) {
+    return new RemaskFrame<>(previous);
   }
 }

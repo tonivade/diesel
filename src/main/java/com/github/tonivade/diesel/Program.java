@@ -9,13 +9,6 @@ import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Concurrent.race;
 import static java.util.function.Function.identity;
 
-import com.github.tonivade.diesel.Frame.CatchFrame;
-import com.github.tonivade.diesel.Frame.FinalizerFrame;
-import com.github.tonivade.diesel.Frame.FoldFrame;
-import com.github.tonivade.diesel.Frame.OnCancelFrame;
-import com.github.tonivade.diesel.Frame.UnmaskFrame;
-import com.github.tonivade.purefun.Kind;
-
 import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -40,6 +33,14 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
+
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FinalizerFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Frame.OnCancelFrame;
+import com.github.tonivade.diesel.Frame.RemaskFrame;
+import com.github.tonivade.diesel.Frame.UnmaskFrame;
+import com.github.tonivade.purefun.Kind;
 
 /**
  * A {@code Program} represents a computation that can be executed in a specific context.
@@ -253,6 +254,37 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record Uncancelable<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {}
+
+  /**
+   * Represents a computation that can be cancelled inside an uncacellable region.
+   *
+   * @param current the current program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record Polled<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {}
+
+  /**
+   * Makes a program cancelable inside the uncancelable region it comes from, see
+   * {@link Program#uncancelable(Function)}.
+   */
+  interface Poll {
+
+    /**
+     * Makes the given program cancelable.
+     *
+     * <p>If a cancellation was requested while the region was closed, the program doesn't start:
+     * the cancellation takes effect before it. Once it finishes, the region is closed again.
+     *
+     * @param program the program to make cancelable
+     * @param <S> the type of the state
+     * @param <E> the type of the error
+     * @param <T> the type of the result
+     * @return a program that is cancelable even if it runs inside the region
+     */
+    <S, E, T> Program<S, E, T> apply(Program<S, E, T> program);
+  }
 
   /**
    * Creates a new program that represents a computation that can be executed in a specific context.
@@ -809,6 +841,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
                   resumed = true;
                 }
                 case UnmaskFrame<S> _ -> masked--;
+                case RemaskFrame(var previous) -> masked = previous;
                 case OnCancelFrame<S> _ -> {
                   // the program completed, so it wasn't cancelled
                 }
@@ -836,6 +869,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           }
           case Uncancelable(var source) -> {
             masked = enterUncancelable(stack, masked);
+            current = source;
+          }
+          case Polled(var source) -> {
+            if (masked > 0) {
+              stack.push(Frame.remask(masked));
+              masked--;
+            }
             current = source;
           }
           case Forked forked -> {
@@ -918,6 +958,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
               }
             }
             case UnmaskFrame<S> _ -> masked--;
+            case RemaskFrame(var previous) -> masked = previous;
             case FoldFrame<S> _ -> {
               // a continuation inside the catchAll scope, discarded
             }
@@ -1404,6 +1445,56 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       return this;
     }
     return new Uncancelable<>(this);
+  }
+
+  /**
+   * Creates a program that runs in an uncancelable region, giving the body a {@link Poll} to make
+   * parts of it cancelable again.
+   *
+   * <p>Everything the body does is uncancelable, like with {@link #uncancelable()}, except the
+   * programs wrapped with {@link Poll#apply(Program)}: a cancellation requested while the region
+   * runs is deferred until the body reaches one of them, and takes effect there, before it starts.
+   * Use it for operations that have to acquire something and then wait for it, like taking an
+   * element out of a queue: the element is taken in the closed part, so it can't be lost, and only
+   * the wait is cancelable.
+   *
+   * <pre>{@code
+   * Program<S, E, A> take = Program.uncancelable(poll ->
+   *     pipe(
+   *         acquire(),
+   *         resource -> poll.apply(waitFor(resource))));
+   * }</pre>
+   *
+   * <p>Keep in mind that:
+   * <ul>
+   *   <li>A {@code poll} only opens the region it comes from. Inside a nested {@code uncancelable},
+   *   or inside a finalizer, a {@code poll} of an outer region doesn't make anything cancelable.</li>
+   *   <li>Once the polled program finishes, whether it succeeds, fails or throws, the region is
+   *   closed again.</li>
+   *   <li>The finalizers installed inside a polled program, like {@link #ensuring(Program)} or
+   *   {@link #onCancel(Program)}, run if it is cancelled. An {@code onCancel} placed outside the
+   *   {@code poll}, in the closed part, doesn't run: the program is only cancelled inside the
+   *   {@code poll}.</li>
+   *   <li>A {@code poll} used outside of the region it comes from, or in a program that isn't in
+   *   any uncancelable region, does nothing.</li>
+   *   <li>As with {@link #uncancelable()}, the concurrent combinators, like {@code parZip} or
+   *   {@link #timeout(Duration)}, wait for the closed part to finish before they complete.</li>
+   * </ul>
+   *
+   * @param body the function that receives the {@link Poll} and returns the program to run
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the computation, uncancelable except for the polled parts
+   */
+  static <S, E, T> Program<S, E, T> uncancelable(Function<? super Poll, ? extends Program<S, E, T>> body) {
+    var poll = new Poll() {
+      @Override
+      public <S1, E1, T1> Program<S1, E1, T1> apply(Program<S1, E1, T1> program) {
+        return new Polled<>(program);
+      }
+    };
+    return suspend(() -> body.apply(poll)).uncancelable();
   }
 
   /**
