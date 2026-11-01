@@ -6,6 +6,7 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Program.branch;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
@@ -98,8 +99,6 @@ public final class Queue<S, E, A> {
     return supply(() -> unbounded());
   }
 
-  // ---- offer ----
-
   /**
    * Adds the value, waiting while the queue is full.
    *
@@ -114,9 +113,10 @@ public final class Queue<S, E, A> {
         newDone(),
         done -> pipe(
             register(value, done, Mode.WAIT),
-            result -> result instanceof Blocked
-                ? poll.apply(done.<S1, E1>get().onCancel(removeOfferer(done)))
-                : unit())));
+            branch(
+                result -> result instanceof Blocked,
+                () -> poll.apply(done.<S1, E1>get().onCancel(removeOfferer(done))),
+                Program::unit))));
   }
 
   /**
@@ -135,8 +135,6 @@ public final class Queue<S, E, A> {
             register(value, done, Mode.TRY),
             result -> !(result instanceof Full))));
   }
-
-  // ---- take ----
 
   /**
    * Removes and returns the first value, waiting while the queue is empty.
@@ -191,8 +189,6 @@ public final class Queue<S, E, A> {
         s -> s.items().size());
   }
 
-  // ---- internals ----
-
   private <S1 extends S, E1 extends E> Program<S1, E1, Deferred<S, E, Unit>> newDone() {
     return supply(Deferred::create);
   }
@@ -228,16 +224,16 @@ public final class Queue<S, E, A> {
   private <S1 extends S, E1 extends E> Program<S1, E1, Unit> releaseTaker(Deferred<S, E, A> waiter) {
     return pipe(
         state.modify(s -> s.removeTaker(waiter)),
-        removed -> removed
-            ? unit()
+        branch(
+            Program::unit,
             // an offer already handed it a value: put it back instead of losing it
-            : pipe(
+            () -> pipe(
                 waiter.get(),
-                value -> pipe(newDone(), done -> register(value, done, Mode.FORCE)),
-                _ -> unit()));
+                value -> pipe(
+                    newDone(),
+                    done -> register(value, done, Mode.FORCE)),
+                _ -> unit())));
   }
-
-  // ---- pure state, retried safely by Ref.modify ----
 
   private enum Mode { WAIT, TRY, FORCE }
 
@@ -318,7 +314,7 @@ public final class Queue<S, E, A> {
 
   private static final class Fifo<T> {
 
-    private static final Fifo<Object> EMPTY = new Fifo<>(ConsPStack.empty(), ConsPStack.empty(), 0);
+    private static final Fifo<?> EMPTY = new Fifo<>(ConsPStack.empty(), ConsPStack.empty(), 0);
 
     private final PStack<T> front;
     private final PStack<T> back; // reversed
