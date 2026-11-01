@@ -6,6 +6,7 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Program.task;
+import static java.util.Objects.requireNonNull;
 
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -28,6 +29,7 @@ public final class Ref<S, E, A> {
   private final AtomicReference<A> value;
 
   private Ref(A value) {
+    requireNonNull(value);
     this.value = new AtomicReference<>(value);
   }
 
@@ -51,6 +53,7 @@ public final class Ref<S, E, A> {
    * @return a program that sets the value and returns {@code null}
    */
   public <S1 extends S, E1 extends E> Program<S1, E1, Unit> set(A newValue) {
+    requireNonNull(newValue);
     return task(() -> value.set(newValue));
   }
 

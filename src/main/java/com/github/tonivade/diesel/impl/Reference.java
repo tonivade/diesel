@@ -11,13 +11,16 @@ import static com.github.tonivade.diesel.Program.inspect;
 import java.util.function.UnaryOperator;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Ref;
 import com.github.tonivade.diesel.Unit;
 
 /**
  * A {@code Reference} represents a program that operates on a {@link Service} to get or set a value.
  *
  * @param <T> the type of the value being stored in the reference
+ * @deprecated use {@link Ref}
  */
+@Deprecated(forRemoval = true)
 public interface Reference<T> {
 
   /**
@@ -25,12 +28,14 @@ public interface Reference<T> {
    *
    * @param <T> the type of the value being stored in the reference
    */
+  @Deprecated(forRemoval = true)
   interface Service<T> {
     /**
      * Sets the value of the reference.
      *
      * @param value the new value to be set
      */
+    @Deprecated(forRemoval = true)
     void set(T value);
 
     /**
@@ -38,6 +43,7 @@ public interface Reference<T> {
      *
      * @return the current value of the reference
      */
+    @Deprecated(forRemoval = true)
     T get();
   }
 
@@ -50,6 +56,7 @@ public interface Reference<T> {
    * @param value the new value to be set
    * @return a program that sets the value in the reference
    */
+  @Deprecated(forRemoval = true)
   static <T, S extends Service<T>, E> Program<S, E, Unit> set(T value) {
     return inspect(state -> state.set(value));
   }
@@ -62,6 +69,7 @@ public interface Reference<T> {
    * @param <E> the type of the error that may occur during execution
    * @return a program that retrieves the value from the reference
    */
+  @Deprecated(forRemoval = true)
   static <T, S extends Service<T>, E> Program<S, E, T> get() {
     return access(Service::get);
   }
@@ -75,6 +83,7 @@ public interface Reference<T> {
    * @param update the function used to update the value in the reference
    * @return a program that updates the value in the reference
    */
+  @Deprecated(forRemoval = true)
   static <T, S extends Service<T>, E> Program<S, E, Unit> update(UnaryOperator<T> update) {
     return pipe(get(), value -> set(update.apply(value)));
   }
