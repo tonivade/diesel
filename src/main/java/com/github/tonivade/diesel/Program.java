@@ -263,7 +263,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <p>The body function receives a {@link Poll} object that can be used to create a cancellable
    * region inside this uncancelable region.
    *
-   * @param body body of the region that is uncancellable
+   * @param body body of the region that is uncancelable
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
@@ -271,7 +271,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record UncancelableWith<S, E, T>(Function<? super Poll, ? extends Program<S, E, T>> body) implements Program<S, E, T> {}
 
   /**
-   * Represents a computation that can be cancelled inside an uncacellable region.
+   * Represents a computation that can be cancelled inside an uncancelable region.
    *
    * @param current the current program
    * @param region the identifier of the cancellable region
@@ -819,7 +819,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default Result<E, T> eval(@Nullable S state) {
     return run(state, CancelToken.current());
   }
-
 
   @SuppressWarnings({ "unchecked", "rawtypes" })
   private Result<E, T> run(@Nullable S state, CancelToken token) {
