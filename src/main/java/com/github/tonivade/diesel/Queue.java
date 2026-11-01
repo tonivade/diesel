@@ -9,6 +9,7 @@ import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
+import static com.github.tonivade.diesel.Program.uncancelable;
 import static com.github.tonivade.diesel.Program.unit;
 import static com.github.tonivade.diesel.Tuple2.tuple;
 import static java.util.Objects.requireNonNull;
@@ -109,7 +110,7 @@ public final class Queue<S, E, A> {
    */
   public <S1 extends S, E1 extends E> Program<S1, E1, Unit> offer(A value) {
     requireNonNull(value, "the value of a queue can't be null");
-    return Program.<S1, E1, Unit>uncancelable(poll -> pipe(
+    return uncancelable(poll -> pipe(
         newDone(),
         done -> pipe(
             register(value, done, Mode.WAIT),
@@ -128,11 +129,11 @@ public final class Queue<S, E, A> {
    */
   public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> tryOffer(A value) {
     requireNonNull(value, "the value of a queue can't be null");
-    return pipe(
+    return uncancelable(_ -> pipe(
         newDone(),
         done -> chain(
             register(value, done, Mode.TRY),
-            result -> !(result instanceof Full)));
+            result -> !(result instanceof Full))));
   }
 
   // ---- take ----
@@ -145,7 +146,7 @@ public final class Queue<S, E, A> {
    * @return a program that yields the first value
    */
   public <S1 extends S, E1 extends E> Program<S1, E1, A> take() {
-    return Program.<S1, E1, A>uncancelable(poll -> pipe(
+    return uncancelable(poll -> pipe(
         newWaiter(),
         waiter -> pipe(
             claim(waiter, true),
@@ -168,13 +169,13 @@ public final class Queue<S, E, A> {
    * @return a program that yields the first value, or an empty optional
    */
   public <S1 extends S, E1 extends E> Program<S1, E1, Optional<A>> tryTake() {
-    return pipe(
+    return uncancelable(_ -> pipe(
         newWaiter(),
         waiter -> chain(
             claim(waiter, false),
             result -> result instanceof Taken<S, E, A> taken
                 ? Optional.of(taken.value())
-                : Optional.empty()));
+                : Optional.empty())));
   }
 
   /**
@@ -206,8 +207,7 @@ public final class Queue<S, E, A> {
         state.modify(s -> s.offer(value, done, mode)),
         result -> result instanceof Handoff<S, E, A> handoff
             ? chain(handoff.taker().<S1, E1>complete(handoff.value()), _ -> result)
-            : success(result))
-      .uncancelable();
+            : success(result));
   }
 
   private <S1 extends S, E1 extends E> Program<S1, E1, TakeResult<S, E, A>> claim(
@@ -216,8 +216,7 @@ public final class Queue<S, E, A> {
         state.modify(s -> s.take(waiter, wait)),
         result -> result instanceof Taken<S, E, A> taken && taken.wake().isPresent()
             ? chain(taken.wake().get().<S1, E1>complete(Unit.unit()), _ -> result)
-            : success(result))
-      .uncancelable();
+            : success(result));
   }
 
   private <S1 extends S, E1 extends E> Program<S1, E1, Unit> removeOfferer(Deferred<S, E, Unit> done) {
