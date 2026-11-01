@@ -256,6 +256,20 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record Uncancelable<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {}
 
   /**
+   * Represents a computation that can't be cancelled, a cancellation requested while it runs
+   * takes effect after it finishes.
+   *
+   * <p>The body function receives a {@link Poll} object that can be used to create a cancellable
+   * region inside this uncancelable region.
+   *
+   * @param body body of the region that is uncancellable
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   */
+  record UncancelableWith<S, E, T>(Function<? super Poll, ? extends Program<S, E, T>> body) implements Program<S, E, T> {}
+
+  /**
    * Represents a computation that can be cancelled inside an uncacellable region.
    *
    * @param current the current program
@@ -263,7 +277,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Polled<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {}
+  record Polled<S, E, T>(Program<S, E, T> current, int id) implements Program<S, E, T> {}
 
   /**
    * Makes a program cancelable inside the uncancelable region it comes from, see
@@ -871,8 +885,18 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
             masked = enterUncancelable(stack, masked);
             current = source;
           }
-          case Polled(var source) -> {
-            if (masked > 0) {
+          case UncancelableWith(var body) -> {
+            masked = enterUncancelable(stack, masked);
+            final int id = masked;
+            current = body.apply(new Poll() {
+              @Override
+              public <S1, E1, T1> Program<S1, E1, T1> apply(Program<S1, E1, T1> program) {
+                return new Polled<>(program, id);
+              }
+            });
+          }
+          case Polled(var source, int id) -> {
+            if (masked == id) {
               stack.push(Frame.remask(masked));
               masked--;
             }
@@ -1488,13 +1512,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation, uncancelable except for the polled parts
    */
   static <S, E, T> Program<S, E, T> uncancelable(Function<? super Poll, ? extends Program<S, E, T>> body) {
-    var poll = new Poll() {
-      @Override
-      public <S1, E1, T1> Program<S1, E1, T1> apply(Program<S1, E1, T1> program) {
-        return new Polled<>(program);
-      }
-    };
-    return suspend(() -> body.apply(poll)).uncancelable();
+    return new UncancelableWith<>(body);
   }
 
   /**
