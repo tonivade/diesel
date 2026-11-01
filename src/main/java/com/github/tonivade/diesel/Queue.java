@@ -109,13 +109,13 @@ public final class Queue<S, E, A> {
    */
   public <S1 extends S, E1 extends E> Program<S1, E1, Unit> offer(A value) {
     requireNonNull(value, "the value of a queue can't be null");
-    return pipe(
+    return Program.<S1, E1, Unit>uncancelable(poll -> pipe(
         newDone(),
         done -> pipe(
             register(value, done, Mode.WAIT),
             result -> result instanceof Blocked
-                ? done.<S1, E1>get().onCancel(removeOfferer(done))
-                : unit()));
+                ? poll.apply(done.<S1, E1>get().onCancel(removeOfferer(done)))
+                : unit())));
   }
 
   /**
@@ -145,7 +145,7 @@ public final class Queue<S, E, A> {
    * @return a program that yields the first value
    */
   public <S1 extends S, E1 extends E> Program<S1, E1, A> take() {
-    return pipe(
+    return Program.<S1, E1, A>uncancelable(poll -> pipe(
         newWaiter(),
         waiter -> pipe(
             claim(waiter, true),
@@ -154,10 +154,10 @@ public final class Queue<S, E, A> {
                 return success(taken.value());
               }
               if (result instanceof Waiting) {
-                return waiter.<S1, E1>get().onCancel(releaseTaker(waiter));
+                return poll.apply(waiter.<S1, E1>get().onCancel(releaseTaker(waiter)));
               }
               return raise(IllegalStateException::new);
-            }));
+            })));
   }
 
   /**
