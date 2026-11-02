@@ -32,6 +32,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.IntSupplier;
 import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.RepeatedTest;
@@ -484,7 +485,12 @@ class QueueTest {
   void closeWakesUpAWaitingTakeOrClosedWithEmpty() {
     var queue = Queue.<Void, Void, Integer>unbounded();
 
-    var program = parZip(queue.takeOrClosed(), closeLater(queue), (value, _) -> value);
+    var program = pipe(
+        queue.takeOrClosed().fork(),
+        future -> pipe(
+            task(() -> await(queue::waitingTakers, 1)),
+            _ -> queue.close(),
+            _ -> join(future)));
 
     assertThat(program.evalOrElseThrow()).isEmpty();
   }
@@ -493,7 +499,12 @@ class QueueTest {
   void closeWakesUpAWaitingTakeWithTheClosedException() {
     var queue = Queue.<Void, Void, Integer>unbounded();
 
-    var program = parZip(outcome(queue.take()), closeLater(queue), (result, _) -> result);
+    var program = pipe(
+        outcome(queue.take()).fork(),
+        future -> pipe(
+            task(() -> await(queue::waitingTakers, 1)),
+            _ -> queue.close(),
+            _ -> join(future)));
 
     assertThat(program.evalOrElseThrow()).isEqualTo("QueueClosedException");
   }
@@ -505,7 +516,12 @@ class QueueTest {
         .mapToObj(_ -> queue.takeOrClosed())
         .toList();
 
-    var program = parZip(parSequence(takers), closeLater(queue), (values, _) -> values);
+    var program = pipe(
+        parSequence(takers).fork(),
+        future -> pipe(
+            task(() -> await(queue::waitingTakers, 20)),
+            _ -> queue.close(),
+            _ -> join(future)));
 
     assertThat(program.evalOrElseThrow()).hasSize(20).allMatch(Optional::isEmpty);
   }
@@ -514,8 +530,13 @@ class QueueTest {
   void closeWakesUpABlockedOfferWithTheClosedException() {
     var queue = Queue.<Void, Void, Integer>bounded(1);
 
-    var program = queue.offer(1)
-        .andThen(parZip(outcome(queue.offer(2)), closeLater(queue), (result, _) -> result));
+    var program = pipe(
+        queue.offer(1),
+        _ -> outcome(queue.offer(2)).fork(),
+        future -> pipe(
+            task(() -> await(queue::waitingOfferers, 1)),
+            _ -> queue.close(),
+            _ -> join(future)));
 
     assertThat(program.evalOrElseThrow()).isEqualTo("QueueClosedException");
   }
@@ -524,8 +545,13 @@ class QueueTest {
   void theValueOfAnOfferWokenUpByCloseIsDiscarded() {
     var queue = Queue.<Void, Void, Integer>bounded(1);
 
-    queue.offer(1)
-        .andThen(parZip(outcome(queue.offer(2)), closeLater(queue), (result, _) -> result))
+    pipe(
+        queue.offer(1),
+        _ -> outcome(queue.offer(2)).fork(),
+        future -> pipe(
+            task(() -> await(queue::waitingOfferers, 1)),
+            _ -> queue.close(),
+            _ -> join(future)))
         .evalOrElseThrow();
 
     assertThat(drain(queue).evalOrElseThrow()).containsExactly(1);
@@ -538,8 +564,13 @@ class QueueTest {
         .mapToObj(i -> outcome(queue.offer(i + 100)))
         .toList();
 
-    var program = queue.offer(1)
-        .andThen(parZip(parSequence(offers), closeLater(queue), (results, _) -> results));
+    var program = pipe(
+        queue.offer(1),
+        _ -> parSequence(offers).fork(),
+        future -> pipe(
+            task(() -> await(queue::waitingOfferers, 10)),
+            _ -> queue.close(),
+            _ -> join(future)));
 
     assertThat(program.evalOrElseThrow()).hasSize(10).containsOnly("QueueClosedException");
     assertThat(drain(queue).evalOrElseThrow()).containsExactly(1);
@@ -703,6 +734,66 @@ class QueueTest {
     assertThat(queue.size().evalOrElseThrow()).isZero();
   }
 
+  @Test
+  void releaseTakerPutsBackAValueAlreadyHandedOff() {
+    var queue = Queue.<Void, Void, Integer>unbounded();
+    Deferred<Void, Void, Optional<Integer>> waiter = Deferred.create();
+
+    var program = queue.<Void, Void>claim(waiter, true).discard() // the taker is waiting
+        .andThen(queue.offer(5))             // handoff: it leaves takers and gets the value
+        .andThen(queue.releaseTaker(waiter)) // it is cancelled after that: the value must come back
+        .andThen(queue.size());
+
+    assertThat(program.evalOrElseThrow()).isEqualTo(1);
+    assertThat(queue.tryTake().evalOrElseThrow()).contains(5);
+  }
+
+  @Test
+  void aValuePutBackAfterCloseIsNotLost() {
+    var queue = Queue.<Void, Void, Integer>unbounded();
+    Deferred<Void, Void, Optional<Integer>> waiter = Deferred.create();
+
+    queue.<Void, Void>claim(waiter, true).discard()
+        .andThen(queue.offer(5))
+        .andThen(queue.close())
+        .andThen(queue.releaseTaker(waiter))
+        .evalOrElseThrow();
+
+    // it was accepted before the close, so draining still delivers it
+    assertThat(drain(queue).evalOrElseThrow()).containsExactly(5);
+  }
+
+  @Test
+  void releaseTakerDoesNotPutBackAnythingWhenTheTakerWasWokenUpByClose() {
+    var queue = Queue.<Void, Void, Integer>unbounded();
+    Deferred<Void, Void, Optional<Integer>> waiter = Deferred.create();
+
+    queue.<Void, Void>claim(waiter, true).discard()
+        .andThen(queue.close())
+        .andThen(queue.releaseTaker(waiter))
+        .evalOrElseThrow();
+
+    assertThat(waiter.get().evalOrElseThrow()).isEmpty();
+    assertThat(queue.size().evalOrElseThrow()).isZero();
+    assertThat(drain(queue).evalOrElseThrow()).isEmpty();
+  }
+
+  @Test
+  void aValuePutBackIsHandedOffToAnotherWaitingTaker() {
+    var queue = Queue.<Void, Void, Integer>unbounded();
+    Deferred<Void, Void, Optional<Integer>> cancelled = Deferred.create();
+    Deferred<Void, Void, Optional<Integer>> other = Deferred.create();
+
+    queue.<Void, Void>claim(cancelled, true).discard()
+        .andThen(queue.offer(5))                          // handed to the first taker
+        .andThen(queue.claim(other, true).discard()) // a second one starts waiting
+        .andThen(queue.releaseTaker(cancelled))           // the first is cancelled: the value goes to the second
+        .evalOrElseThrow();
+
+    assertThat(other.get().evalOrElseThrow()).contains(5);
+    assertThat(queue.size().evalOrElseThrow()).isZero();
+  }
+
   // ---------------------------------------------------------------------------------------------
   // helpers
   // ---------------------------------------------------------------------------------------------
@@ -808,5 +899,15 @@ class QueueTest {
           next.add(value.get());
           return suspend(() -> drain(queue, next));
         });
+  }
+
+  private static void await(IntSupplier count, int expected) {
+    var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+    while (count.getAsInt() < expected) {
+      if (System.nanoTime() > deadline) {
+        throw new AssertionError("the programs never started waiting");
+      }
+      Thread.onSpinWait();
+    }
   }
 }

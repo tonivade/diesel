@@ -356,7 +356,8 @@ public final class Queue<S, E, A> {
             : success(result));
   }
 
-  private <S1 extends S, E1 extends E> Program<S1, E1, TakeResult<S, E, A>> claim(
+  // visible for testing
+  <S1 extends S, E1 extends E> Program<S1, E1, TakeResult<S, E, A>> claim(
       Deferred<S, E, Optional<A>> waiter, boolean wait) {
     return pipe(
         state.modify(s -> s.take(waiter, wait)),
@@ -371,7 +372,8 @@ public final class Queue<S, E, A> {
         _ -> unit());
   }
 
-  private <S1 extends S, E1 extends E> Program<S1, E1, Unit> releaseTaker(Deferred<S, E, Optional<A>> waiter) {
+  // visible for testing
+  <S1 extends S, E1 extends E> Program<S1, E1, Unit> releaseTaker(Deferred<S, E, Optional<A>> waiter) {
     return pipe(
         state.modify(s -> s.removeTaker(waiter)),
         branch(
@@ -385,6 +387,16 @@ public final class Queue<S, E, A> {
                         done -> register(value.get(), done, Mode.REQUEUE),
                         _ -> unit())
                     : unit())));
+  }
+
+  // visible for the testing
+  int waitingTakers() {
+   return state.<S, E>get().evalOrElseThrow().takers().size();
+  }
+
+  // visible for the testing
+  int waitingOfferers() {
+   return state.<S, E>get().evalOrElseThrow().offerers().size();
   }
 
   private enum Mode { WAIT, TRY, REQUEUE }
