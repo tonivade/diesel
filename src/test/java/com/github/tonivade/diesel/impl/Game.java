@@ -33,8 +33,8 @@ interface Game {
     return pipe(
         prompt("Do you want to play a game? (Y/y)"),
         branch(answer -> answer.equalsIgnoreCase("y"),
-            () -> randomNumber().andThen(loop()),
-            () -> writeLine("Bye!")
+            _ -> randomNumber().andThen(loop()),
+            _ -> writeLine("Bye!")
           )
       );
   }

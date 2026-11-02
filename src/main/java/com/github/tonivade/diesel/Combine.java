@@ -940,11 +940,12 @@ public final class Combine {
     return program.catchAll(recover);
   }
 
-  /** Creates a function that branches the program based on a condition.
+  /**
+   * Creates a function that branches the program based on a condition.
    *
    * @param condition the condition used to branch the program
-   * @param onTrue the program to be executed if the condition is true
-   * @param otherwise the program to be executed if the condition is false
+   * @param onTrue the function to be executed if the condition is true
+   * @param otherwise the function to be executed if the condition is false
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the input value
@@ -952,11 +953,19 @@ public final class Combine {
    * @return a function that branches the program based on a condition
    */
   public static <S, E, T, R> Function<T, Program<S, E, R>> branch(
-      Predicate<? super T> condition, Supplier<? extends Program<S, E, R>> onTrue, Supplier<? extends Program<S, E, R>> otherwise) {
-    return branch(onTrue, otherwise).compose(condition::test);
+      Predicate<? super T> condition,
+      Function<? super T, ? extends Program<S, E, R>> onTrue,
+      Function<? super T, ? extends Program<S, E, R>> otherwise) {
+    return value -> {
+      if (condition.test(value)) {
+        return onTrue.apply(value);
+      }
+      return otherwise.apply(value);
+    };
   }
 
-  /** Creates a function that branches the program based on a boolean condition.
+  /**
+   * Creates a function that branches the program based on a boolean condition.
    *
    * @param onTrue the program to be executed if the condition is true
    * @param otherwise the program to be executed if the condition is false
@@ -967,12 +976,7 @@ public final class Combine {
    */
   public static <S, E, T> Function<Boolean, Program<S, E, T>> branch(
       Supplier<? extends Program<S, E, T>> onTrue, Supplier<? extends Program<S, E, T>> otherwise) {
-    return result -> {
-      if (result) {
-        return onTrue.get();
-      }
-      return otherwise.get();
-    };
+    return branch(r -> r, _ -> onTrue.get(), _ -> otherwise.get());
   }
 
   /**
