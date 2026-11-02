@@ -47,7 +47,7 @@ public class ProducerConsumer {
 
   static Program<Void, Void, Integer> program() {
     return pipe(
-        Queue.<Void, Void, Message>makeBounded(3),
+        Queue.<Void, Void, Integer>makeBounded(3),
         queue -> pipe(
             Ref.make(0),
             processed -> pipe(
@@ -57,7 +57,7 @@ public class ProducerConsumer {
                             produce(queue, List.of(1, 2, 3, 4, 5)),
                             produce(queue, List.of(6, 7, 8, 9, 10))
                         ),
-                        _ -> queue.offer(Message.stop()).repeat(3)
+                        _ -> queue.close()
                     ),
                     consume(1, queue, processed),
                     consume(2, queue, processed),
@@ -69,37 +69,26 @@ public class ProducerConsumer {
     );
   }
 
-  record Message(int value, boolean poison) {
-
-    static Message data(int value) {
-      return new Message(value, false);
-    }
-
-    static Message stop() {
-      return new Message(0, true);
-    }
-  }
-
   static Program<Void, Void, Unit> produce(
-      Queue<Void, Void, Message> queue,
+      Queue<Void, Void, Integer> queue,
       List<Integer> values
   ) {
     return traverse(
-        value -> queue.offer(Message.data(value)),
+        value -> queue.offer(value),
         values
     ).discard();
   }
 
   static Program<Void, Void, Unit> consume(
       int id,
-      Queue<Void, Void, Message> queue,
+      Queue<Void, Void, Integer> queue,
       Ref<Void, Void, Integer> processed
   ) {
     return suspend(() ->
         pipe(
-            queue.take(),
+            queue.takeOrClosed(),
             message -> {
-              if (message.poison()) {
+              if (message.isEmpty()) {
                 return task(() -> System.out.printf("Consumer %d stopped%n", id));
               }
 
@@ -108,7 +97,7 @@ public class ProducerConsumer {
                       System.out.printf(
                           "Consumer %d processed %d%n",
                           id,
-                          message.value()
+                          message.get()
                       )
                   ),
                   _ -> processed.updateAndGet(n -> n + 1),
