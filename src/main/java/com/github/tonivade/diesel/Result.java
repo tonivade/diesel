@@ -4,6 +4,7 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Fatal.sneakyThrow;
 import static java.util.function.Function.identity;
 
 import java.util.ArrayList;
@@ -562,11 +563,5 @@ public sealed interface Result<F, S> {
   private static <R> Collection<R> append(Collection<R> list, R value) {
     list.add(value);
     return list;
-  }
-
-  // XXX: https://www.baeldung.com/java-sneaky-throws
-  @SuppressWarnings("unchecked")
-  private static <X extends Throwable, R> R sneakyThrow(Throwable t) throws X {
-    throw (X) t;
   }
 }

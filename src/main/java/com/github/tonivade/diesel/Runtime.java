@@ -27,6 +27,8 @@ import com.github.tonivade.diesel.Program.Suspend;
 import com.github.tonivade.diesel.Program.Uncancelable;
 import com.github.tonivade.diesel.Program.UncancelableWith;
 
+import static com.github.tonivade.diesel.Fatal.sneakyThrow;
+
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.CompletableFuture;
@@ -53,7 +55,7 @@ final class Runtime {
         }
         switch (current) {
           case null -> {
-            return Fatal.sneakyThrow(new NullPointerException("program cannot be null"));
+            return sneakyThrow(new NullPointerException("program cannot be null"));
           }
           case Pure(var result) -> {
             var resumed = false;
@@ -132,7 +134,7 @@ final class Runtime {
             current = source;
           }
           case Raise(var throwable) -> {
-            return Fatal.sneakyThrow(throwable.get());
+            return sneakyThrow(throwable.get());
           }
           case Catch(var source, var recover) -> {
             stack.push(Frame.catch_(recover));
@@ -168,7 +170,7 @@ final class Runtime {
         while (!resumed) {
           switch (stack.poll()) {
             case null -> {
-              return Fatal.sneakyThrow(e);
+              return sneakyThrow(e);
             }
             case CatchFrame(var recover) -> {
               // run the handler inside the loop so an exception it throws reaches an outer catchAll.
@@ -273,7 +275,7 @@ final class Runtime {
     try {
       return future.join();
     } catch (CompletionException e) {
-      return Fatal.sneakyThrow(e.getCause() != null ? e.getCause() : e);
+      return sneakyThrow(e.getCause() != null ? e.getCause() : e);
     }
   }
 
