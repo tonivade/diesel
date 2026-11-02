@@ -17,6 +17,7 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.NoSuchElementException;
 import java.util.Optional;
+
 import org.pcollections.ConsPStack;
 import org.pcollections.PStack;
 import org.pcollections.PVector;
