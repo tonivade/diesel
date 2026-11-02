@@ -13,7 +13,6 @@ import static java.util.function.Function.identity;
 import com.github.tonivade.diesel.Frame.Region;
 import com.github.tonivade.purefun.Kind;
 
-import java.lang.reflect.UndeclaredThrowableException;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
@@ -30,7 +29,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
@@ -438,22 +436,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   static <S, T> Program<S, Throwable, T> attempt(Supplier<? extends T> supplier) {
     return suspend(() -> from(Result.attempt(supplier)));
-  }
-
-  /**
-   * Creates a new program that represents a computation that attempts to execute the given supplier and maps any
-   * exceptions to errors using the provided function.
-   *
-   * @param supplier the supplier of the value
-   * @param mapError the function used to map exceptions to errors
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a new program representing a computation that attempts to execute the supplier and maps exceptions to errors
-   */
-  static <S, E, T> Program<S, E, T> attempt(
-      Supplier<? extends T> supplier, Function<? super Throwable, ? extends E> mapError) {
-    return recover(attempt(supplier), mapError.andThen(Program::failure));
   }
 
   /**
@@ -1413,140 +1395,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Catches all errors during the execution of the program and recovers using the provided function.
-   *
-   * @param program the program to be executed
-   * @param recover the function used to recover from errors
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <F> the type of the new error
-   * @param <T> the type of the result
-   * @return a new program representing the computation with error handling
-   */
-  static <S, E, F, T> Program<S, F, T> recover(Program<S, E, T> program,
-      Function<? super E, ? extends Program<S, F, T>> recover) {
-    return program.flatMapError(recover);
-  }
-
-  /**
-   * Catches all errors during the execution of the program and recovers using the provided function.
-   *
-   * @param program the program to be executed
-   * @param recover the function used to recover from errors
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a new program representing the computation with error handling
-   */
-  static <S, E, T> Program<S, E, T> catchAll(Program<S, E, T> program,
-      Function<? super Throwable, ? extends Program<S, E, T>> recover) {
-    return program.catchAll(recover);
-  }
-
-  /** Creates a function that branches the program based on a condition.
-   *
-   * @param condition the condition used to branch the program
-   * @param onTrue the program to be executed if the condition is true
-   * @param otherwise the program to be executed if the condition is false
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the input value
-   * @param <R> the type of the result
-   * @return a function that branches the program based on a condition
-   */
-  static <S, E, T, R> Function<T, Program<S, E, R>> branch(
-      Predicate<? super T> condition, Supplier<? extends Program<S, E, R>> onTrue, Supplier<? extends Program<S, E, R>> otherwise) {
-    return branch(onTrue, otherwise).compose(condition::test);
-  }
-
-  /** Creates a function that branches the program based on a boolean condition.
-   *
-   * @param onTrue the program to be executed if the condition is true
-   * @param otherwise the program to be executed if the condition is false
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a function that branches the program based on a boolean condition
-   */
-  static <S, E, T> Function<Boolean, Program<S, E, T>> branch(
-      Supplier<? extends Program<S, E, T>> onTrue, Supplier<? extends Program<S, E, T>> otherwise) {
-    return result -> {
-      if (result) {
-        return onTrue.get();
-      }
-      return otherwise.get();
-    };
-  }
-
-  /**
-   * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it.
-   *
-   * @param acquire the supplier of the resource to be acquired
-   * @param use the function used to use the acquired resource
-   * @param <S> the type of the state
-   * @param <T> the type of the resource
-   * @param <R> the type of the result
-   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
-   */
-  static <S, T extends AutoCloseable, R> Program<S, Throwable, R> bracket(
-      Supplier<? extends T> acquire, Function<? super T, ? extends Program<S, Throwable, R>> use) {
-    return bracket(
-        attempt(acquire),
-        use,
-        Program::close);
-  }
-
-  /**
-   * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it
-   *
-   * <p>Acquiring and releasing the resource can't be cancelled, and once acquired the resource is
-   * released whether {@code use} succeeds, fails, throws an exception or is cancelled.
-   *
-   * @param acquire the supplier of the resource to be acquired
-   * @param use the function used to use the acquired resource
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the resource
-   * @param <R> the type of the result
-   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
-   */
-  static <S, E, T extends AutoCloseable, R> Program<S, E, R> bracket(
-      Program<S, E, T> acquire,
-      Function<? super T, ? extends Program<S, E, R>> use) {
-    return bracket(acquire, use, Program::close);
-  }
-
-  /**
-   * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it
-   *
-   * <p>Acquiring and releasing the resource can't be cancelled, and once acquired the resource is
-   * released whether {@code use} succeeds, fails, throws an exception or is cancelled.
-   *
-   * @param acquire the supplier of the resource to be acquired
-   * @param use the function used to use the acquired resource
-   * @param release the function used to release the acquired resource
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the resource
-   * @param <R> the type of the result
-   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
-   */
-  static <S, E, T, R> Program<S, E, R> bracket(
-      Program<S, E, T> acquire,
-      Function<? super T, ? extends Program<S, E, R>> use,
-      Function<? super T, ? extends Program<S, E, ?>> release) {
-    // installing the finalizer never observes a cancellation, so there is no gap between
-    // acquiring the resource and guaranteeing its release
-    return pipe(
-        acquire.uncancelable(),
-        // use and release are called inside suspend, after the finalizer is installed: if they
-        // throw while building their programs, the resource is released anyway
-        resource -> Program.<S, E, R>suspend(() -> use.apply(resource))
-            .ensuring(suspend(() -> release.apply(resource).andThen(unit())))
-        );
-  }
-
-  /**
    * The result of a timed program, with the time it took to execute and its result.
    *
    * @param duration the time it took to execute the program
@@ -1564,16 +1412,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         callback.completeExceptionally(error);
       } else {
         callback.complete(adapter.apply(result));
-      }
-    });
-  }
-
-  private static <S, E, T extends AutoCloseable> Program<S, E, Unit> close(T resource) {
-    return task(() -> {
-      try {
-        resource.close();
-      } catch (Exception e) {
-        throw new UndeclaredThrowableException(e);
       }
     });
   }

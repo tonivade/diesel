@@ -4,7 +4,7 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Program.bracket;
+import static com.github.tonivade.diesel.Combine.bracket;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;

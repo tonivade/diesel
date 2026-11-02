@@ -4,14 +4,14 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Combine.attempt;
 import static com.github.tonivade.diesel.Combine.chainAll;
 import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Combine.recover;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.access;
-import static com.github.tonivade.diesel.Program.attempt;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.inspect;
-import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.impl.Console.prompt;
 import static com.github.tonivade.diesel.impl.Console.writeLine;
@@ -20,15 +20,15 @@ import static com.github.tonivade.diesel.impl.Todo.State.COMPLETED;
 import static com.github.tonivade.diesel.impl.Todo.State.NOT_COMPLETED;
 import static java.util.stream.Collectors.joining;
 
+import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Unit;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
-
-import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Unit;
 
 interface Todo {
 

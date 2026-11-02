@@ -4,20 +4,20 @@
  */
 package com.github.tonivade.diesel.impl;
 
+import static com.github.tonivade.diesel.Combine.attempt;
+import static com.github.tonivade.diesel.Combine.branch;
 import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
-import static com.github.tonivade.diesel.Program.attempt;
-import static com.github.tonivade.diesel.Program.branch;
-import static com.github.tonivade.diesel.Program.recover;
+import static com.github.tonivade.diesel.Combine.recover;
 import static com.github.tonivade.diesel.impl.Console.prompt;
 import static com.github.tonivade.diesel.impl.Console.writeLine;
 import static com.github.tonivade.diesel.impl.Random.nextInt;
 import static com.github.tonivade.diesel.impl.Reference.get;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Unit;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 interface Game {
 

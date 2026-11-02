@@ -4,15 +4,15 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.bracket;
+import static com.github.tonivade.diesel.Combine.recover;
 import static com.github.tonivade.diesel.Concurrent.either;
 import static com.github.tonivade.diesel.Concurrent.parAll;
 import static com.github.tonivade.diesel.Concurrent.parAny;
 import static com.github.tonivade.diesel.Concurrent.parSequence;
 import static com.github.tonivade.diesel.Concurrent.parZip;
 import static com.github.tonivade.diesel.Concurrent.race;
-import static com.github.tonivade.diesel.Program.bracket;
 import static com.github.tonivade.diesel.Program.failure;
-import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.task;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -269,9 +269,9 @@ class CancellationTest {
 
   @Test
   void bracketReleasesTheResourceWhenUseThrows() {
-    var program = Program.<Void, String, String, Unit>bracket(
+    var program = Combine.<Void, String, String, Unit>bracket(
         success("resource"),
-        _ -> raise(IllegalStateException::new),
+        _ -> Program.raise(IllegalStateException::new),
         _ -> run(released::incrementAndGet));
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
@@ -715,7 +715,7 @@ class CancellationTest {
   void theMaskIsRestoredWhenThePollFails() throws Exception {
     expected = 1;
     var program = Program.<Void, String, Unit>uncancelable(poll ->
-        Program.recover(poll.apply(Program.<Void, String, Unit>failure("e")), _ -> Program.<Void, String>unit())
+        recover(poll.apply(Program.<Void, String, Unit>failure("e")), _ -> Program.<Void, String>unit())
             .andThen(start())
             .andThen(Program.join(gate))
             .andThen(run(executed::incrementAndGet)));

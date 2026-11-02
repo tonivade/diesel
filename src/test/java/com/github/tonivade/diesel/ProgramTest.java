@@ -4,16 +4,16 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.bracket;
+import static com.github.tonivade.diesel.Combine.recover;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.accessResult;
-import static com.github.tonivade.diesel.Program.bracket;
 import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.interruptibleTask;
 import static com.github.tonivade.diesel.Program.memoize;
 import static com.github.tonivade.diesel.Program.memoizeRecursive;
 import static com.github.tonivade.diesel.Program.raise;
-import static com.github.tonivade.diesel.Program.recover;
 import static com.github.tonivade.diesel.Program.recursive;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;

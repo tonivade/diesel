@@ -208,7 +208,7 @@ public sealed interface Source<S, E, T> extends Kind<Source<S, E, ?>, T> {
    *
    * <p>The stream is never closed by the source. A stream that holds a resource, like the file of
    * {@code Files.lines}, must be closed by the caller, for example by acquiring it with
-   * {@link Program#bracket} around the program that traverses the source.
+   * {@link Combine#bracket} around the program that traverses the source.
    *
    * @param stream the supplier of the stream of elements
    * @param <S> the state type

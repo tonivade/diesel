@@ -17,10 +17,13 @@ import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 
+import java.lang.reflect.UndeclaredThrowableException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Sequential combinators to compose {@link Program}s.
@@ -70,7 +73,7 @@ public final class Combine {
   public static <S, E, T0, T1, T2> Program<S, E, T2> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-          Function<? super T1, ? extends Program<S, E, T2>> p2) {
+      Function<? super T1, ? extends Program<S, E, T2>> p2) {
     return p0.flatMap(p1).flatMap(p2);
   }
 
@@ -96,8 +99,8 @@ public final class Combine {
   public static <S, E, T0, T1, T2, T3> Program<S, E, T3> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-          Function<? super T1, ? extends Program<S, E, T2>> p2,
-              Function<? super T2, ? extends Program<S, E, T3>> p3) {
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3);
   }
 
@@ -125,9 +128,9 @@ public final class Combine {
   public static <S, E, T0, T1, T2, T3, T4> Program<S, E, T4> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-          Function<? super T1, ? extends Program<S, E, T2>> p2,
-              Function<? super T2, ? extends Program<S, E, T3>> p3,
-                  Function<? super T3, ? extends Program<S, E, T4>> p4) {
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3,
+      Function<? super T3, ? extends Program<S, E, T4>> p4) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4);
   }
 
@@ -157,10 +160,10 @@ public final class Combine {
   public static <S, E, T0, T1, T2, T3, T4, T5> Program<S, E, T5> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-          Function<? super T1, ? extends Program<S, E, T2>> p2,
-              Function<? super T2, ? extends Program<S, E, T3>> p3,
-                  Function<? super T3, ? extends Program<S, E, T4>> p4,
-                      Function<? super T4, ? extends Program<S, E, T5>> p5) {
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3,
+      Function<? super T3, ? extends Program<S, E, T4>> p4,
+      Function<? super T4, ? extends Program<S, E, T5>> p5) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5);
   }
 
@@ -192,11 +195,11 @@ public final class Combine {
   public static <S, E, T0, T1, T2, T3, T4, T5, T6> Program<S, E, T6> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-          Function<? super T1, ? extends Program<S, E, T2>> p2,
-              Function<? super T2, ? extends Program<S, E, T3>> p3,
-                  Function<? super T3, ? extends Program<S, E, T4>> p4,
-                      Function<? super T4, ? extends Program<S, E, T5>> p5,
-                          Function<? super T5, ? extends Program<S, E, T6>> p6) {
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3,
+      Function<? super T3, ? extends Program<S, E, T4>> p4,
+      Function<? super T4, ? extends Program<S, E, T5>> p5,
+      Function<? super T5, ? extends Program<S, E, T6>> p6) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6);
   }
 
@@ -230,12 +233,12 @@ public final class Combine {
   public static <S, E, T0, T1, T2, T3, T4, T5, T6, T7> Program<S, E, T7> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-          Function<? super T1, ? extends Program<S, E, T2>> p2,
-              Function<? super T2, ? extends Program<S, E, T3>> p3,
-                  Function<? super T3, ? extends Program<S, E, T4>> p4,
-                      Function<? super T4, ? extends Program<S, E, T5>> p5,
-                          Function<? super T5, ? extends Program<S, E, T6>> p6,
-                              Function<? super T6, ? extends Program<S, E, T7>> p7) {
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3,
+      Function<? super T3, ? extends Program<S, E, T4>> p4,
+      Function<? super T4, ? extends Program<S, E, T5>> p5,
+      Function<? super T5, ? extends Program<S, E, T6>> p6,
+      Function<? super T6, ? extends Program<S, E, T7>> p7) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7);
   }
 
@@ -271,13 +274,13 @@ public final class Combine {
   public static <S, E, T0, T1, T2, T3, T4, T5, T6, T7, T8> Program<S, E, T8> pipe(
       Program<S, E, T0> p0,
       Function<? super T0, ? extends Program<S, E, T1>> p1,
-          Function<? super T1, ? extends Program<S, E, T2>> p2,
-              Function<? super T2, ? extends Program<S, E, T3>> p3,
-                  Function<? super T3, ? extends Program<S, E, T4>> p4,
-                      Function<? super T4, ? extends Program<S, E, T5>> p5,
-                          Function<? super T5, ? extends Program<S, E, T6>> p6,
-                              Function<? super T6, ? extends Program<S, E, T7>> p7,
-                                  Function<? super T7, ? extends Program<S, E, T8>> p8) {
+      Function<? super T1, ? extends Program<S, E, T2>> p2,
+      Function<? super T2, ? extends Program<S, E, T3>> p3,
+      Function<? super T3, ? extends Program<S, E, T4>> p4,
+      Function<? super T4, ? extends Program<S, E, T5>> p5,
+      Function<? super T5, ? extends Program<S, E, T6>> p6,
+      Function<? super T6, ? extends Program<S, E, T7>> p7,
+      Function<? super T7, ? extends Program<S, E, T8>> p8) {
     return p0.flatMap(p1).flatMap(p2).flatMap(p3).flatMap(p4).flatMap(p5).flatMap(p6).flatMap(p7).flatMap(p8);
   }
 
@@ -553,9 +556,7 @@ public final class Combine {
       Program<S, E, T0> p0,
       Program<S, E, T1> p1,
       Finisher2<T0, T1, R> finisher) {
-    return p0.flatMap(_0 ->
-    p1.map(_1 -> finisher.apply(_0, _1))
-        );
+    return p0.flatMap(_0 -> p1.map(_1 -> finisher.apply(_0, _1)));
   }
 
   /**
@@ -581,10 +582,7 @@ public final class Combine {
       Program<S, E, T1> p1,
       Program<S, E, T2> p2,
       Finisher3<T0, T1, T2, R> finisher) {
-    return p0.flatMap(_0 ->
-    p1.flatMap(_1 ->
-    p2.map(_2 -> finisher.apply(_0, _1, _2))
-        ));
+    return p0.flatMap(_0 -> p1.flatMap(_1 -> p2.map(_2 -> finisher.apply(_0, _1, _2))));
   }
 
   /**
@@ -613,11 +611,7 @@ public final class Combine {
       Program<S, E, T2> p2,
       Program<S, E, T3> p3,
       Finisher4<T0, T1, T2, T3, R> finisher) {
-    return p0.flatMap(_0 ->
-    p1.flatMap(_1 ->
-    p2.flatMap(_2 ->
-    p3.map(_3 -> finisher.apply(_0, _1, _2, _3))
-        )));
+    return p0.flatMap(_0 -> p1.flatMap(_1 -> p2.flatMap(_2 -> p3.map(_3 -> finisher.apply(_0, _1, _2, _3)))));
   }
 
   /**
@@ -649,12 +643,8 @@ public final class Combine {
       Program<S, E, T3> p3,
       Program<S, E, T4> p4,
       Finisher5<T0, T1, T2, T3, T4, R> finisher) {
-    return p0.flatMap(_0 ->
-    p1.flatMap(_1 ->
-    p2.flatMap(_2 ->
-    p3.flatMap(_3 ->
-    p4.map(_4 -> finisher.apply(_0, _1, _2, _3, _4))
-        ))));
+    return p0.flatMap(
+        _0 -> p1.flatMap(_1 -> p2.flatMap(_2 -> p3.flatMap(_3 -> p4.map(_4 -> finisher.apply(_0, _1, _2, _3, _4))))));
   }
 
   /**
@@ -689,13 +679,8 @@ public final class Combine {
       Program<S, E, T4> p4,
       Program<S, E, T5> p5,
       Finisher6<T0, T1, T2, T3, T4, T5, R> finisher) {
-    return p0.flatMap(_0 ->
-    p1.flatMap(_1 ->
-    p2.flatMap(_2 ->
-    p3.flatMap(_3 ->
-    p4.flatMap(_4 ->
-    p5.map(_5 -> finisher.apply(_0, _1, _2, _3, _4, _5))
-        )))));
+    return p0.flatMap(_0 -> p1.flatMap(_1 -> p2
+        .flatMap(_2 -> p3.flatMap(_3 -> p4.flatMap(_4 -> p5.map(_5 -> finisher.apply(_0, _1, _2, _3, _4, _5)))))));
   }
 
   /**
@@ -733,14 +718,8 @@ public final class Combine {
       Program<S, E, T5> p5,
       Program<S, E, T6> p6,
       Finisher7<T0, T1, T2, T3, T4, T5, T6, R> finisher) {
-    return p0.flatMap(_0 ->
-    p1.flatMap(_1 ->
-    p2.flatMap(_2 ->
-    p3.flatMap(_3 ->
-    p4.flatMap(_4 ->
-    p5.flatMap(_5 ->
-    p6.map(_6 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6))
-        ))))));
+    return p0.flatMap(_0 -> p1.flatMap(_1 -> p2.flatMap(_2 -> p3
+        .flatMap(_3 -> p4.flatMap(_4 -> p5.flatMap(_5 -> p6.map(_6 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6))))))));
   }
 
   /**
@@ -781,15 +760,8 @@ public final class Combine {
       Program<S, E, T6> p6,
       Program<S, E, T7> p7,
       Finisher8<T0, T1, T2, T3, T4, T5, T6, T7, R> finisher) {
-    return p0.flatMap(_0 ->
-    p1.flatMap(_1 ->
-    p2.flatMap(_2 ->
-    p3.flatMap(_3 ->
-    p4.flatMap(_4 ->
-    p5.flatMap(_5 ->
-    p6.flatMap(_6 ->
-    p7.map(_7 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7))
-        )))))));
+    return p0.flatMap(_0 -> p1.flatMap(_1 -> p2.flatMap(_2 -> p3.flatMap(_3 -> p4.flatMap(
+        _4 -> p5.flatMap(_5 -> p6.flatMap(_6 -> p7.map(_7 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7)))))))));
   }
 
   /**
@@ -833,16 +805,8 @@ public final class Combine {
       Program<S, E, T7> p7,
       Program<S, E, T8> p8,
       Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher) {
-    return p0.flatMap(_0 ->
-    p1.flatMap(_1 ->
-    p2.flatMap(_2 ->
-    p3.flatMap(_3 ->
-    p4.flatMap(_4 ->
-    p5.flatMap(_5 ->
-    p6.flatMap(_6 ->
-    p7.flatMap(_7 ->
-    p8.map(_8 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7, _8))
-        ))))))));
+    return p0.flatMap(_0 -> p1.flatMap(_1 -> p2.flatMap(_2 -> p3.flatMap(_3 -> p4.flatMap(_4 -> p5.flatMap(_5 -> p6
+        .flatMap(_6 -> p7.flatMap(_7 -> p8.map(_8 -> finisher.apply(_0, _1, _2, _3, _4, _5, _6, _7, _8))))))))));
   }
 
   /**
@@ -929,6 +893,156 @@ public final class Combine {
     return acc;
   }
 
+  /**
+   * Catches all errors during the execution of the program and recovers using the provided function.
+   *
+   * @param program the program to be executed
+   * @param recover the function used to recover from errors
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <F> the type of the new error
+   * @param <T> the type of the result
+   * @return a new program representing the computation with error handling
+   */
+  public static <S, E, F, T> Program<S, F, T> recover(Program<S, E, T> program,
+      Function<? super E, ? extends Program<S, F, T>> recover) {
+    return program.flatMapError(recover);
+  }
+
+  /**
+   * Creates a new program that represents a computation that attempts to execute the given supplier and maps any
+   * exceptions to errors using the provided function.
+   *
+   * @param supplier the supplier of the value
+   * @param mapError the function used to map exceptions to errors
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing a computation that attempts to execute the supplier and maps exceptions to errors
+   */
+  public static <S, E, T> Program<S, E, T> attempt(
+      Supplier<? extends T> supplier, Function<? super Throwable, ? extends E> mapError) {
+    return recover(Program.attempt(supplier), mapError.andThen(Program::failure));
+  }
+
+  /**
+   * Catches all errors during the execution of the program and recovers using the provided function.
+   *
+   * @param program the program to be executed
+   * @param recover the function used to recover from errors
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the computation with error handling
+   */
+  public static <S, E, T> Program<S, E, T> catchAll(Program<S, E, T> program,
+      Function<? super Throwable, ? extends Program<S, E, T>> recover) {
+    return program.catchAll(recover);
+  }
+
+  /** Creates a function that branches the program based on a condition.
+   *
+   * @param condition the condition used to branch the program
+   * @param onTrue the program to be executed if the condition is true
+   * @param otherwise the program to be executed if the condition is false
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input value
+   * @param <R> the type of the result
+   * @return a function that branches the program based on a condition
+   */
+  public static <S, E, T, R> Function<T, Program<S, E, R>> branch(
+      Predicate<? super T> condition, Supplier<? extends Program<S, E, R>> onTrue, Supplier<? extends Program<S, E, R>> otherwise) {
+    return branch(onTrue, otherwise).compose(condition::test);
+  }
+
+  /** Creates a function that branches the program based on a boolean condition.
+   *
+   * @param onTrue the program to be executed if the condition is true
+   * @param otherwise the program to be executed if the condition is false
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a function that branches the program based on a boolean condition
+   */
+  public static <S, E, T> Function<Boolean, Program<S, E, T>> branch(
+      Supplier<? extends Program<S, E, T>> onTrue, Supplier<? extends Program<S, E, T>> otherwise) {
+    return result -> {
+      if (result) {
+        return onTrue.get();
+      }
+      return otherwise.get();
+    };
+  }
+
+  /**
+   * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it.
+   *
+   * @param acquire the supplier of the resource to be acquired
+   * @param use the function used to use the acquired resource
+   * @param <S> the type of the state
+   * @param <T> the type of the resource
+   * @param <R> the type of the result
+   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
+   */
+  public static <S, T extends AutoCloseable, R> Program<S, Throwable, R> bracket(
+      Supplier<? extends T> acquire, Function<? super T, ? extends Program<S, Throwable, R>> use) {
+    return bracket(
+        Program.attempt(acquire),
+        use,
+        Combine::close);
+  }
+
+  /**
+   * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it
+   *
+   * <p>Acquiring and releasing the resource can't be cancelled, and once acquired the resource is
+   * released whether {@code use} succeeds, fails, throws an exception or is cancelled.
+   *
+   * @param acquire the supplier of the resource to be acquired
+   * @param use the function used to use the acquired resource
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the resource
+   * @param <R> the type of the result
+   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
+   */
+  public static <S, E, T extends AutoCloseable, R> Program<S, E, R> bracket(
+      Program<S, E, T> acquire,
+      Function<? super T, ? extends Program<S, E, R>> use) {
+    return bracket(acquire, use, Combine::close);
+  }
+
+  /**
+   * Creates a new program that represents a computation that acquires a resource, uses it, and then releases it
+   *
+   * <p>Acquiring and releasing the resource can't be cancelled, and once acquired the resource is
+   * released whether {@code use} succeeds, fails, throws an exception or is cancelled.
+   *
+   * @param acquire the supplier of the resource to be acquired
+   * @param use the function used to use the acquired resource
+   * @param release the function used to release the acquired resource
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the resource
+   * @param <R> the type of the result
+   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
+   */
+  public static <S, E, T, R> Program<S, E, R> bracket(
+      Program<S, E, T> acquire,
+      Function<? super T, ? extends Program<S, E, R>> use,
+      Function<? super T, ? extends Program<S, E, ?>> release) {
+    // installing the finalizer never observes a cancellation, so there is no gap between
+    // acquiring the resource and guaranteeing its release
+    return pipe(
+        acquire.uncancelable(),
+        // use and release are called inside suspend, after the finalizer is installed: if they
+        // throw while building their programs, the resource is released anyway
+        resource -> Program.<S, E, R>suspend(() -> use.apply(resource))
+            .ensuring(Program.suspend(() -> release.apply(resource).andThen(unit())))
+        );
+  }
+
   private static <S, E, R> Program<S, E, Collection<R>> append(Program<S, E, Collection<R>> acc, Program<S, E, R> value) {
     return zip(acc, value, Combine::append);
   }
@@ -936,5 +1050,15 @@ public final class Combine {
   private static <T> Collection<T> append(Collection<T> list, T value) {
     list.add(value);
     return list;
+  }
+
+  private static <S, E, T extends AutoCloseable> Program<S, E, Unit> close(T resource) {
+    return Program.task(() -> {
+      try {
+        resource.close();
+      } catch (Exception e) {
+        throw new UndeclaredThrowableException(e);
+      }
+    });
   }
 }
