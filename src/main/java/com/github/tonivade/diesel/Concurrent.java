@@ -21,13 +21,18 @@ import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -1175,6 +1180,55 @@ public final class Concurrent {
       Program<S, E, T8> p8,
       Finisher9<T0, T1, T2, T3, T4, T5, T6, T7, T8, R> finisher) {
     return parZip(p0, p1, p2, p3, p4, p5, p6, p7, p8, finisher, DEFAULT_EXECUTOR);
+  }
+
+  static <S, E, T> Program<S, E, T> timeout(
+      Program<S, E, T> program, Duration duration, Executor executor) {
+    // the timer is forked first, like in race: with a single thread executor it expires before
+    // the program starts, which then is cancelled before it runs
+    return zip(
+        Program.<S, E>sleep(duration).fork(executor),
+        program.fork(executor),
+        Concurrent::<E, T>timeoutFuture)
+        .flatMap(Program::join);
+  }
+
+  private static <E, T> CompletableFuture<Result<E, T>> timeoutFuture(
+      CompletableFuture<Result<E, Unit>> timer, CompletableFuture<Result<E, T>> work) {
+    var timedOut = new AtomicBoolean();
+    var result = new CompletableFuture<Result<E, T>>();
+
+    var _ = timer.whenComplete((_, error) -> {
+      if (error == null) {
+        // the timer expired: it only asks the program to stop, the program decides the result
+        timedOut.set(true);
+        work.cancel(true);
+      } else if (!isCancellation(error)) {
+        // the timer itself failed, like a rejected executor: don't leave the program unbounded
+        result.completeExceptionally(error);
+        work.cancel(true);
+      }
+    });
+
+    var _ = work.whenComplete((value, error) -> {
+      if (error == null) {
+        // even if the timer expired: a value that was already produced must not be lost
+        result.complete(value);
+      } else if (timedOut.get() && isCancellation(error)) {
+        result.completeExceptionally(new TimeoutException());
+      } else {
+        result.completeExceptionally(error);
+      }
+      // the program is done, so the timer isn't needed anymore
+      timer.cancel(true);
+    });
+
+    return afterAll(List.of(timer, work), result);
+  }
+
+  private static boolean isCancellation(Throwable error) {
+    return error instanceof CancellationException
+        || (error instanceof CompletionException && error.getCause() instanceof CancellationException);
   }
 
   private static <S, E, T> Collection<Program<S, E, CompletableFuture<Result<E, T>>>> forkAll(

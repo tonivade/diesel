@@ -245,6 +245,16 @@ class ProgramTest {
   }
 
   @Test
+  void timeoutReturnsTheResultOfAProgramThatFinishesWhileBeingCancelled() {
+    var program = Program.<Void, Void, String>delayed(Duration.ofMillis(300), () -> "done")
+        .uncancelable()
+        .timeout(Duration.ofMillis(50));
+
+    // the cancellation arrives while it runs and has no step left to stop it: its result is not lost
+    assertThat(program.evalOrElseThrow()).isEqualTo("done");
+  }
+
+  @Test
   void shouldNotTimeout() {
     var p1 = delayed(Duration.ofSeconds(2), () -> 10);
     var p2 = p1.timeout(Duration.ofSeconds(10));

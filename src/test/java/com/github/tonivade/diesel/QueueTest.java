@@ -9,11 +9,9 @@ import static com.github.tonivade.diesel.Combine.sequence;
 import static com.github.tonivade.diesel.Concurrent.parAll;
 import static com.github.tonivade.diesel.Concurrent.parSequence;
 import static com.github.tonivade.diesel.Concurrent.parZip;
-import static com.github.tonivade.diesel.Program.catchAll;
 import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.join;
 import static com.github.tonivade.diesel.Program.raise;
-import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
@@ -28,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -701,9 +698,9 @@ class QueueTest {
 
     var program = parAll(
         pipe(produce(queue, expected), _ -> queue.close()),
-        consumeCancelling(queue, sink),
-        consumeCancelling(queue, sink),
-        consumeCancelling(queue, sink));
+        consumeWithTimeouts(queue, sink),
+        consumeWithTimeouts(queue, sink),
+        consumeWithTimeouts(queue, sink));
 
     program.evalOrElseThrow();
 
@@ -845,11 +842,11 @@ class QueueTest {
         }));
   }
 
-  /** Like consume, but each wait is cancelled after a short pause, to race with the offers. */
-  private static Program<Void, Void, Unit> consumeCancelling(
+  /** Like consume, but each wait is bounded by a short timeout, to race with the offers. */
+  private static Program<Void, Void, Unit> consumeWithTimeouts(
       Queue<Void, Void, Integer> queue, Collection<Integer> sink) {
     return suspend(() -> pipe(
-        takeAndCancel(queue),
+        takeWithTimeout(queue),
         value -> {
           if (value.isEmpty()) {
             return unit();
@@ -860,27 +857,20 @@ class QueueTest {
                   sink.add(value.get());
                 }
               }),
-              _ -> suspend(() -> consumeCancelling(queue, sink)));
+              _ -> suspend(() -> consumeWithTimeouts(queue, sink)));
         }));
   }
 
   /**
-   * Starts a take, cancels it after a short pause and joins its result instead of discarding it:
-   * a take that finished before seeing the cancellation has already removed its value from the
-   * queue, so the value must be counted. Returns -1 if the take was cancelled, which is never a
-   * produced value, and empty if the queue is closed and drained.
+   * A take bounded by a timeout. Returns -1 if the timeout expired, which is never a produced
+   * value, and empty if the queue is closed and drained.
    */
-  private static Program<Void, Void, Optional<Integer>> takeAndCancel(Queue<Void, Void, Integer> queue) {
-    return pipe(
-        queue.takeOrClosed().fork(),
-        future -> pipe(
-            sleep(Duration.ofNanos(100)),
-            _ -> task(() -> future.cancel(true)),
-            _ -> catchAll(
-                join(future),
-                e -> e instanceof CancellationException
-                    ? success(Optional.of(-1))
-                    : raise(() -> e))));
+  private static Program<Void, Void, Optional<Integer>> takeWithTimeout(Queue<Void, Void, Integer> queue) {
+    return queue.takeOrClosed()
+        .timeout(Duration.ofMillis(1))
+        .catchAll(e -> e instanceof TimeoutException
+            ? success(Optional.of(-1))
+            : raise(() -> e));
   }
 
   /** Drains a closed queue. It would wait forever on an open one. */
