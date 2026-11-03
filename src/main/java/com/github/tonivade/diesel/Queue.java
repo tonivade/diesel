@@ -123,7 +123,8 @@ public final class Queue<S, E, A> {
    * so its value is discarded and will not be delivered to any take.
    *
    * <p>The wait can be cancelled, like by a {@code timeout} or a {@code race}, and a cancelled offer
-   * is removed from the queue without adding its value.
+   * is removed from the queue without adding its value. If a take had already made room for it, the
+   * value is in the queue, so the offer completes normally instead of being cancelled.
    *
    * @param <S1> the type of the state
    * @param <E1> the type of the error
@@ -143,7 +144,10 @@ public final class Queue<S, E, A> {
               }
               if (result instanceof Blocked) {
                 return pipe(
-                    poll.apply(done.<S1, E1>get().onCancel(removeOfferer(done))),
+                    poll.apply(done.<S1, E1>get())
+                        .catchAll(error -> error instanceof CancelToken.Cancelled
+                            ? cancelOffer(done, error)
+                            : raise(() -> error)),
                     accepted -> accepted ? unit() : closedError());
               }
               return unit();
@@ -366,10 +370,16 @@ public final class Queue<S, E, A> {
             : success(result));
   }
 
-  private <S1 extends S, E1 extends E> Program<S1, E1, Unit> removeOfferer(Deferred<S, E, Boolean> done) {
+  // the cancellation reaches here inside the uncancelable region, so it can be handled: if the
+  // offer is still waiting it's removed and the cancellation goes on, but if a take or a close got
+  // it first, the offer was already decided and it waits for that outcome instead of losing it
+  private <S1 extends S, E1 extends E> Program<S1, E1, Boolean> cancelOffer(
+      Deferred<S, E, Boolean> done, Throwable cancellation) {
     return pipe(
         state.modify(s -> s.removeOfferer(done)),
-        _ -> unit());
+        branch(
+            () -> raise(() -> cancellation),
+            done::get));
   }
 
   // visible for testing

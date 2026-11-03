@@ -6,6 +6,7 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.sequence;
+import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Concurrent.parAll;
 import static com.github.tonivade.diesel.Concurrent.parSequence;
 import static com.github.tonivade.diesel.Concurrent.parZip;
@@ -791,6 +792,35 @@ class QueueTest {
     assertThat(queue.size().evalOrElseThrow()).isZero();
   }
 
+  @RepeatedTest(20)
+  @Timeout(value = 30, unit = TimeUnit.SECONDS)
+  void aTimedOutOfferIsNeverDelivered() {
+    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var timedOut = new ConcurrentLinkedQueue<Integer>();
+    var consumed = new ConcurrentLinkedQueue<Integer>();
+
+    // short timeouts so some offers are cancelled just when a take makes room for them
+    Program<Void, Void, Unit> producer = IntStream.range(0, 3_000).boxed()
+        .map(i -> queue.<Void, Void>offer(i)
+            .timeout(Duration.ofNanos(20_000))
+            .catchAll(error -> {
+              if (error instanceof TimeoutException) {
+                timedOut.add(i);
+                return unit();
+              }
+              return raise(() -> error);
+            }))
+        .reduce(unit(), Program::andThen);
+
+    parAll(
+        pipe(producer, _ -> queue.close()),
+        consume(queue, consumed),
+        consume(queue, consumed)).evalOrElseThrow();
+
+    // an offer that failed with a timeout must not have added its value
+    assertThat(consumed).filteredOn(timedOut::contains).isEmpty();
+  }
+
   // ---------------------------------------------------------------------------------------------
   // helpers
   // ---------------------------------------------------------------------------------------------
@@ -812,13 +842,13 @@ class QueueTest {
   }
 
   private static Program<Void, Void, Unit> produce(Queue<Void, Void, Integer> queue, List<Integer> values) {
-    return Combine.traverse(queue::offer, values).discard();
+    return traverse(queue::offer, values).discard();
   }
 
   /** Offers the values in order until the queue is closed, saving the ones that were accepted. */
   private static Program<Void, Void, Unit> produceUntilClosed(
       Queue<Void, Void, Integer> queue, List<Integer> values, Collection<Integer> accepted) {
-    return Combine.traverse(
+    return traverse(
             value -> queue.offer(value)
                 .andThen(task(() -> accepted.add(value))),
             values)
