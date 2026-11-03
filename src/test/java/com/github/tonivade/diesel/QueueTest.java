@@ -57,6 +57,8 @@ class QueueTest {
         .andThen(sequence(queue.take(), queue.take(), queue.take()));
 
     assertThat(program.evalOrElseThrow()).containsExactly(1, 2, 3);
+    assertThat(queue.isEmpty().evalOrElseThrow()).isTrue();
+    assertThat(queue.isFull().evalOrElseThrow()).isFalse();
   }
 
   @Test
@@ -82,6 +84,8 @@ class QueueTest {
 
     assertThat(program.evalOrElseThrow()).isEqualTo(1);
     assertThat(queue.size().evalOrElseThrow()).isEqualTo(1);
+    assertThat(queue.isEmpty().evalOrElseThrow()).isFalse();
+    assertThat(queue.isFull().evalOrElseThrow()).isTrue();
   }
 
   @Test
@@ -166,6 +170,9 @@ class QueueTest {
 
     queue.take().evalOrElseThrow();
     assertThat(queue.size().evalOrElseThrow()).isEqualTo(1);
+    assertThat(queue.isEmpty().evalOrElseThrow()).isFalse();
+    assertThat(queue.isFull().evalOrElseThrow()).isFalse();
+    assertThat(queue.capacity().evalOrElseThrow()).isEqualTo(Integer.MAX_VALUE);
   }
 
   @Test
@@ -177,6 +184,9 @@ class QueueTest {
         .andThen(queue.size());
 
     assertThat(program.evalOrElseThrow()).isEqualTo(1);
+    assertThat(queue.isEmpty().evalOrElseThrow()).isFalse();
+    assertThat(queue.isFull().evalOrElseThrow()).isTrue();
+    assertThat(queue.capacity().evalOrElseThrow()).isEqualTo(1);
   }
 
   @Test
@@ -456,6 +466,8 @@ class QueueTest {
     queue.offer(1).andThen(queue.close()).andThen(queue.take()).evalOrElseThrow();
 
     assertThat(queue.size().evalOrElseThrow()).isZero();
+    assertThat(queue.isEmpty().evalOrElseThrow()).isTrue();
+    assertThat(queue.isFull().evalOrElseThrow()).isFalse();
   }
 
   @Test
