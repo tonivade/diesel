@@ -55,9 +55,11 @@ import org.pcollections.TreePVector;
  */
 public final class Queue<S, E, A> {
 
+  private final int capacity;
   private final Ref<S, E, State<S, E, A>> state;
 
   private Queue(int capacity) {
+    this.capacity = capacity;
     this.state = Ref.of(State.create(capacity));
   }
 
@@ -301,12 +303,10 @@ public final class Queue<S, E, A> {
    *
    * @param <S1> the type of the state
    * @param <E1> the type of the error
-   * @return a program that yields the queue capacity
+   * @return the queue capacity
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Integer> capacity() {
-    return chain(
-        state.get(),
-        State::capacity);
+  public int capacity() {
+    return capacity;
   }
 
   /**
@@ -383,7 +383,7 @@ public final class Queue<S, E, A> {
 
   @Override
   public String toString() {
-    return "Queue[capacity=%s]".formatted(capacity().evalOrElseThrow());
+    return "Queue[capacity=%s]".formatted(capacity);
   }
 
   private static <S, E, T> Program<S, E, T> closedError() {

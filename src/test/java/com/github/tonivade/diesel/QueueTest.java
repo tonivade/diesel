@@ -172,7 +172,7 @@ class QueueTest {
     assertThat(queue.size().evalOrElseThrow()).isEqualTo(1);
     assertThat(queue.isEmpty().evalOrElseThrow()).isFalse();
     assertThat(queue.isFull().evalOrElseThrow()).isFalse();
-    assertThat(queue.capacity().evalOrElseThrow()).isEqualTo(Integer.MAX_VALUE);
+    assertThat(queue.capacity()).isEqualTo(Integer.MAX_VALUE);
   }
 
   @Test
@@ -186,7 +186,7 @@ class QueueTest {
     assertThat(program.evalOrElseThrow()).isEqualTo(1);
     assertThat(queue.isEmpty().evalOrElseThrow()).isFalse();
     assertThat(queue.isFull().evalOrElseThrow()).isTrue();
-    assertThat(queue.capacity().evalOrElseThrow()).isEqualTo(1);
+    assertThat(queue.capacity()).isEqualTo(1);
   }
 
   @Test
