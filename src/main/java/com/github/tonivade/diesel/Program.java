@@ -6,7 +6,6 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
-import static com.github.tonivade.diesel.Concurrent.race;
 import static com.github.tonivade.diesel.Fatal.sneakyThrow;
 import static java.util.function.Function.identity;
 
@@ -643,7 +642,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *   <li>A {@code poll} used outside of the region it comes from, or in a program that isn't in
    *   any uncancelable region, does nothing.</li>
    *   <li>As with {@link #uncancelable()}, the concurrent combinators, like {@code parZip} or
-   *   {@link #timeout(Duration)}, wait for the closed part to finish before they complete.</li>
+   *   {@link #timeout(Duration)}, wait for the closed part to finish before they complete. If the
+   *   body finishes successfully, {@code timeout} returns its result even when it expired
+   *   meanwhile.</li>
    * </ul>
    *
    * @param body the function that receives the {@link Poll} and returns the program to run
@@ -1121,6 +1122,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
    * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
    *
+   * <p>The cancellation is a request: if the program finishes successfully before it observes it,
+   * its result is returned instead of the timeout, so a value that the program has already
+   * consumed, like an element taken from a {@link Queue}, is not lost.
+   *
    * @param duration the duration of the timeout
    * @return a new program representing the computation with timeout
    */
@@ -1134,28 +1139,39 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
    * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
    *
+   * <p>The cancellation is a request: if the program finishes successfully before it observes it,
+   * its result is returned instead of the timeout, so a value that the program has already
+   * consumed, like an element taken from a {@link Queue}, is not lost.
+   *
    * @param duration the duration of the timeout
    * @param executor the executor used to run the program and its timeout in parallel
    * @return a new program representing the computation with timeout
    */
   default Program<S, E, T> timeout(Duration duration, Executor executor) {
-    return race(sleep(duration), this, executor)
-        .flatMap(either -> either.fold(_ -> raise(TimeoutException::new), Program::success));
+    return Concurrent.timeout(this, duration, executor);
   }
 
   /**
    * Makes the program uncancelable: it always runs to completion.
    *
    * <p>A cancellation requested while the program runs is not ignored, it is deferred: it takes
-   * effect at the first step after the program finishes. Use it for steps that must not be
-   * interrupted half-way, like committing a transaction.
+   * effect at the first step after the program finishes. If there is no step left, because the
+   * program is the whole forked computation, it completes normally with its own result. Use it for
+   * steps that must not be interrupted half-way, like committing a transaction.
    *
    * <p>Keep in mind that:
    * <ul>
    *   <li>The concurrent combinators, like {@code parZip}, {@code either}, {@code race} or
    *   {@link #timeout(Duration)}, complete only once their cancelled programs have stopped, so they
-   *   wait for an uncancelable program to finish. For example, {@code commit.uncancelable().timeout(d)}
-   *   fails with a timeout, but only once the commit is done.</li>
+   *   wait for an uncancelable program to finish.</li>
+   *   <li>{@link #timeout(Duration)} returns the result of an uncancelable program that finishes
+   *   successfully, even if the timeout expired meanwhile: the work was done, so it is not reported
+   *   as a failure. For example, {@code commit.uncancelable().timeout(d)} returns the result of the
+   *   commit, only once it is done, however long it takes. It fails with a {@link TimeoutException}
+   *   only if the program ends cancelled.</li>
+   *   <li>{@code race}, {@code either} and {@code parAny} discard the result of the program that
+   *   loses, even if it was uncancelable and completed successfully: its effects happened, but
+   *   its value is lost.</li>
    *   <li>The programs forked while it runs can't be cancelled either, and a cancelled program doesn't
    *   wait for them.</li>
    * </ul>

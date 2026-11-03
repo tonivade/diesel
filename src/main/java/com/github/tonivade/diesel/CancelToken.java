@@ -4,6 +4,7 @@
  */
 package com.github.tonivade.diesel;
 
+import java.io.Serial;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -132,6 +133,7 @@ final class CancelToken {
    */
   static final class Cancelled extends CancellationException {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     Cancelled() {
