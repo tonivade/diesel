@@ -8,7 +8,6 @@ import static com.github.tonivade.diesel.Combine.branch;
 import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
-import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
@@ -298,13 +297,13 @@ public final class Queue<S, E, A> {
   }
 
   /**
-   * Capacity of the queue. In case of unbounded it return {@link Integer#MAX_VALUE}
+   * Capacity of the queue. In case of unbounded it returns {@link Integer#MAX_VALUE}
    *
    * @param <S1> the type of the state
    * @param <E1> the type of the error
    * @return a program that yields the queue capacity
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Integer>  capacity() {
+  public <S1 extends S, E1 extends E> Program<S1, E1, Integer> capacity() {
     return chain(
         state.get(),
         State::capacity);
@@ -365,17 +364,21 @@ public final class Queue<S, E, A> {
   }
 
   /**
-   * Whether the queue is full or not.
+   * Whether the queue is full or not. In case of unbounded it will return always {@code false}.
+   *
+   * <p>A queue can be over capacity after a value is put back when a consumer is cancelled after
+   * taking an element from the queue.
+   *
+   * <p>The result of this method is a snapshot that may already be stale. Don't use {@code isFull}
+   * to decide weather to call {@link #offer(Object)} use {@link #tryOffer(Object)} for that,
+   * since it checks and adds in one step.
    *
    * @param <S1> the type of the state
    * @param <E1> the type of the error
    * @return a program that yields {@code true} if the queue is full
    */
   public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> isFull() {
-    return zip(
-        size(),
-        capacity(),
-        (s, c) -> s == c);
+    return chain(state.get(), s -> s.size() >= s.capacity());
   }
 
   private static <S, E, T> Program<S, E, T> closedError() {
