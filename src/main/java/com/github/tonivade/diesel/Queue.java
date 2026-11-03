@@ -8,6 +8,7 @@ import static com.github.tonivade.diesel.Combine.branch;
 import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
+import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
@@ -297,6 +298,19 @@ public final class Queue<S, E, A> {
   }
 
   /**
+   * Capacity of the queue. In case of unbounded it return {@link Integer#MAX_VALUE}
+   *
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @return a program that yields the queue capacity
+   */
+  public <S1 extends S, E1 extends E> Program<S1, E1, Integer>  capacity() {
+    return chain(
+        state.get(),
+        State::capacity);
+  }
+
+  /**
    * Closes the queue: it doesn't accept more elements, but the ones it already has can still be
    * taken.
    *
@@ -337,6 +351,31 @@ public final class Queue<S, E, A> {
    */
   public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> isClosed() {
     return chain(state.get(), State::closed);
+  }
+
+  /**
+   * Whether the queue is empty or not.
+   *
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @return a program that yields {@code true} if the queue is empty
+   */
+  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> isEmpty() {
+    return chain(size(), s -> s == 0);
+  }
+
+  /**
+   * Whether the queue is full or not.
+   *
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @return a program that yields {@code true} if the queue is full
+   */
+  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> isFull() {
+    return zip(
+        size(),
+        capacity(),
+        (s, c) -> s == c);
   }
 
   private static <S, E, T> Program<S, E, T> closedError() {
