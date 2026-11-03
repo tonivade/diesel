@@ -317,6 +317,22 @@ class QueueTest {
     assertThat(queue.isClosed().evalOrElseThrow()).isTrue();
   }
 
+  @Test
+  void isFullWhenQueueIsOverCapacityAfterPuttingBackACancelledTake() {
+    var queue = Queue.<Void, Void, Integer>bounded(1);
+    Deferred<Void, Void, Optional<Integer>> waiter = Deferred.create();
+
+    var program = queue.claim(waiter, true)
+        .discard()
+        .andThen(queue.offer(1))
+        .andThen(queue.offer(2))
+        .andThen(queue.releaseTaker(waiter)) // requeue first element
+        .andThen(queue.isFull());
+
+    assertThat(program.evalOrElseThrow()).isTrue();
+    assertThat(queue.size().evalOrElseThrow()).isEqualTo(2);
+  }
+
   // ---------------------------------------------------------------------------------------------
   // close: offers
   // ---------------------------------------------------------------------------------------------

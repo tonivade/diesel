@@ -381,6 +381,11 @@ public final class Queue<S, E, A> {
     return chain(state.get(), s -> s.size() >= s.capacity());
   }
 
+  @Override
+  public String toString() {
+    return "Queue[capacity=%s]".formatted(capacity().evalOrElseThrow());
+  }
+
   private static <S, E, T> Program<S, E, T> closedError() {
     return raise(QueueClosedException::new);
   }
