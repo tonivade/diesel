@@ -351,7 +351,8 @@ public final class Queue<S, E, A> {
     return supply(Deferred::create);
   }
 
-  private <S1 extends S, E1 extends E> Program<S1, E1, OfferResult<S, E, A>> register(
+  // visible for testing
+  <S1 extends S, E1 extends E> Program<S1, E1, OfferResult<S, E, A>> register(
       A value, Deferred<S, E, Boolean> done, Mode mode) {
     return pipe(
         state.modify(s -> s.offer(value, done, mode)),
@@ -372,8 +373,9 @@ public final class Queue<S, E, A> {
 
   // the cancellation reaches here inside the uncancelable region, so it can be handled: if the
   // offer is still waiting it's removed and the cancellation goes on, but if a take or a close got
-  // it first, the offer was already decided and it waits for that outcome instead of losing it
-  private <S1 extends S, E1 extends E> Program<S1, E1, Boolean> cancelOffer(
+  // it first, the offer was already decided and it waits for that outcome instead of losing it.
+  // visible for testing
+  <S1 extends S, E1 extends E> Program<S1, E1, Boolean> cancelOffer(
       Deferred<S, E, Boolean> done, Throwable cancellation) {
     return pipe(
         state.modify(s -> s.removeOfferer(done)),
@@ -409,7 +411,8 @@ public final class Queue<S, E, A> {
    return state.<S, E>get().evalOrElseThrow().offerers().size();
   }
 
-  private enum Mode { WAIT, TRY, REQUEUE }
+  // visible for testing
+  enum Mode { WAIT, TRY, REQUEUE }
 
   private sealed interface OfferResult<S, E, A> {}
   private record Stored<S, E, A>() implements OfferResult<S, E, A> {}

@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -792,6 +793,35 @@ class QueueTest {
     assertThat(queue.size().evalOrElseThrow()).isZero();
   }
 
+  @Test
+  void anOfferAdmittedByATakeCompletesEvenIfItIsCancelledAfter() {
+    var queue = Queue.<Void, Void, Integer>bounded(1);
+    Deferred<Void, Void, Optional<Integer>> taker = Deferred.create();
+    Deferred<Void, Void, Boolean> done = Deferred.create();
+
+    var program = queue.offer(1)
+        .andThen(queue.register(2, done, Queue.Mode.WAIT)) // the queue is full: the offer waits
+        .andThen(queue.claim(taker, true))                 // a take makes room: 2 enters the queue
+        .andThen(queue.cancelOffer(done, new CancelToken.Cancelled())); // the cancellation arrives after it
+
+    assertThat(program.evalOrElseThrow()).isTrue();
+    assertThat(queue.tryTake().evalOrElseThrow()).contains(2);
+  }
+
+  @Test
+  void anOfferCancelledWhileWaitingIsRemovedAndStaysCancelled() {
+    var queue = Queue.<Void, Void, Integer>bounded(1);
+    Deferred<Void, Void, Boolean> done = Deferred.create();
+
+    var program = queue.offer(1)
+        .andThen(queue.register(2, done, Queue.Mode.WAIT))
+        .andThen(queue.cancelOffer(done, new CancelToken.Cancelled()));
+
+    assertThatThrownBy(program::evalOrElseThrow).isInstanceOf(CancellationException.class);
+    assertThat(queue.waitingOfferers()).isZero();
+    assertThat(queue.size().evalOrElseThrow()).isEqualTo(1);
+  }
+
   @RepeatedTest(20)
   @Timeout(value = 30, unit = TimeUnit.SECONDS)
   void aTimedOutOfferIsNeverDelivered() {
@@ -817,8 +847,9 @@ class QueueTest {
         consume(queue, consumed),
         consume(queue, consumed)).evalOrElseThrow();
 
-    // an offer that failed with a timeout must not have added its value
+    // an offer that failed with a timeout must not have added its value, and every other one did
     assertThat(consumed).filteredOn(timedOut::contains).isEmpty();
+    assertThat(consumed).hasSize(3_000 - timedOut.size());
   }
 
   // ---------------------------------------------------------------------------------------------
