@@ -301,8 +301,6 @@ public final class Queue<S, E, A> {
   /**
    * Capacity of the queue. In case of unbounded it returns {@link Integer#MAX_VALUE}
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @return the queue capacity
    */
   public int capacity() {
