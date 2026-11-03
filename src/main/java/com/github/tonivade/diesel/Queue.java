@@ -55,9 +55,11 @@ import org.pcollections.TreePVector;
  */
 public final class Queue<S, E, A> {
 
+  private final int capacity;
   private final Ref<S, E, State<S, E, A>> state;
 
   private Queue(int capacity) {
+    this.capacity = capacity;
     this.state = Ref.of(State.create(capacity));
   }
 
@@ -297,6 +299,15 @@ public final class Queue<S, E, A> {
   }
 
   /**
+   * Capacity of the queue. In case of unbounded it returns {@link Integer#MAX_VALUE}
+   *
+   * @return the queue capacity
+   */
+  public int capacity() {
+    return capacity;
+  }
+
+  /**
    * Closes the queue: it doesn't accept more elements, but the ones it already has can still be
    * taken.
    *
@@ -337,6 +348,40 @@ public final class Queue<S, E, A> {
    */
   public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> isClosed() {
     return chain(state.get(), State::closed);
+  }
+
+  /**
+   * Whether the queue is empty or not.
+   *
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @return a program that yields {@code true} if the queue is empty
+   */
+  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> isEmpty() {
+    return chain(size(), s -> s == 0);
+  }
+
+  /**
+   * Whether the queue is full or not. In case of unbounded it will return always {@code false}.
+   *
+   * <p>A queue can be over capacity after a value is put back when a consumer is cancelled after
+   * taking an element from the queue.
+   *
+   * <p>The result of this method is a snapshot that may already be stale. Don't use {@code isFull()}
+   * to decide whether to call {@link #offer(Object)}. Use {@link #tryOffer(Object)} instead,
+   * since it checks and adds in one step.
+   *
+   * @param <S1> the type of the state
+   * @param <E1> the type of the error
+   * @return a program that yields {@code true} if the queue is full
+   */
+  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> isFull() {
+    return chain(state.get(), s -> s.size() >= s.capacity());
+  }
+
+  @Override
+  public String toString() {
+    return "Queue[capacity=%s]".formatted(capacity);
   }
 
   private static <S, E, T> Program<S, E, T> closedError() {
