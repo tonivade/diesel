@@ -369,8 +369,8 @@ public final class Queue<S, E, A> {
    * <p>A queue can be over capacity after a value is put back when a consumer is cancelled after
    * taking an element from the queue.
    *
-   * <p>The result of this method is a snapshot that may already be stale. Don't use {@code isFull}
-   * to decide weather to call {@link #offer(Object)} use {@link #tryOffer(Object)} for that,
+   * <p>The result of this method is a snapshot that may already be stale. Don't use {@code isFull()}
+   * to decide whether to call {@link #offer(Object)}. Use {@link #tryOffer(Object)} instead,
    * since it checks and adds in one step.
    *
    * @param <S1> the type of the state
