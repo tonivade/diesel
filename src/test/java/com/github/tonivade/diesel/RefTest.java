@@ -19,7 +19,7 @@ class RefTest {
 
   @Test
   void canBeUsedInMoreSpecificProgramContext() {
-    Ref<Object, Exception, Integer> ref = Ref.of(10);
+    Ref<Integer> ref = Ref.of(10);
 
     Program<String, RuntimeException, Integer> program = ref.get();
 

@@ -320,7 +320,7 @@ class QueueTest {
   @Test
   void isFullWhenQueueIsOverCapacityAfterPuttingBackACancelledTake() {
     var queue = Queue.<Void, Void, Integer>bounded(1);
-    Deferred<Void, Void, Optional<Integer>> waiter = Deferred.create();
+    Deferred<Optional<Integer>> waiter = Deferred.create();
 
     var program = queue.claim(waiter, true)
         .discard()
@@ -764,9 +764,9 @@ class QueueTest {
   @Test
   void releaseTakerPutsBackAValueAlreadyHandedOff() {
     var queue = Queue.<Void, Void, Integer>unbounded();
-    Deferred<Void, Void, Optional<Integer>> waiter = Deferred.create();
+    Deferred<Optional<Integer>> waiter = Deferred.create();
 
-    var program = queue.<Void, Void>claim(waiter, true).discard() // the taker is waiting
+    var program = queue.claim(waiter, true).discard() // the taker is waiting
         .andThen(queue.offer(5))             // handoff: it leaves takers and gets the value
         .andThen(queue.releaseTaker(waiter)) // it is cancelled after that: the value must come back
         .andThen(queue.size());
@@ -778,9 +778,9 @@ class QueueTest {
   @Test
   void aValuePutBackAfterCloseIsNotLost() {
     var queue = Queue.<Void, Void, Integer>unbounded();
-    Deferred<Void, Void, Optional<Integer>> waiter = Deferred.create();
+    Deferred<Optional<Integer>> waiter = Deferred.create();
 
-    queue.<Void, Void>claim(waiter, true).discard()
+    queue.claim(waiter, true).discard()
         .andThen(queue.offer(5))
         .andThen(queue.close())
         .andThen(queue.releaseTaker(waiter))
@@ -793,9 +793,9 @@ class QueueTest {
   @Test
   void releaseTakerDoesNotPutBackAnythingWhenTheTakerWasWokenUpByClose() {
     var queue = Queue.<Void, Void, Integer>unbounded();
-    Deferred<Void, Void, Optional<Integer>> waiter = Deferred.create();
+    Deferred<Optional<Integer>> waiter = Deferred.create();
 
-    queue.<Void, Void>claim(waiter, true).discard()
+    queue.claim(waiter, true).discard()
         .andThen(queue.close())
         .andThen(queue.releaseTaker(waiter))
         .evalOrElseThrow();
@@ -808,10 +808,10 @@ class QueueTest {
   @Test
   void aValuePutBackIsHandedOffToAnotherWaitingTaker() {
     var queue = Queue.<Void, Void, Integer>unbounded();
-    Deferred<Void, Void, Optional<Integer>> cancelled = Deferred.create();
-    Deferred<Void, Void, Optional<Integer>> other = Deferred.create();
+    Deferred<Optional<Integer>> cancelled = Deferred.create();
+    Deferred<Optional<Integer>> other = Deferred.create();
 
-    queue.<Void, Void>claim(cancelled, true).discard()
+    queue.claim(cancelled, true).discard()
         .andThen(queue.offer(5))                          // handed to the first taker
         .andThen(queue.claim(other, true).discard()) // a second one starts waiting
         .andThen(queue.releaseTaker(cancelled))           // the first is cancelled: the value goes to the second
@@ -824,8 +824,8 @@ class QueueTest {
   @Test
   void anOfferAdmittedByATakeCompletesEvenIfItIsCancelledAfter() {
     var queue = Queue.<Void, Void, Integer>bounded(1);
-    Deferred<Void, Void, Optional<Integer>> taker = Deferred.create();
-    Deferred<Void, Void, Boolean> done = Deferred.create();
+    Deferred<Optional<Integer>> taker = Deferred.create();
+    Deferred<Boolean> done = Deferred.create();
 
     var program = queue.offer(1)
         .andThen(queue.register(2, done, Queue.Mode.WAIT)) // the queue is full: the offer waits
@@ -839,7 +839,7 @@ class QueueTest {
   @Test
   void anOfferCancelledWhileWaitingIsRemovedAndStaysCancelled() {
     var queue = Queue.<Void, Void, Integer>bounded(1);
-    Deferred<Void, Void, Boolean> done = Deferred.create();
+    Deferred<Boolean> done = Deferred.create();
 
     var program = queue.offer(1)
         .andThen(queue.register(2, done, Queue.Mode.WAIT))
@@ -859,7 +859,7 @@ class QueueTest {
 
     // short timeouts so some offers are cancelled just when a take makes room for them
     Program<Void, Void, Unit> producer = IntStream.range(0, 3_000).boxed()
-        .map(i -> queue.<Void, Void>offer(i)
+        .map(i -> queue.offer(i)
             .timeout(Duration.ofNanos(20_000))
             .catchAll(error -> {
               if (error instanceof TimeoutException) {

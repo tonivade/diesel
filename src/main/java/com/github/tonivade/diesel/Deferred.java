@@ -31,11 +31,9 @@ import java.util.function.Consumer;
  *
  * <p>The value can't be {@code null}.
  *
- * @param <S> the type of the state
- * @param <E> the type of the error
  * @param <A> type of stored value
  */
-public final class Deferred<S, E, A> {
+public final class Deferred<A> {
 
   private final CompletableFuture<A> value = new CompletableFuture<>();
   // the programs waiting in get: each one leaves when it's woken up or cancelled, so the waiters
@@ -49,11 +47,11 @@ public final class Deferred<S, E, A> {
    *
    * <p>If the value is already set, it returns it at once.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that waits for the value when evaluated
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, A> get() {
+  public <S, E> Program<S, E, A> get() {
     return asyncCancelable((_, callback) -> {
       Consumer<A> waiter = current -> callback.complete(Result.success(current));
       waiters.add(waiter);
@@ -70,14 +68,14 @@ public final class Deferred<S, E, A> {
   /**
    * Sets the value, if it isn't set yet, and wakes up the programs waiting for it.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @param newValue the value to set, not {@code null}
    * @return a program that returns {@code true} if it set the value, or {@code false} if the value
    *     was already set, in which case the value doesn't change
    * @throws NullPointerException if the value is {@code null}
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> complete(A newValue) {
+  public <S, E> Program<S, E, Boolean> complete(A newValue) {
     requireNonNull(newValue, "the value of a deferred can't be null");
     return supply(() -> {
       if (value.complete(newValue)) {
@@ -94,11 +92,11 @@ public final class Deferred<S, E, A> {
   /**
    * Returns the value if it's set, without waiting.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that returns the value, or an empty optional if it isn't set yet
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Optional<A>> tryGet() {
+  public <S, E> Program<S, E, Optional<A>> tryGet() {
     return supply(this::current);
   }
 
@@ -110,19 +108,17 @@ public final class Deferred<S, E, A> {
    * @param <A> the type of the value
    * @return a program that creates a fresh deferred when evaluated
    */
-  public static <S, E, A> Program<S, E, Deferred<S, E, A>> make() {
+  public static <S, E, A> Program<S, E, Deferred<A>> make() {
     return supply(Deferred::create);
   }
 
   /**
    * Creates a new, empty deferred immediately.
    *
-   * @param <S> the type of the state
-   * @param <E> the type of the error
    * @param <A> the type of the value
    * @return a new deferred
    */
-  public static <S, E, A> Deferred<S, E, A> create() {
+  public static <S, E, A> Deferred<A> create() {
     return new Deferred<>();
   }
 

@@ -56,7 +56,7 @@ import org.pcollections.TreePVector;
 public final class Queue<S, E, A> {
 
   private final int capacity;
-  private final Ref<S, E, State<S, E, A>> state;
+  private final Ref<State<S, E, A>> state;
 
   private Queue(int capacity) {
     this.capacity = capacity;
@@ -128,13 +128,11 @@ public final class Queue<S, E, A> {
    * is removed from the queue without adding its value. If a take had already made room for it, the
    * value is in the queue, so the offer completes normally instead of being cancelled.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @param value the value to add, not {@code null}
    * @return a program that completes once the value is in the queue
    * @throws QueueClosedException when evaluated, if the queue is closed
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Unit> offer(A value) {
+  public Program<S, E, Unit> offer(A value) {
     requireNonNull(value, "the value of a queue can't be null");
     return uncancelable(poll -> pipe(
         newDone(),
@@ -146,7 +144,7 @@ public final class Queue<S, E, A> {
               }
               if (result instanceof Blocked) {
                 return pipe(
-                    poll.apply(done.<S1, E1>get())
+                    poll.apply(done.<S, E>get())
                         .catchAll(error -> error instanceof CancelToken.Cancelled
                             ? cancelOffer(done, error)
                             : raise(() -> error)),
@@ -162,14 +160,12 @@ public final class Queue<S, E, A> {
    * <p>If the queue is closed, the program raises a {@link QueueClosedException}, so the caller can
    * tell a full queue from one that will never accept more elements.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @param value the value to add, not {@code null}
    * @return a program that returns {@code true} if the value was added, or {@code false} if the
    *     queue is full
    * @throws QueueClosedException when evaluated, if the queue is closed
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> tryOffer(A value) {
+  public Program<S, E, Boolean> tryOffer(A value) {
     requireNonNull(value, "the value of a queue can't be null");
     return uncancelable(_ -> pipe(
         newDone(),
@@ -206,11 +202,9 @@ public final class Queue<S, E, A> {
    * }
    * }</pre>
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @return a program that yields the first value, or an empty optional if the queue is closed and empty
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Optional<A>> takeOrClosed() {
+  public Program<S, E, Optional<A>> takeOrClosed() {
     return uncancelable(poll -> pipe(
         newWaiter(),
         waiter -> pipe(
@@ -223,7 +217,7 @@ public final class Queue<S, E, A> {
                 return success(Optional.empty());
               }
               if (result instanceof Waiting) {
-                return poll.apply(waiter.<S1, E1>get().onCancel(finalizer(this.<S1, E1>releaseTaker(waiter))));
+                return poll.apply(waiter.<S, E>get().onCancel(releaseTaker(waiter)));
               }
               return raise(IllegalStateException::new);
             })));
@@ -242,12 +236,10 @@ public final class Queue<S, E, A> {
    * elements: a value already handed to a cancelled take is put back in the queue, even if the queue
    * has been closed in the meantime.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @return a program that yields the first value
    * @throws QueueClosedException when evaluated, if the queue is closed and empty
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, A> take() {
+  public Program<S, E, A> take() {
     return pipe(
         takeOrClosed(),
         value -> value.isPresent()
@@ -262,12 +254,10 @@ public final class Queue<S, E, A> {
    * program raises a {@link QueueClosedException}, so the caller can tell an empty queue from one
    * that will never have more elements.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @return a program that yields the first value, or an empty optional
    * @throws QueueClosedException when evaluated, if the queue is closed and empty
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Optional<A>> tryTake() {
+  public Program<S, E, Optional<A>> tryTake() {
     return uncancelable(_ -> pipe(
         newWaiter(),
         waiter -> pipe(
@@ -288,11 +278,9 @@ public final class Queue<S, E, A> {
    *
    * <p>A closed queue keeps counting the elements that haven't been taken yet, until it's drained.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @return a program that yields the current size
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Integer> size() {
+  public Program<S, E, Integer> size() {
     return chain(
         state.get(),
         State::size);
@@ -323,16 +311,14 @@ public final class Queue<S, E, A> {
    * <p>It's idempotent: closing a closed queue does nothing. It can't be cancelled once it has
    * started, so every waiting program is woken up.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @return a program that closes the queue
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Unit> close() {
+  public Program<S, E, Unit> close() {
     return uncancelable(_ -> pipe(
         state.modify(State::close),
         pending -> pipe(
-            traverse(t -> t.<S1, E1>complete(Optional.empty()), pending.takers()),
-            _ -> traverse(o -> o.done().<S1, E1>complete(false), pending.offerers())
+            traverse(t -> t.<S, E>complete(Optional.empty()), pending.takers()),
+            _ -> traverse(o -> o.done().complete(false), pending.offerers())
         ).discard()));
   }
 
@@ -342,22 +328,18 @@ public final class Queue<S, E, A> {
    * <p>A closed queue can still have elements to take: use {@link #takeOrClosed()} to detect when it
    * is drained.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @return a program that yields {@code true} if the queue is closed
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> isClosed() {
+  public Program<S, E, Boolean> isClosed() {
     return chain(state.get(), State::closed);
   }
 
   /**
    * Whether the queue is empty or not.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @return a program that yields {@code true} if the queue is empty
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> isEmpty() {
+  public Program<S, E, Boolean> isEmpty() {
     return chain(size(), s -> s == 0);
   }
 
@@ -371,11 +353,9 @@ public final class Queue<S, E, A> {
    * to decide whether to call {@link #offer(Object)}. Use {@link #tryOffer(Object)} instead,
    * since it checks and adds in one step.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
    * @return a program that yields {@code true} if the queue is full
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Boolean> isFull() {
+  public Program<S, E, Boolean> isFull() {
     return chain(state.get(), s -> s.size() >= s.capacity());
   }
 
@@ -388,31 +368,31 @@ public final class Queue<S, E, A> {
     return raise(QueueClosedException::new);
   }
 
-  private <S1 extends S, E1 extends E> Program<S1, E1, Deferred<S, E, Boolean>> newDone() {
+  private <E1> Program<S, E1, Deferred<Boolean>> newDone() {
     return supply(Deferred::create);
   }
 
-  private <S1 extends S, E1 extends E> Program<S1, E1, Deferred<S, E, Optional<A>>> newWaiter() {
+  private Program<S, E, Deferred<Optional<A>>> newWaiter() {
     return supply(Deferred::create);
   }
 
   // visible for testing
-  <S1 extends S, E1 extends E> Program<S1, E1, OfferResult<S, E, A>> register(
-      A value, Deferred<S, E, Boolean> done, Mode mode) {
+  <E1> Program<S, E1, OfferResult<S, E, A>> register(
+      A value, Deferred<Boolean> done, Mode mode) {
     return pipe(
         state.modify(s -> s.offer(value, done, mode)),
         result -> result instanceof Handoff<S, E, A>(var taker, var next)
-            ? chain(taker.<S1, E1>complete(Optional.of(next)), _ -> result)
+            ? chain(taker.complete(Optional.of(next)), _ -> result)
             : success(result));
   }
 
   // visible for testing
-  <S1 extends S, E1 extends E> Program<S1, E1, TakeResult<S, E, A>> claim(
-      Deferred<S, E, Optional<A>> waiter, boolean wait) {
+  Program<S, E, TakeResult<S, E, A>> claim(
+      Deferred<Optional<A>> waiter, boolean wait) {
     return pipe(
         state.modify(s -> s.take(waiter, wait)),
         result -> result instanceof Taken<S, E, A>(_, var wake) && wake.isPresent()
-            ? chain(wake.get().<S1, E1>complete(true), _ -> result)
+            ? chain(wake.get().complete(true), _ -> result)
             : success(result));
   }
 
@@ -420,8 +400,8 @@ public final class Queue<S, E, A> {
   // offer is still waiting it's removed and the cancellation goes on, but if a take or a close got
   // it first, the offer was already decided and it waits for that outcome instead of losing it.
   // visible for testing
-  <S1 extends S, E1 extends E> Program<S1, E1, Boolean> cancelOffer(
-      Deferred<S, E, Boolean> done, Throwable cancellation) {
+  Program<S, E, Boolean> cancelOffer(
+      Deferred<Boolean> done, Throwable cancellation) {
     return pipe(
         state.modify(s -> s.removeOfferer(done)),
         branch(
@@ -430,7 +410,7 @@ public final class Queue<S, E, A> {
   }
 
   // visible for testing
-  <S1 extends S, E1 extends E> Program<S1, E1, Unit> releaseTaker(Deferred<S, E, Optional<A>> waiter) {
+  <E1> Program<S, E1, Unit> releaseTaker(Deferred<Optional<A>> waiter) {
     return pipe(
         state.modify(s -> s.removeTaker(waiter)),
         branch(
@@ -444,14 +424,6 @@ public final class Queue<S, E, A> {
                         done -> register(value.get(), done, Mode.REQUEUE),
                         _ -> unit())
                     : unit())));
-  }
-
-  // the operations of the queue never fail with an error, only throw, so the mapper is never
-  // called: it only turns them into a finalizer, which can't fail with an error
-  private static <S, E, T> Program<S, Void, T> finalizer(Program<S, E, T> program) {
-    return program.mapError(_ -> {
-      throw new IllegalStateException("the operations of the queue can't fail with an error");
-    });
   }
 
   // visible for the testing
@@ -469,22 +441,22 @@ public final class Queue<S, E, A> {
 
   private sealed interface OfferResult<S, E, A> {}
   private record Stored<S, E, A>() implements OfferResult<S, E, A> {}
-  private record Handoff<S, E, A>(Deferred<S, E, Optional<A>> taker, A value) implements OfferResult<S, E, A> {}
-  private record Blocked<S, E, A>(Deferred<S, E, Boolean> done) implements OfferResult<S, E, A> {}
+  private record Handoff<S, E, A>(Deferred<Optional<A>> taker, A value) implements OfferResult<S, E, A> {}
+  private record Blocked<S, E, A>(Deferred<Boolean> done) implements OfferResult<S, E, A> {}
   private record Full<S, E, A>() implements OfferResult<S, E, A> {}
   private record OfferClosed<S, E, A>() implements OfferResult<S, E, A> {}
 
   private sealed interface TakeResult<S, E, A> {}
-  private record Taken<S, E, A>(A value, Optional<Deferred<S, E, Boolean>> wake) implements TakeResult<S, E, A> {}
+  private record Taken<S, E, A>(A value, Optional<Deferred<Boolean>> wake) implements TakeResult<S, E, A> {}
   private record Waiting<S, E, A>() implements TakeResult<S, E, A> {}
   private record Empty<S, E, A>() implements TakeResult<S, E, A> {}
   private record TakeClosed<S, E, A>() implements TakeResult<S, E, A> {}
 
   private record Pending<S, E, A>(
-      PVector<Deferred<S, E, Optional<A>>> takers,
+      PVector<Deferred<Optional<A>>> takers,
       PVector<Offerer<S, E, A>> offerers) {}
 
-  private record Offerer<S, E, A>(A value, Deferred<S, E, Boolean> done) {
+  private record Offerer<S, E, A>(A value, Deferred<Boolean> done) {
 
     @Override
     public boolean equals(Object other) {
@@ -500,7 +472,7 @@ public final class Queue<S, E, A> {
   private record State<S, E, A>(
       int capacity,
       Fifo<A> items,
-      PVector<Deferred<S, E, Optional<A>>> takers,
+      PVector<Deferred<Optional<A>>> takers,
       PVector<Offerer<S, E, A>> offerers,
       boolean closed) {
 
@@ -513,7 +485,7 @@ public final class Queue<S, E, A> {
       return items.size();
     }
 
-    Tuple2<OfferResult<S, E, A>, State<S, E, A>> offer(A value, Deferred<S, E, Boolean> done, Mode mode) {
+    Tuple2<OfferResult<S, E, A>, State<S, E, A>> offer(A value, Deferred<Boolean> done, Mode mode) {
       if (closed && mode != Mode.REQUEUE) {
         return tuple(new OfferClosed<>(), this);
       }
@@ -534,7 +506,7 @@ public final class Queue<S, E, A> {
           new State<>(capacity, items, takers, offerers.plus(new Offerer<>(value, done)), closed));
     }
 
-    Tuple2<TakeResult<S, E, A>, State<S, E, A>> take(Deferred<S, E, Optional<A>> waiter, boolean wait) {
+    Tuple2<TakeResult<S, E, A>, State<S, E, A>> take(Deferred<Optional<A>> waiter, boolean wait) {
       if (!items.isEmpty()) {
         var head = items.poll();
         if (!offerers.isEmpty()) {
@@ -556,12 +528,12 @@ public final class Queue<S, E, A> {
       return tuple(new Waiting<>(), new State<>(capacity, items, takers.plus(waiter), offerers, closed));
     }
 
-    Tuple2<Boolean, State<S, E, A>> removeTaker(Deferred<S, E, Optional<A>> waiter) {
+    Tuple2<Boolean, State<S, E, A>> removeTaker(Deferred<Optional<A>> waiter) {
       var rest = takers.minus(waiter);
       return tuple(rest != takers, new State<>(capacity, items, rest, offerers, closed));
     }
 
-    Tuple2<Boolean, State<S, E, A>> removeOfferer(Deferred<S, E, Boolean> done) {
+    Tuple2<Boolean, State<S, E, A>> removeOfferer(Deferred<Boolean> done) {
       var rest = offerers.minus(new Offerer<>(Unit.unit(), done));
       return tuple(rest != offerers, new State<>(capacity, items, takers, rest, closed));
     }

@@ -26,11 +26,11 @@ import org.junit.jupiter.api.Timeout;
 @Timeout(value = 10, unit = TimeUnit.SECONDS)
 class DeferredTest {
 
-  private final Deferred<Void, Void, String> deferred = Deferred.create();
+  private final Deferred<String> deferred = Deferred.create();
 
   @Test
   void canBeUsedInMoreSpecificProgramContext() {
-    Deferred<Object, Exception, Integer> deferred = Deferred.create();
+    Deferred<Integer> deferred = Deferred.create();
 
     Program<String, RuntimeException, Optional<Integer>> program = deferred.tryGet();
 

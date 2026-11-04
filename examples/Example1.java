@@ -7,8 +7,11 @@
  */
 package examples;
 
+import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Concurrent.fork;
 import static com.github.tonivade.diesel.Program.join;
+import static com.github.tonivade.diesel.Program.success;
 
 import com.github.tonivade.diesel.Deferred;
 import com.github.tonivade.diesel.Program;
@@ -39,11 +42,13 @@ class Example1 {
             .filter(n -> n % 2 == 0)
             .map(n -> n * n)
             .take(5)
-            .mapEval(value ->
-                processed.updateAndGet(count -> count + 1).map(_ -> value))
+            .mapEval(value -> pipe(
+                processed.updateAndGet(count -> count + 1),
+                _ -> success(value)))
             .toList(),
-        values -> processed.get()
-            .map(count -> new Summary(values, count))
+        values -> chain(
+            processed.get(),
+            count -> new Summary(values, count))
       )
     );
   }
@@ -52,8 +57,10 @@ class Example1 {
     return pipe(
       Deferred.<Void, Void, String>make(),
       signal -> pipe(
-        signal.get().fork(),
-        waiter -> signal.complete("all systems go").andThen(join(waiter))
+        fork(signal.get()),
+        waiter -> pipe(
+            signal.complete("all systems go"),
+            _ -> join(waiter))
       )
     );
   }

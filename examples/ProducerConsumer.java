@@ -82,7 +82,7 @@ public class ProducerConsumer {
   static Program<Void, Void, Unit> consume(
       int id,
       Queue<Void, Void, Integer> queue,
-      Ref<Void, Void, Integer> processed
+      Ref<Integer> processed
   ) {
     return suspend(() ->
         pipe(
