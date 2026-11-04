@@ -6,7 +6,9 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.bracket;
 import static com.github.tonivade.diesel.Combine.catchAll;
+import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
@@ -123,7 +125,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   public static <S, E, A> Resource<S, E, A> from(Function<? super S, ? extends A> mapper, Consumer<? super A> release) {
-    return new Resource<>(Program.<S, E, A>access(mapper).map(y -> tuple(y, release)));
+    return new Resource<>(chain(access(mapper), y -> tuple(y, release)));
   }
 
   // acquires the next resource once the previous one is acquired: if it fails, throws or the
@@ -146,12 +148,12 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   private static <X, T, R> Consumer<X> releaseAndThen(
-      Tuple2<T, Consumer<? super T>> outter, Tuple2<R, Consumer<? super R>> inner) {
+      Tuple2<T, Consumer<? super T>> outer, Tuple2<R, Consumer<? super R>> inner) {
     return _ -> {
       try {
         release(inner);
       } finally {
-        release(outter);
+        release(outer);
       }
     };
   }
