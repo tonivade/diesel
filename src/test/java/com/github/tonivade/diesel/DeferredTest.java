@@ -117,7 +117,7 @@ class DeferredTest {
 
   @Test
   void onlyOneConcurrentCompleteSetsTheValue() {
-    var deferred = Deferred.<Void, Void, Integer>create();
+    var deferred = Deferred.<Integer>create();
     var completes = IntStream.range(0, 100).mapToObj(i -> deferred.complete(i)).toList();
 
     var results = new ArrayList<>(parSequence(completes).evalOrElseThrow());

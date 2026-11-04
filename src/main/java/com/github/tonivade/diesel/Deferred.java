@@ -118,7 +118,7 @@ public final class Deferred<A> {
    * @param <A> the type of the value
    * @return a new deferred
    */
-  public static <S, E, A> Deferred<A> create() {
+  public static <A> Deferred<A> create() {
     return new Deferred<>();
   }
 
