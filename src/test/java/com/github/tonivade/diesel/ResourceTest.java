@@ -224,6 +224,24 @@ class ResourceTest {
     assertThat(log).containsExactly("use a", "release a");
   }
 
+  @Test
+  void retryReleasesTheFirstBeforeAcquiringAgain() {
+    var attempts = new AtomicInteger();
+    var flaky = Resource.<Void, String, String>from(
+        suspend(() -> attempts.incrementAndGet() == 1
+            ? failure("boom")
+            : success("b")),
+        b -> log.add("release " + b));
+
+    var result = resource("a").flatMap(_ -> flaky).retry().use(this::use).eval();
+
+    assertThat(result).isEqualTo(Result.success("b"));
+    assertThat(attempts).hasValue(2);
+    assertThat(log).containsExactly(
+        "acquire a", "release a",
+        "acquire a", "use b", "release b", "release a");
+  }
+
   // ---------------------------------------------------------------------------------------------
   // make
   // ---------------------------------------------------------------------------------------------

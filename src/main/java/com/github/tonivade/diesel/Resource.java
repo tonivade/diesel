@@ -57,7 +57,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     return bracket(
         resource,
         ta -> use.apply(ta.first()),
-        Resource::release);
+        ta -> widen(ta.second()));
   }
 
   public Resource<S, E, A> orElse(Resource<S, E, A> other) {
@@ -152,11 +152,11 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
           return next.resource;
         }),
         error -> pipe(
-            release(ta),
+            widen(ta.second()),
             _ -> raise(() -> error)))
         .foldMap(
             error -> pipe(
-                release(ta),
+                widen(ta.second()),
                 _ -> failure(error)),
             tb -> success(tuple(tb.first(), tb.second().ensuring(ta.second()))));
   }
@@ -168,9 +168,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     return suspend(() -> release.apply(value).discard());
   }
 
-  private static <S, E> Program<S, E, Unit> release(Tuple2<?, Program<S, Void, Unit>> tuple) {
+  private static <S, E> Program<S, E, Unit> widen(Program<S, Void, Unit> program) {
     // the release can't fail with an error, see resource, so the mapper is never called
-    return tuple.second().mapError(_ -> {
+    return program.mapError(_ -> {
       throw new IllegalStateException("a release can't fail with an error");
     });
   }
