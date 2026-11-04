@@ -299,7 +299,7 @@ public final class Queue<S, E, A> {
   }
 
   /**
-   * Capacity of the queue. In case of unbounded it returns {@link Integer#MAX_VALUE}
+   * Capacity of the queue. In case of unbounded it returns {@link Integer#MAX_VALUE}.
    *
    * @return the queue capacity
    */
@@ -362,10 +362,10 @@ public final class Queue<S, E, A> {
   }
 
   /**
-   * Whether the queue is full or not. In case of unbounded it will return always {@code false}.
+   * Whether the queue is full or not. In case of unbounded always return {@code false}.
    *
-   * <p>A queue can be over capacity after a value is put back when a consumer is cancelled after
-   * taking an element from the queue.
+   * <p>A queue can be over capacity after a value is put back when a cancelled take puts back
+   * a value that an offer had already handed to it.
    *
    * <p>The result of this method is a snapshot that may already be stale. Don't use {@code isFull()}
    * to decide whether to call {@link #offer(Object)}. Use {@link #tryOffer(Object)} instead,
@@ -381,7 +381,7 @@ public final class Queue<S, E, A> {
 
   @Override
   public String toString() {
-    return "Queue[capacity=%s]".formatted(capacity);
+    return "Queue[capacity=%s]".formatted(capacity < Integer.MAX_VALUE ? capacity : "unbounded");
   }
 
   private static <S, E, T> Program<S, E, T> closedError() {
