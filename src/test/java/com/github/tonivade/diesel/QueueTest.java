@@ -49,7 +49,7 @@ class QueueTest {
 
   @Test
   void keepsFifoOrder() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = queue.offer(1)
         .andThen(queue.offer(2))
@@ -63,7 +63,7 @@ class QueueTest {
 
   @Test
   void takeWaitsUntilThereIsAnElement() {
-    var queue = Queue.<Void, Void, String>unbounded();
+    var queue = Queue.<String>unbounded();
 
     var program = parZip(
         queue.take(),
@@ -75,7 +75,7 @@ class QueueTest {
 
   @Test
   void boundedOfferWaitsUntilThereIsRoom() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
 
     var program = parZip(
         queue.offer(1).andThen(queue.offer(2)),
@@ -90,7 +90,7 @@ class QueueTest {
 
   @Test
   void cancelledTakeDoesNotLoseTheNextElement() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var timedOut = queue.take()
         .timeout(Duration.ofMillis(50))
@@ -104,7 +104,7 @@ class QueueTest {
 
   @Test
   void cancelledOfferIsRemoved() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
 
     var program = queue.offer(1)
         .andThen(queue.offer(2).timeout(Duration.ofMillis(50))
@@ -116,7 +116,7 @@ class QueueTest {
 
   @Test
   void tryOfferReturnsFalseWhenFull() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
 
     var program = queue.offer(1)
         .andThen(queue.tryOffer(2));
@@ -126,7 +126,7 @@ class QueueTest {
 
   @Test
   void tryOfferReturnsTrueWhenThereIsRoom() {
-    var queue = Queue.<Void, Void, Integer>bounded(2);
+    var queue = Queue.<Integer>bounded(2);
 
     var program = sequence(queue.tryOffer(1), queue.tryOffer(2));
 
@@ -136,7 +136,7 @@ class QueueTest {
 
   @Test
   void tryOfferDoesNotAddTheValueWhenFull() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
 
     queue.offer(1).andThen(queue.tryOffer(2)).evalOrElseThrow();
 
@@ -147,21 +147,21 @@ class QueueTest {
 
   @Test
   void tryTakeReturnsEmptyWhenEmpty() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     assertThat(queue.tryTake().evalOrElseThrow()).isEmpty();
   }
 
   @Test
   void tryTakeReturnsValueWhenNotEmpty() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     assertThat(queue.offer(1).andThen(queue.tryTake()).evalOrElseThrow()).contains(1);
   }
 
   @Test
   void sizeCountsTheElements() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     assertThat(queue.size().evalOrElseThrow()).isZero();
 
@@ -177,7 +177,7 @@ class QueueTest {
 
   @Test
   void sizeDoesNotCountTheWaitingOffers() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
 
     var program = queue.offer(1)
         .andThen(queue.offer(2).timeout(PAUSE).catchAll(_ -> unit()))
@@ -191,7 +191,7 @@ class QueueTest {
 
   @Test
   void handoffToAWaitingTakerDoesNotStoreTheElement() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = parZip(
         queue.take(),
@@ -204,7 +204,7 @@ class QueueTest {
 
   @Test
   void unboundedAcceptsManyElements() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
     var values = IntStream.range(0, 10_000).boxed().toList();
 
     produce(queue, values).andThen(queue.close()).evalOrElseThrow();
@@ -247,7 +247,7 @@ class QueueTest {
   @Test
   @SuppressWarnings("NullAway") // NullAway already rejects it at compile time, but not every caller uses it
   void offerRejectsANullValue() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     assertThatThrownBy(() -> queue.offer(null)).isInstanceOf(NullPointerException.class);
     assertThatThrownBy(() -> queue.tryOffer(null)).isInstanceOf(NullPointerException.class);
@@ -259,13 +259,13 @@ class QueueTest {
 
   @Test
   void aNewQueueIsNotClosed() {
-    assertThat(Queue.<Void, Void, Integer>unbounded().isClosed().evalOrElseThrow()).isFalse();
-    assertThat(Queue.<Void, Void, Integer>bounded(1).isClosed().evalOrElseThrow()).isFalse();
+    assertThat(Queue.<Integer>unbounded().isClosed().evalOrElseThrow()).isFalse();
+    assertThat(Queue.<Integer>bounded(1).isClosed().evalOrElseThrow()).isFalse();
   }
 
   @Test
   void closeMarksTheQueueAsClosed() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     queue.close().evalOrElseThrow();
 
@@ -274,7 +274,7 @@ class QueueTest {
 
   @Test
   void closeIsIdempotent() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = queue.offer(1)
         .andThen(queue.close())
@@ -289,7 +289,7 @@ class QueueTest {
 
   @Test
   void closeKeepsTheElements() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     queue.offer(1).andThen(queue.offer(2)).andThen(queue.close()).evalOrElseThrow();
 
@@ -298,7 +298,7 @@ class QueueTest {
 
   @Test
   void closeOnAnEmptyQueue() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     queue.close().evalOrElseThrow();
 
@@ -308,7 +308,7 @@ class QueueTest {
 
   @Test
   void closeCanBeEvaluatedMoreThanOnce() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
     var close = queue.close();
 
     close.evalOrElseThrow();
@@ -319,7 +319,7 @@ class QueueTest {
 
   @Test
   void isFullWhenQueueIsOverCapacityAfterPuttingBackACancelledTake() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
     Deferred<Optional<Integer>> waiter = Deferred.create();
 
     var program = queue.claim(waiter, true)
@@ -339,7 +339,7 @@ class QueueTest {
 
   @Test
   void offerFailsAfterClose() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = queue.close().andThen(queue.offer(1));
 
@@ -348,7 +348,7 @@ class QueueTest {
 
   @Test
   void tryOfferFailsAfterClose() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = queue.close().andThen(queue.tryOffer(1));
 
@@ -357,7 +357,7 @@ class QueueTest {
 
   @Test
   void tryOfferOnAClosedFullQueueFailsInsteadOfReturningFalse() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
 
     var program = queue.offer(1).andThen(queue.close()).andThen(queue.tryOffer(2));
 
@@ -366,7 +366,7 @@ class QueueTest {
 
   @Test
   void aRejectedOfferDoesNotAddTheValue() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     queue.offer(1).andThen(queue.close()).evalOrElseThrow();
     assertThatThrownBy(queue.offer(2)::evalOrElseThrow).isInstanceOf(QueueClosedException.class);
@@ -378,7 +378,7 @@ class QueueTest {
 
   @Test
   void theClosedExceptionCanBeRecoveredWithCatchAll() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = queue.close()
         .andThen(queue.offer(1).map(_ -> "accepted"))
@@ -393,7 +393,7 @@ class QueueTest {
 
   @Test
   void takeDeliversTheRemainingElementsInOrderAndThenFails() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     queue.offer(1).andThen(queue.offer(2)).andThen(queue.offer(3)).andThen(queue.close()).evalOrElseThrow();
 
@@ -403,7 +403,7 @@ class QueueTest {
 
   @Test
   void takeFailsOnAClosedEmptyQueue() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = queue.close().andThen(queue.take());
 
@@ -412,7 +412,7 @@ class QueueTest {
 
   @Test
   void takeKeepsFailingOnceTheQueueIsDrained() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     queue.close().evalOrElseThrow();
 
@@ -423,7 +423,7 @@ class QueueTest {
 
   @Test
   void takeOrClosedDeliversTheRemainingElementsAndThenReturnsEmpty() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     queue.offer(1).andThen(queue.offer(2)).andThen(queue.close()).evalOrElseThrow();
 
@@ -436,14 +436,14 @@ class QueueTest {
 
   @Test
   void takeOrClosedOnAnOpenQueueReturnsTheValue() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     assertThat(queue.offer(4).andThen(queue.takeOrClosed()).evalOrElseThrow()).contains(4);
   }
 
   @Test
   void takeOrClosedWaitsOnAnOpenEmptyQueue() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = parZip(
         queue.takeOrClosed(),
@@ -455,7 +455,7 @@ class QueueTest {
 
   @Test
   void tryTakeDeliversTheRemainingElementsAndThenFails() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     queue.offer(1).andThen(queue.offer(2)).andThen(queue.close()).evalOrElseThrow();
 
@@ -466,7 +466,7 @@ class QueueTest {
 
   @Test
   void tryTakeOnAnOpenEmptyQueueReturnsEmptyButOnAClosedOneFails() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     assertThat(queue.tryTake().evalOrElseThrow()).isEmpty();
 
@@ -477,7 +477,7 @@ class QueueTest {
 
   @Test
   void sizeIsZeroOnceTheClosedQueueIsDrained() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     queue.offer(1).andThen(queue.close()).andThen(queue.take()).evalOrElseThrow();
 
@@ -488,7 +488,7 @@ class QueueTest {
 
   @Test
   void aClosedFullBoundedQueueCanBeDrained() {
-    var queue = Queue.<Void, Void, Integer>bounded(2);
+    var queue = Queue.<Integer>bounded(2);
 
     queue.offer(1).andThen(queue.offer(2)).andThen(queue.close()).evalOrElseThrow();
 
@@ -497,7 +497,7 @@ class QueueTest {
 
   @Test
   void theClosedExceptionOfTakeCanBeRecoveredWithCatchAll() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = queue.close().andThen(queue.take()).catchAll(_ -> success(-1));
 
@@ -510,7 +510,7 @@ class QueueTest {
 
   @Test
   void closeWakesUpAWaitingTakeOrClosedWithEmpty() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = pipe(
         queue.takeOrClosed().fork(),
@@ -524,7 +524,7 @@ class QueueTest {
 
   @Test
   void closeWakesUpAWaitingTakeWithTheClosedException() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = pipe(
         outcome(queue.take()).fork(),
@@ -538,9 +538,9 @@ class QueueTest {
 
   @Test
   void closeWakesUpAllTheWaitingTakers() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
     List<Program<Void, Void, Optional<Integer>>> takers = IntStream.range(0, 20)
-        .mapToObj(_ -> queue.takeOrClosed())
+        .mapToObj(_ -> queue.<Void, Void>takeOrClosed())
         .toList();
 
     var program = pipe(
@@ -555,7 +555,7 @@ class QueueTest {
 
   @Test
   void closeWakesUpABlockedOfferWithTheClosedException() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
 
     var program = pipe(
         queue.offer(1),
@@ -570,7 +570,7 @@ class QueueTest {
 
   @Test
   void theValueOfAnOfferWokenUpByCloseIsDiscarded() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
 
     pipe(
         queue.offer(1),
@@ -586,7 +586,7 @@ class QueueTest {
 
   @Test
   void closeWakesUpAllTheBlockedOffers() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
     List<Program<Void, Void, String>> offers = IntStream.range(0, 10)
         .mapToObj(i -> outcome(queue.offer(i + 100)))
         .toList();
@@ -605,7 +605,7 @@ class QueueTest {
 
   @Test
   void anOfferAdmittedBeforeCloseIsDeliveredAfterIt() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
 
     // the take frees room, so the blocked offer(2) enters the queue before the close
     var program = queue.offer(1)
@@ -625,7 +625,7 @@ class QueueTest {
 
   @Test
   void aCancelledTakeIsNotWokenUpByClose() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = queue.take()
         .timeout(PAUSE)
@@ -638,7 +638,7 @@ class QueueTest {
 
   @Test
   void aCancelledTakeDoesNotLoseTheNextElementEvenIfTheQueueIsClosedAfter() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
 
     var program = queue.take()
         .timeout(PAUSE)
@@ -652,7 +652,7 @@ class QueueTest {
 
   @Test
   void aCancelledOfferDoesNotAddItsValueAfterClose() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
 
     var program = queue.offer(1)
         .andThen(queue.offer(2).timeout(PAUSE).catchAll(_ -> unit()))
@@ -664,7 +664,7 @@ class QueueTest {
 
   @Test
   void manyCancelledTakesDoNotBlockTheClose() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
     var cancelled = queue.take().timeout(Duration.ofMillis(1)).catchAll(_ -> success(-1));
 
     for (int i = 0; i < 50; i++) {
@@ -676,7 +676,7 @@ class QueueTest {
 
   @Test
   void closeCompletesEvenWhenTheProgramThatCalledItIsCancelled() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
     var blocked = Program.<Void, Void, Optional<Integer>>never();
 
     // close is uncancelable: it has already woken up the waiters when the cancellation arrives
@@ -696,7 +696,7 @@ class QueueTest {
   @Test
   @Timeout(value = 30, unit = TimeUnit.SECONDS)
   void stressNothingIsLostOrDuplicated() {
-    var queue = Queue.<Void, Void, Integer>bounded(8);
+    var queue = Queue.<Integer>bounded(8);
     var sink = new ConcurrentLinkedQueue<Integer>();
     var producers = 4;
     var perProducer = 500;
@@ -722,7 +722,7 @@ class QueueTest {
   @Test
   @Timeout(value = 30, unit = TimeUnit.SECONDS)
   void stressWithCancelledTakesNothingIsLostOrDuplicated() {
-    var queue = Queue.<Void, Void, Integer>bounded(4);
+    var queue = Queue.<Integer>bounded(4);
     var sink = new ConcurrentLinkedQueue<Integer>();
     var expected = IntStream.range(0, 1_000).boxed().toList();
 
@@ -741,7 +741,7 @@ class QueueTest {
   @RepeatedTest(10)
   @Timeout(value = 30, unit = TimeUnit.SECONDS)
   void closeRacingWithOffersKeepsEverythingAccepted() {
-    var queue = Queue.<Void, Void, Integer>bounded(4);
+    var queue = Queue.<Integer>bounded(4);
     var accepted = new ConcurrentLinkedQueue<Integer>();
     var consumed = new ConcurrentLinkedQueue<Integer>();
 
@@ -763,7 +763,7 @@ class QueueTest {
 
   @Test
   void releaseTakerPutsBackAValueAlreadyHandedOff() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
     Deferred<Optional<Integer>> waiter = Deferred.create();
 
     var program = queue.claim(waiter, true).discard() // the taker is waiting
@@ -777,7 +777,7 @@ class QueueTest {
 
   @Test
   void aValuePutBackAfterCloseIsNotLost() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
     Deferred<Optional<Integer>> waiter = Deferred.create();
 
     queue.claim(waiter, true).discard()
@@ -792,7 +792,7 @@ class QueueTest {
 
   @Test
   void releaseTakerDoesNotPutBackAnythingWhenTheTakerWasWokenUpByClose() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
     Deferred<Optional<Integer>> waiter = Deferred.create();
 
     queue.claim(waiter, true).discard()
@@ -807,7 +807,7 @@ class QueueTest {
 
   @Test
   void aValuePutBackIsHandedOffToAnotherWaitingTaker() {
-    var queue = Queue.<Void, Void, Integer>unbounded();
+    var queue = Queue.<Integer>unbounded();
     Deferred<Optional<Integer>> cancelled = Deferred.create();
     Deferred<Optional<Integer>> other = Deferred.create();
 
@@ -823,7 +823,7 @@ class QueueTest {
 
   @Test
   void anOfferAdmittedByATakeCompletesEvenIfItIsCancelledAfter() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
     Deferred<Optional<Integer>> taker = Deferred.create();
     Deferred<Boolean> done = Deferred.create();
 
@@ -838,7 +838,7 @@ class QueueTest {
 
   @Test
   void anOfferCancelledWhileWaitingIsRemovedAndStaysCancelled() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
     Deferred<Boolean> done = Deferred.create();
 
     var program = queue.offer(1)
@@ -853,13 +853,13 @@ class QueueTest {
   @RepeatedTest(20)
   @Timeout(value = 30, unit = TimeUnit.SECONDS)
   void aTimedOutOfferIsNeverDelivered() {
-    var queue = Queue.<Void, Void, Integer>bounded(1);
+    var queue = Queue.<Integer>bounded(1);
     var timedOut = new ConcurrentLinkedQueue<Integer>();
     var consumed = new ConcurrentLinkedQueue<Integer>();
 
     // short timeouts so some offers are cancelled just when a take makes room for them
     Program<Void, Void, Unit> producer = IntStream.range(0, 3_000).boxed()
-        .map(i -> queue.offer(i)
+        .map(i -> queue.<Void, Void>offer(i)
             .timeout(Duration.ofNanos(20_000))
             .catchAll(error -> {
               if (error instanceof TimeoutException) {
@@ -889,7 +889,7 @@ class QueueTest {
   }
 
   /** Sleeps a bit and then closes the queue, so the programs run in parallel have time to wait. */
-  private static Program<Void, Void, Unit> closeLater(Queue<Void, Void, Integer> queue) {
+  private static Program<Void, Void, Unit> closeLater(Queue<Integer> queue) {
     return delayed(PAUSE, queue.close());
   }
 
@@ -900,15 +900,15 @@ class QueueTest {
         .catchAll(e -> success(e.getClass().getSimpleName()));
   }
 
-  private static Program<Void, Void, Unit> produce(Queue<Void, Void, Integer> queue, List<Integer> values) {
-    return traverse(queue::offer, values).discard();
+  private static Program<Void, Void, Unit> produce(Queue<Integer> queue, List<Integer> values) {
+    return traverse(queue::<Void, Void>offer, values).discard();
   }
 
   /** Offers the values in order until the queue is closed, saving the ones that were accepted. */
   private static Program<Void, Void, Unit> produceUntilClosed(
-      Queue<Void, Void, Integer> queue, List<Integer> values, Collection<Integer> accepted) {
+      Queue<Integer> queue, List<Integer> values, Collection<Integer> accepted) {
     return traverse(
-            value -> queue.offer(value)
+            value -> queue.<Void, Void>offer(value)
                 .andThen(task(() -> accepted.add(value))),
             values)
         .discard()
@@ -918,7 +918,7 @@ class QueueTest {
   }
 
   /** Takes until the queue is closed and drained. */
-  private static Program<Void, Void, Unit> consume(Queue<Void, Void, Integer> queue, Collection<Integer> sink) {
+  private static Program<Void, Void, Unit> consume(Queue<Integer> queue, Collection<Integer> sink) {
     return suspend(() -> pipe(
         queue.takeOrClosed(),
         value -> {
@@ -933,7 +933,7 @@ class QueueTest {
 
   /** Like consume, but each wait is bounded by a short timeout, to race with the offers. */
   private static Program<Void, Void, Unit> consumeWithTimeouts(
-      Queue<Void, Void, Integer> queue, Collection<Integer> sink) {
+      Queue<Integer> queue, Collection<Integer> sink) {
     return suspend(() -> pipe(
         takeWithTimeout(queue),
         value -> {
@@ -954,8 +954,8 @@ class QueueTest {
    * A take bounded by a timeout. Returns -1 if the timeout expired, which is never a produced
    * value, and empty if the queue is closed and drained.
    */
-  private static Program<Void, Void, Optional<Integer>> takeWithTimeout(Queue<Void, Void, Integer> queue) {
-    return queue.takeOrClosed()
+  private static Program<Void, Void, Optional<Integer>> takeWithTimeout(Queue<Integer> queue) {
+    return queue.<Void, Void>takeOrClosed()
         .timeout(Duration.ofMillis(1))
         .catchAll(e -> e instanceof TimeoutException
             ? success(Optional.of(-1))
@@ -963,11 +963,11 @@ class QueueTest {
   }
 
   /** Drains a closed queue. It would wait forever on an open one. */
-  private static Program<Void, Void, List<Integer>> drain(Queue<Void, Void, Integer> queue) {
+  private static Program<Void, Void, List<Integer>> drain(Queue<Integer> queue) {
     return drain(queue, List.of());
   }
 
-  private static Program<Void, Void, List<Integer>> drain(Queue<Void, Void, Integer> queue, List<Integer> acc) {
+  private static Program<Void, Void, List<Integer>> drain(Queue<Integer> queue, List<Integer> acc) {
     return pipe(
         queue.takeOrClosed(),
         value -> {
