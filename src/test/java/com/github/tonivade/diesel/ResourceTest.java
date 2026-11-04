@@ -90,7 +90,7 @@ class ResourceTest {
   @Test
   void releasesWhenUseIsCancelled() {
     var started = new CompletableFuture<Void>();
-    var program = resource("a", true).use(_ -> {
+    var program = resource("a").use(_ -> {
       started.complete(null);
       return never();
     });
@@ -313,24 +313,12 @@ class ResourceTest {
   // ---------------------------------------------------------------------------------------------
 
   private Resource<Void, String, String> resource(String name) {
-    return resource(name, false);
-  }
-
-  private Resource<Void, String, String> resource(String name, boolean debug) {
     return Resource.from(
         supply(() -> {
-          if (debug) {
-            System.out.println("acquire " + name);
-          }
           log.add("acquire " + name);
           return name;
         }),
-        value -> {
-          if (debug) {
-            System.out.println("release " + name);
-          }
-          log.add("release " + value);
-        });
+        value -> log.add("release " + value));
   }
 
   private Program<Void, String, String> use(String value) {
