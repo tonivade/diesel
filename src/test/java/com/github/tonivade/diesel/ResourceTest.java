@@ -7,6 +7,7 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.inspect;
+import static com.github.tonivade.diesel.Program.never;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
@@ -16,6 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -82,6 +85,24 @@ class ResourceTest {
     assertThat(log).containsExactly(
         "acquire a", "use a", "release a",
         "acquire a", "use a", "release a");
+  }
+
+  @Test
+  void releasesWhenUseIsCancelled() {
+    var started = new CompletableFuture<Void>();
+    var program = resource("a", true).use(_ -> {
+      started.complete(null);
+      return never();
+    });
+
+    var future = program.fork().evalOrElseThrow();
+    started.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    assertThatThrownBy(future::join)
+        .isInstanceOf(CancellationException.class);
+    assertThat(log)
+        .containsExactly("acquire a", "release a");
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -292,12 +313,24 @@ class ResourceTest {
   // ---------------------------------------------------------------------------------------------
 
   private Resource<Void, String, String> resource(String name) {
+    return resource(name, false);
+  }
+
+  private Resource<Void, String, String> resource(String name, boolean debug) {
     return Resource.from(
         supply(() -> {
+          if (debug) {
+            System.out.println("acquire " + name);
+          }
           log.add("acquire " + name);
           return name;
         }),
-        value -> log.add("release " + value));
+        value -> {
+          if (debug) {
+            System.out.println("release " + name);
+          }
+          log.add("release " + value);
+        });
   }
 
   private Program<Void, String, String> use(String value) {
