@@ -6,6 +6,7 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.inspect;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
@@ -221,6 +222,51 @@ class ResourceTest {
     assertThat(result).isEqualTo(Result.success("a"));
     assertThat(attempts).hasValue(2);
     assertThat(log).containsExactly("use a", "release a");
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // make
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void makeReleasesWithAProgram() {
+    var result = Resource.<Void, String, String>make(
+            success("a"),
+            a -> task(() -> log.add("release " + a)))
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("a"));
+    assertThat(log).containsExactly("use a", "release a");
+  }
+
+  @Test
+  void makeAcquiresAndReleasesWithTheState() {
+    var state = new CopyOnWriteArrayList<String>();
+
+    var result = Resource.<List<String>, String, String>make(
+            s -> {
+              s.add("acquire a");
+              return "a";
+            },
+            a -> inspect(s -> s.add("release " + a)))
+        .use(Program::success)
+        .eval(state);
+
+    assertThat(result).isEqualTo(Result.success("a"));
+    assertThat(state).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void theOuterIsReleasedEvenIfTheInnerReleaseThrows() {
+    var inner = Resource.<Void, String, String>make(
+        success("b"),
+        _ -> raise(IllegalStateException::new));
+
+    var program = resource("a").flatMap(_ -> inner).use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("acquire a", "use b", "release a");
   }
 
   // ---------------------------------------------------------------------------------------------

@@ -14,6 +14,7 @@ import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
+import static com.github.tonivade.diesel.Program.unit;
 import static com.github.tonivade.diesel.Tuple2.tuple;
 import static java.util.Objects.requireNonNull;
 
@@ -25,9 +26,11 @@ import java.util.function.Function;
 
 public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
 
-  private final Program<S, E, Tuple2<A, Consumer<? super A>>> resource;
+  // the acquired value and the program that releases it. The release can't fail with an error, like
+  // the programs returned by fold, so changing the error type of the resource doesn't affect it
+  private final Program<S, E, Tuple2<A, Program<S, Void, Unit>>> resource;
 
-  private Resource(Program<S, E, Tuple2<A, Consumer<? super A>>> resource) {
+  private Resource(Program<S, E, Tuple2<A, Program<S, Void, Unit>>> resource) {
     this.resource = requireNonNull(resource);
   }
 
@@ -54,7 +57,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     return bracket(
         resource,
         ta -> use.apply(ta.first()),
-        ta -> task(() -> release(ta)));
+        Resource::release);
   }
 
   public Resource<S, E, A> orElse(Resource<S, E, A> other) {
@@ -77,15 +80,15 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   public <B> Resource<S, E, Either<A, B>> either(Resource<S, E, B> other) {
-    Program<S, E, Either<Tuple2<A, Consumer<? super A>>, Tuple2<B, Consumer<? super B>>>> foldM =
+    Program<S, E, Either<Tuple2<A, Program<S, Void, Unit>>, Tuple2<B, Program<S, Void, Unit>>>> foldM =
         this.resource.foldMap(
             _ -> other.resource.map(Either::right),
             success -> success(Either.left(success)));
 
     return new Resource<>(foldM.map(
         e -> e.fold(
-            a -> tuple(Either.left(a.first()), _ -> release(a)),
-            b -> tuple(Either.right(b.first()), _ -> release(b)))));
+            a -> tuple(Either.left(a.first()), a.second()),
+            b -> tuple(Either.right(b.first()), b.second()))));
   }
 
   public Resource<S, E, A> retry() {
@@ -109,7 +112,17 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   public static <S, E, A> Resource<S, E, A> of(Program<S, E, A> resource) {
-    return from(resource, _ -> {});
+    return make(resource, _ -> unit());
+  }
+
+  public static <S, E, A> Resource<S, E, A> make(
+      Program<S, E, A> acquire, Function<? super A, ? extends Program<S, Void, ?>> release) {
+    return new Resource<>(chain(acquire, a -> tuple(a, release(a, release))));
+  }
+
+  public static <S, E, A> Resource<S, E, A> make(
+      Function<? super S, ? extends A> acquire, Function<? super A, ? extends Program<S, Void, ?>> release) {
+    return make(access(acquire), release);
   }
 
   public static <S, E, A extends AutoCloseable> Resource<S, E, A> from(Program<S, E, A> resource) {
@@ -117,7 +130,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   public static <S, E, A> Resource<S, E, A> from(Program<S, E, A> resource, Consumer<? super A> release) {
-    return new Resource<>(resource.map(a -> tuple(a, release)));
+    return make(resource, a -> task(() -> release.accept(a)));
   }
 
   public static <S, E, A extends AutoCloseable> Resource<S, E, A> from(Function<? super S, ? extends A> mapper) {
@@ -125,37 +138,41 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   public static <S, E, A> Resource<S, E, A> from(Function<? super S, ? extends A> mapper, Consumer<? super A> release) {
-    return new Resource<>(chain(access(mapper), y -> tuple(y, release)));
+    return from(access(mapper), release);
   }
 
   // acquires the next resource once the previous one is acquired: if it fails, throws or the
-  // mapper throws, the previous resource is released before the error goes on, so nothing leaks
-  private static <S, F, T, R> Program<S, F, Tuple2<R, Consumer<? super R>>> acquireNext(
-      Tuple2<T, Consumer<? super T>> ta,
+  // mapper throws, the previous resource is released before the error goes on, so nothing leaks.
+  // Once both are acquired, the inner one is released first, and the outer one even if it fails
+  private static <S, F, T, R> Program<S, F, Tuple2<R, Program<S, Void, Unit>>> acquireNext(
+      Tuple2<T, Program<S, Void, Unit>> ta,
       Function<? super T, ? extends Resource<S, F, R>> mapper) {
     return catchAll(suspend(() -> {
           var next = mapper.apply(ta.first());
           return next.resource;
         }),
         error -> pipe(
-            task(() -> release(ta)),
+            release(ta),
             _ -> raise(() -> error)))
         .foldMap(
             error -> pipe(
-                task(() -> release(ta)),
+                release(ta),
                 _ -> failure(error)),
-            tb -> success(tuple(tb.first(), releaseAndThen(ta, tb))));
+            tb -> success(tuple(tb.first(), tb.second().ensuring(ta.second()))));
   }
 
-  private static <X, T, R> Consumer<X> releaseAndThen(
-      Tuple2<T, Consumer<? super T>> outer, Tuple2<R, Consumer<? super R>> inner) {
-    return _ -> {
-      try {
-        release(inner);
-      } finally {
-        release(outer);
-      }
-    };
+  // the release program is built when it runs, so if building it throws, it happens inside the
+  // finalizer of use, like any other failure of the release
+  private static <S, A> Program<S, Void, Unit> release(
+      A value, Function<? super A, ? extends Program<S, Void, ?>> release) {
+    return suspend(() -> release.apply(value).discard());
+  }
+
+  private static <S, E> Program<S, E, Unit> release(Tuple2<?, Program<S, Void, Unit>> tuple) {
+    // the release can't fail with an error, see resource, so the mapper is never called
+    return tuple.second().mapError(_ -> {
+      throw new IllegalStateException("a release can't fail with an error");
+    });
   }
 
   private static void close(AutoCloseable resource) {
@@ -164,9 +181,5 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     } catch (Exception e) {
       Fatal.sneakyThrow(e);
     }
-  }
-
-  private static <T> void release(Tuple2<T, Consumer<? super T>> tuple) {
-    tuple.second().accept(tuple.first());
   }
 }
