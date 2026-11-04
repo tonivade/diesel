@@ -4,7 +4,6 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Combine.bracket;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
@@ -711,11 +710,10 @@ class SourceTest {
     }
 
     private Program<Void, String, String> readFileLazy(String file) {
-      return bracket(
-          reader(file),
-          reader -> Source.<Void, String, String>fromStream(reader::lines)
-            .foldLeft("", (a, b) -> a + '\n' + b)
-        ).catchAll(_ -> failure("--- file not found ---"));
+      return Resource.from(reader(file))
+          .use(reader -> Source.<Void, String, String>fromStream(reader::lines)
+              .foldLeft("", (a, b) -> a + '\n' + b))
+          .catchAll(_ -> failure("--- file not found ---"));
     }
 
     private Program<Void, String, BufferedReader> reader(String file) {
