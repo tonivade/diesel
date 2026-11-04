@@ -223,7 +223,7 @@ public final class Queue<S, E, A> {
                 return success(Optional.empty());
               }
               if (result instanceof Waiting) {
-                return poll.apply(waiter.<S1, E1>get().onCancel(releaseTaker(waiter)));
+                return poll.apply(waiter.<S1, E1>get().onCancel(finalizer(this.<S1, E1>releaseTaker(waiter))));
               }
               return raise(IllegalStateException::new);
             })));
@@ -444,6 +444,14 @@ public final class Queue<S, E, A> {
                         done -> register(value.get(), done, Mode.REQUEUE),
                         _ -> unit())
                     : unit())));
+  }
+
+  // the operations of the queue never fail with an error, only throw, so the mapper is never
+  // called: it only turns them into a finalizer, which can't fail with an error
+  private static <S, E, T> Program<S, Void, T> finalizer(Program<S, E, T> program) {
+    return program.mapError(_ -> {
+      throw new IllegalStateException("the operations of the queue can't fail with an error");
+    });
   }
 
   // visible for the testing

@@ -69,7 +69,7 @@ final class Runtime {
                   resumed = true;
                 }
                 case FinalizerFrame(var finalizer) -> {
-                  // run the finalizer and then continue with the result, unless the finalizer fails
+                  // run the finalizer and then continue with the result, unless the finalizer throws
                   stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
                   enterUncancelable(stack, regions);
                   current = finalizer;

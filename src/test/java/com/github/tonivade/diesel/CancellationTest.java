@@ -147,7 +147,7 @@ class CancellationTest {
   void catchAllDoesNotStopACancellation() {
     var program = start().andThen(never())
         .catchAll(_ -> run(executed::incrementAndGet))
-        .ensuring(run(released::incrementAndGet));
+        .ensuring(finalizer(released::incrementAndGet));
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
 
@@ -158,7 +158,7 @@ class CancellationTest {
 
   @Test
   void finalizerCannotBeCancelled() {
-    var finalizer = Program.<Void, String>sleep(Duration.ofMillis(50)).andThen(run(released::incrementAndGet));
+    var finalizer = Program.<Void, Void>sleep(Duration.ofMillis(50)).andThen(finalizer(released::incrementAndGet));
     var program = start().andThen(never()).ensuring(finalizer);
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
@@ -170,9 +170,9 @@ class CancellationTest {
   @Test
   void finalizerThatForksCannotBeCancelled() {
     // timeout forks the program and a sleep
-    var finalizer = Program.<Void, String>sleep(Duration.ofMillis(50))
+    var finalizer = Program.<Void, Void>sleep(Duration.ofMillis(50))
         .timeout(Duration.ofSeconds(5))
-        .andThen(run(released::incrementAndGet));
+        .andThen(finalizer(released::incrementAndGet));
     var program = start().andThen(never()).ensuring(finalizer);
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
@@ -183,7 +183,7 @@ class CancellationTest {
 
   @Test
   void finalizerThatRunsInParallelCannotBeCancelled() {
-    var finalizer = parAll(run(released::incrementAndGet), run(released::incrementAndGet));
+    var finalizer = parAll(finalizer(released::incrementAndGet), finalizer(released::incrementAndGet));
     var program = start().andThen(never()).ensuring(finalizer);
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
@@ -194,8 +194,8 @@ class CancellationTest {
 
   @Test
   void finalizerCanRecoverFromAnExceptionWhenCancelled() {
-    var finalizer = Program.<Void, String, Unit>raise(IllegalStateException::new)
-        .catchAll(_ -> run(released::incrementAndGet));
+    var finalizer = Program.<Void, Void, Unit>raise(IllegalStateException::new)
+        .catchAll(_ -> finalizer(released::incrementAndGet));
     var program = start().andThen(never()).ensuring(finalizer);
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
@@ -259,7 +259,7 @@ class CancellationTest {
     var program = bracket(
         success("resource"),
         _ -> start().andThen(never()),
-        _ -> run(released::incrementAndGet));
+        _ -> task(released::incrementAndGet));
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
 
@@ -272,7 +272,7 @@ class CancellationTest {
     var program = Combine.<Void, String, String, Unit>bracket(
         success("resource"),
         _ -> Program.raise(IllegalStateException::new),
-        _ -> run(released::incrementAndGet));
+        _ -> task(released::incrementAndGet));
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
     assertThat(released).hasValue(1);
@@ -281,7 +281,7 @@ class CancellationTest {
   @Test
   void ensuringRunsTheFinalizerWhenThrows() {
     var program = Program.<Void, String, Unit>raise(IllegalStateException::new)
-        .ensuring(run(released::incrementAndGet));
+        .ensuring(finalizer(released::incrementAndGet));
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
     assertThat(released).hasValue(1);
@@ -289,7 +289,7 @@ class CancellationTest {
 
   @Test
   void programsNotCancelledAreNotAffected() {
-    var program = run(executed::incrementAndGet).ensuring(run(released::incrementAndGet));
+    var program = run(executed::incrementAndGet).ensuring(finalizer(released::incrementAndGet));
 
     var result = parZip(program, program, (_, _) -> "done").eval();
 
@@ -360,7 +360,7 @@ class CancellationTest {
 
   @Test
   void onCancelRunsWhenTheProgramIsCancelled() {
-    var program = start().andThen(never()).onCancel(run(released::incrementAndGet));
+    var program = start().andThen(never()).onCancel(finalizer(released::incrementAndGet));
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
 
@@ -370,7 +370,7 @@ class CancellationTest {
 
   @Test
   void onCancelDoesNotRunWhenTheProgramCompletes() {
-    var program = run(executed::incrementAndGet).onCancel(run(released::incrementAndGet));
+    var program = run(executed::incrementAndGet).onCancel(finalizer(released::incrementAndGet));
 
     var result = program.eval();
 
@@ -381,7 +381,7 @@ class CancellationTest {
 
   @Test
   void onCancelDoesNotRunWhenTheProgramFails() {
-    var program = Program.<Void, String, Unit>failure("error").onCancel(run(released::incrementAndGet));
+    var program = Program.<Void, String, Unit>failure("error").onCancel(finalizer(released::incrementAndGet));
 
     var result = program.eval();
 
@@ -392,7 +392,7 @@ class CancellationTest {
   @Test
   void onCancelDoesNotRunWhenTheProgramThrows() {
     var program = Program.<Void, String, Unit>raise(IllegalStateException::new)
-        .onCancel(run(released::incrementAndGet));
+        .onCancel(finalizer(released::incrementAndGet));
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
     assertThat(released).hasValue(0);
@@ -403,7 +403,7 @@ class CancellationTest {
     // the program that joins is not cancelled, the fork is
     var program = never().fork()
         .flatMap(fork -> run(() -> fork.cancel(true)).andThen(Program.join(fork)))
-        .onCancel(run(released::incrementAndGet))
+        .onCancel(finalizer(released::incrementAndGet))
         .map(_ -> "joined")
         .catchAll(_ -> success("recovered"));
 
@@ -415,7 +415,7 @@ class CancellationTest {
 
   @Test
   void onCancelFinalizerCannotBeCancelled() {
-    var finalizer = Program.<Void, String>sleep(Duration.ofMillis(50)).andThen(run(released::incrementAndGet));
+    var finalizer = Program.<Void, Void>sleep(Duration.ofMillis(50)).andThen(finalizer(released::incrementAndGet));
     var program = start().andThen(never()).onCancel(finalizer);
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
@@ -427,8 +427,8 @@ class CancellationTest {
   @Test
   void onCancelRunsTogetherWithEnsuring() {
     var program = start().andThen(never())
-        .onCancel(run(released::incrementAndGet))
-        .ensuring(run(executed::incrementAndGet));
+        .onCancel(finalizer(released::incrementAndGet))
+        .ensuring(finalizer(executed::incrementAndGet));
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
 
@@ -446,7 +446,7 @@ class CancellationTest {
         var task = scheduler.schedule(() -> future.complete(Result.success("late")), 1, TimeUnit.HOURS);
         scheduled.complete(task);
         signalStarted();
-        return run(() -> task.cancel(false));
+        return finalizer(() -> task.cancel(false));
       });
 
       var result = parZip(operation, failingWhenStarted(1), (_, _) -> "done").eval();
@@ -462,7 +462,7 @@ class CancellationTest {
   void asyncCancelableDoesNotRunTheCancelerWhenTheOperationCompletes() {
     var operation = Program.<Void, String, String>asyncCancelable((_, future) -> {
       future.complete(Result.success("done"));
-      return run(released::incrementAndGet);
+      return finalizer(released::incrementAndGet);
     });
 
     var result = operation.eval();
@@ -475,11 +475,11 @@ class CancellationTest {
   void asyncCancelableDoesNotRunTheCancelerWhenTheOperationFails() {
     var failing = Program.<Void, String, String>asyncCancelable((_, future) -> {
       future.complete(Result.failure("error"));
-      return run(released::incrementAndGet);
+      return finalizer(released::incrementAndGet);
     });
     var throwing = Program.<Void, String, String>asyncCancelable((_, future) -> {
       future.completeExceptionally(new IllegalStateException());
-      return run(released::incrementAndGet);
+      return finalizer(released::incrementAndGet);
     });
 
     assertThat(failing.eval()).isEqualTo(Result.failure("error"));
@@ -489,7 +489,7 @@ class CancellationTest {
 
   @Test
   void asyncCancelableCancelerCannotBeCancelled() {
-    var canceler = Program.<Void, String>sleep(Duration.ofMillis(50)).andThen(run(released::incrementAndGet));
+    var canceler = Program.<Void, Void>sleep(Duration.ofMillis(50)).andThen(finalizer(released::incrementAndGet));
     var operation = Program.<Void, String, String>asyncCancelable((_, _) -> {
       signalStarted();
       return canceler;
@@ -507,7 +507,7 @@ class CancellationTest {
     var operation = Program.<Void, String, Unit>asyncCancelable((_, future) -> {
       var _ = gate.whenComplete((_, _) -> future.complete(Result.unit()));
       signalStarted();
-      return run(released::incrementAndGet);
+      return finalizer(released::incrementAndGet);
     });
     var program = operation.andThen(run(executed::incrementAndGet)).uncancelable();
 
@@ -568,7 +568,7 @@ class CancellationTest {
         _ -> {
           throw new IllegalStateException();
         },
-        _ -> run(released::incrementAndGet));
+        _ -> task(released::incrementAndGet));
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
     assertThat(released).hasValue(1);
@@ -732,7 +732,7 @@ class CancellationTest {
   @Test
   void finalizersInsideThePollRunWhenCancelled() {
     var program = Program.<Void, String, Unit>uncancelable(poll -> poll.apply(
-        start().andThen(never()).ensuring(run(released::incrementAndGet))));
+        start().andThen(never()).ensuring(finalizer(released::incrementAndGet))));
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
 
@@ -743,7 +743,7 @@ class CancellationTest {
   @Test
   void onCancelInsideThePollRunsWhenCancelled() {
     var program = Program.<Void, String, Unit>uncancelable(poll -> poll.apply(
-        start().andThen(never()).onCancel(run(released::incrementAndGet))));
+        start().andThen(never()).onCancel(finalizer(released::incrementAndGet))));
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
 
@@ -754,7 +754,7 @@ class CancellationTest {
   @Test
   void onCancelOutsideThePollInsideTheRegion() {
     var program = Program.<Void, String, Unit>uncancelable(poll ->
-        poll.apply(start().andThen(never())).onCancel(run(released::incrementAndGet)));
+        poll.apply(start().andThen(never())).onCancel(finalizer(released::incrementAndGet)));
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
 
@@ -789,7 +789,7 @@ class CancellationTest {
   void cancellingThePollWaitRunsItsFinalizer() throws Exception {
     expected = 1;
     var program = Program.<Void, String, Unit>uncancelable(poll -> poll.apply(
-        start().andThen(never()).ensuring(run(released::incrementAndGet))));
+        start().andThen(never()).ensuring(finalizer(released::incrementAndGet))));
 
     var future = program.fork().evalOrElseThrow();
     allStarted.get(5, TimeUnit.SECONDS);
@@ -944,8 +944,8 @@ class CancellationTest {
     var program = Program.<Void, String, Unit>uncancelable(poll -> {
       escaped.complete(poll);
       return start().andThen(Program.join(gate));
-    }).ensuring(Program.<Void, String, Unit>suspend(() ->
-        escaped.join().apply(run(executed::incrementAndGet))));
+    }).ensuring(Program.<Void, Void, Unit>suspend(() ->
+        escaped.join().apply(finalizer(executed::incrementAndGet))));
 
     var future = program.fork().evalOrElseThrow();
     cancelAndOpen(future);
@@ -961,7 +961,7 @@ class CancellationTest {
    * so it only finishes when it is cancelled.
    */
   private Program<Void, String, Unit> blocked() {
-    return start().andThen(never()).ensuring(run(released::incrementAndGet));
+    return start().andThen(never()).ensuring(finalizer(released::incrementAndGet));
   }
 
   /**
@@ -1028,6 +1028,10 @@ class CancellationTest {
   }
 
   private static Program<Void, String, Unit> run(Runnable runnable) {
+    return task(runnable);
+  }
+
+  private static Program<Void, Void, Unit> finalizer(Runnable runnable) {
     return task(runnable);
   }
 }

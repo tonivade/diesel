@@ -15,6 +15,7 @@ import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
 import static com.github.tonivade.diesel.Program.unit;
+import static com.github.tonivade.diesel.Program.widen;
 import static com.github.tonivade.diesel.Tuple2.tuple;
 import static java.util.Objects.requireNonNull;
 
@@ -57,7 +58,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     return bracket(
         resource,
         ta -> use.apply(ta.first()),
-        ta -> widen(ta.second()));
+        Tuple2::second);
   }
 
   public Resource<S, E, A> orElse(Resource<S, E, A> other) {
@@ -166,13 +167,6 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   private static <S, A> Program<S, Void, Unit> release(
       A value, Function<? super A, ? extends Program<S, Void, ?>> release) {
     return suspend(() -> release.apply(value).discard());
-  }
-
-  private static <S, E> Program<S, E, Unit> widen(Program<S, Void, Unit> program) {
-    // the release can't fail with an error, see resource, so the mapper is never called
-    return program.mapError(_ -> {
-      throw new IllegalStateException("a release can't fail with an error");
-    });
   }
 
   private static void close(AutoCloseable resource) {
