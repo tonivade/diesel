@@ -1,0 +1,245 @@
+/*
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Distributed under the terms of the MIT License
+ */
+package com.github.tonivade.diesel;
+
+import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.raise;
+import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Program.supply;
+import static com.github.tonivade.diesel.Program.suspend;
+import static com.github.tonivade.diesel.Program.task;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.junit.jupiter.api.Test;
+
+class ResourceTest {
+
+  private final List<String> log = new CopyOnWriteArrayList<>();
+
+  // ---------------------------------------------------------------------------------------------
+  // use
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void useAcquiresUsesAndReleases() {
+    var result = resource("a").use(this::use).eval();
+
+    assertThat(result).isEqualTo(Result.success("a"));
+    assertThat(log).containsExactly("acquire a", "use a", "release a");
+  }
+
+  @Test
+  void releasesWhenUseFails() {
+    var result = resource("a").use(_ -> failure("boom")).eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void releasesWhenUseThrows() {
+    var program = resource("a").use(_ -> raise(IllegalStateException::new));
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void doesNotReleaseWhenAcquireFails() {
+    var result = Resource.<Void, String, String>of(failure("boom")).use(this::use).eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(log).isEmpty();
+  }
+
+  @Test
+  void closesAnAutoCloseable() {
+    AutoCloseable closeable = () -> log.add("close");
+
+    Resource.<Void, String, AutoCloseable>from(success(closeable))
+        .use(_ -> task(() -> log.add("use")))
+        .eval();
+
+    assertThat(log).containsExactly("use", "close");
+  }
+
+  @Test
+  void canBeUsedMoreThanOnce() {
+    var resource = resource("a");
+
+    resource.use(this::use).eval();
+    resource.use(this::use).eval();
+
+    assertThat(log).containsExactly(
+        "acquire a", "use a", "release a",
+        "acquire a", "use a", "release a");
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // composition
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void mapKeepsTheRelease() {
+    var result = resource("a").map(String::toUpperCase).use(this::use).eval();
+
+    assertThat(result).isEqualTo(Result.success("A"));
+    assertThat(log).containsExactly("acquire a", "use A", "release a");
+  }
+
+  @Test
+  void flatMapReleasesInReverseOrder() {
+    var result = resource("a")
+        .flatMap(a -> resource(a + "b"))
+        .flatMap(b -> resource(b + "c"))
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("abc"));
+    assertThat(log).containsExactly(
+        "acquire a", "acquire ab", "acquire abc",
+        "use abc",
+        "release abc", "release ab", "release a");
+  }
+
+  @Test
+  void flatMapReleasesTheFirstWhenTheSecondFails() {
+    var result = resource("a")
+        .flatMap(_ -> Resource.<Void, String, String>of(failure("boom")))
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void flatMapReleasesTheFirstWhenTheSecondThrows() {
+    var program = resource("a")
+        .flatMap(_ -> Resource.<Void, String, String>of(raise(IllegalStateException::new)))
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void flatMapReleasesTheFirstWhenTheMapperThrows() {
+    var program = resource("a")
+        .<String>flatMap(_ -> {
+          throw new IllegalStateException();
+        })
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void combineKeepsBothOpenWhileUsed() {
+    var result = resource("a").combine(resource("b"))
+        .use(t -> use(t.first() + t.second()))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("ab"));
+    assertThat(log).containsExactly("acquire a", "acquire b", "use ab", "release b", "release a");
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // errors
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void mapErrorKeepsTheRelease() {
+    var result = resource("a")
+        .flatMap(_ -> Resource.of(failure("boom")))
+        .mapError(String::length)
+        .use(Program::success)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure(4));
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void orElseAcquiresTheFirstOnlyOnce() {
+    var result = resource("a").orElse(resource("b")).use(this::use).eval();
+
+    assertThat(result).isEqualTo(Result.success("a"));
+    assertThat(log).containsExactly("acquire a", "use a", "release a");
+  }
+
+  @Test
+  void orElseFallsBackWhenTheFirstFails() {
+    var result = Resource.<Void, String, String>of(failure("boom"))
+        .orElse(resource("b"))
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("b"));
+    assertThat(log).containsExactly("acquire b", "use b", "release b");
+  }
+
+  @Test
+  void eitherIsLeftWhenTheFirstSucceeds() {
+    var result = resource("a").either(resource("b")).use(Program::success).eval();
+
+    assertThat(result).isEqualTo(Result.success(Either.left("a")));
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void eitherIsRightWhenTheFirstFails() {
+    var result = Resource.<Void, String, String>of(failure("boom"))
+        .either(resource("b"))
+        .use(Program::success)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success(Either.right("b")));
+    assertThat(log).containsExactly("acquire b", "release b");
+  }
+
+  @Test
+  void retryAcquiresAgainAfterAFailure() {
+    var attempts = new AtomicInteger();
+    var flaky = Resource.<Void, String, String>from(
+        suspend(() -> attempts.incrementAndGet() == 1
+            ? failure("boom")
+            : success("a")),
+        a -> log.add("release " + a));
+
+    var result = flaky.retry().use(this::use).eval();
+
+    assertThat(result).isEqualTo(Result.success("a"));
+    assertThat(attempts).hasValue(2);
+    assertThat(log).containsExactly("use a", "release a");
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // helpers
+  // ---------------------------------------------------------------------------------------------
+
+  private Resource<Void, String, String> resource(String name) {
+    return Resource.from(
+        supply(() -> {
+          log.add("acquire " + name);
+          return name;
+        }),
+        value -> log.add("release " + value));
+  }
+
+  private Program<Void, String, String> use(String value) {
+    return pipe(
+        task(() -> log.add("use " + value)),
+        _ -> success(value)
+        );
+  }
+}
