@@ -43,6 +43,16 @@ class QueueTest {
 
   private static final Duration PAUSE = Duration.ofMillis(50);
 
+  @Test
+  void canBeUsedInMoreSpecificProgramContext() {
+    Queue<Integer> queue = Queue.<Integer>bounded(1);
+
+    Program<String, RuntimeException, Optional<Integer>> program =
+        pipe(queue.offer(1), _ -> queue.tryTake());
+
+    assertThat(program.evalOrElseThrow()).contains(1);
+  }
+
   // ---------------------------------------------------------------------------------------------
   // basic behaviour (open queue)
   // ---------------------------------------------------------------------------------------------
