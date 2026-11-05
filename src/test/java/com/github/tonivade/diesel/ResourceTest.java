@@ -169,6 +169,30 @@ class ResourceTest {
   }
 
   @Test
+  void mapReleasesWhenTheMapperThrows() {
+    var program = resource("a")
+        .<String>map(_ -> {
+          throw new IllegalStateException();
+        })
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void mapKeepsTheReleaseInAComposedResource() {
+    var result = resource("a")
+        .flatMap(a -> resource("b").map(b -> a + b))
+        .map(String::toUpperCase)
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("AB"));
+    assertThat(log).containsExactly("acquire a", "acquire b", "use AB", "release b", "release a");
+  }
+
+  @Test
   void flatMapReleasesInReverseOrder() {
     var result = resource("a")
         .flatMap(a -> resource(a + "b"))
