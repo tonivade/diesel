@@ -30,7 +30,7 @@ import java.util.function.Function;
  *
  * <p>A resource describes how to acquire a value and how to release it when it is no longer
  * needed. Acquisition is deferred until {@link #use(Function)} is executed, and each execution
- * acquires a fresh resource.
+ * runs the acquisition again, so the same resource can be used more than once.
  *
  * <p>Resources can be composed using {@link #map(Function)} and {@link #flatMap(Function)}.
  * When resources are composed, they are released in reverse order of acquisition, ensuring that

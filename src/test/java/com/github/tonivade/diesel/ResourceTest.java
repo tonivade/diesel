@@ -308,6 +308,67 @@ class ResourceTest {
     assertThat(log).containsExactly("acquire a", "use b", "release a");
   }
 
+  @Test
+  void theOuterReleaseExceptionWinsWhenBothReleasesThrow() {
+    var outer = Resource.<Void, String, String>make(
+        success("a"),
+        _ -> raise(() -> new IllegalStateException("outer")));
+    var inner = Resource.<Void, String, String>make(
+        success("b"),
+        _ -> raise(() -> new IllegalArgumentException("inner")));
+
+    var program = outer.flatMap(_ -> inner).use(this::use);
+
+    // like a finally block: the exception of the last release replaces the previous one
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("outer");
+    assertThat(log).containsExactly("use b");
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // cancellation during acquisition
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void aCancelledAcquisitionFinishesAndIsReleasedWithoutUsingIt() {
+    var acquiring = new CompletableFuture<Void>();
+    var gate = new CompletableFuture<Void>();
+    var program = Resource.<Void, String, String>from(
+            supply(() -> blockUntilOpen(acquiring, gate, "a")),
+            a -> log.add("release " + a))
+        .use(this::use);
+
+    var future = program.fork().evalOrElseThrow();
+    acquiring.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    gate.complete(null);
+
+    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void aCancelledComposedAcquisitionReleasesEveryResourceInReverseOrder() {
+    var acquiring = new CompletableFuture<Void>();
+    var gate = new CompletableFuture<Void>();
+    var blocking = Resource.<Void, String, String>from(
+        supply(() -> blockUntilOpen(acquiring, gate, "b")),
+        b -> log.add("release " + b));
+
+    var program = resource("a").flatMap(_ -> blocking).use(this::use);
+
+    var future = program.fork().evalOrElseThrow();
+    acquiring.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    gate.complete(null);
+
+    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    assertThat(log).containsExactly("acquire a", "acquire b", "release b", "release a");
+  }
+
   // ---------------------------------------------------------------------------------------------
   // helpers
   // ---------------------------------------------------------------------------------------------
@@ -319,6 +380,15 @@ class ResourceTest {
           return name;
         }),
         value -> log.add("release " + value));
+  }
+
+  // an acquisition that signals it has started and then waits until the test opens the gate
+  private String blockUntilOpen(
+      CompletableFuture<Void> acquiring, CompletableFuture<Void> gate, String name) {
+    acquiring.complete(null);
+    gate.join();
+    log.add("acquire " + name);
+    return name;
   }
 
   private Program<Void, String, String> use(String value) {
