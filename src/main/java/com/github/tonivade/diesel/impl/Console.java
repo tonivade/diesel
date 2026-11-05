@@ -20,6 +20,7 @@ public interface Console {
    * Service interface that provides methods to write to the console and read from the console.
    */
   interface Service {
+
     /**
      * Writes a line of text to the console.
      *
@@ -49,6 +50,19 @@ public interface Console {
    */
   static <S extends Service, E> Program<S, E, Unit> writeLine(String line) {
     return inspect(state -> state.writeLine(line));
+  }
+
+  /**
+   * Creates a new console operation that format and writes a line of text to the console.
+   *
+   * @param line The line of text to write with the format.
+   * @param params arguments for the formatter
+   * @param <S>  The type of service.
+   * @param <E>  The type of error.
+   * @return A new console operation that format and writes a line of text to the console.
+   */
+  static <S extends Service, E> Program<S, E, Unit> writeLine(String line, Object...params) {
+    return inspect(state -> state.writeLine(line.formatted(params)));
   }
 
   /**

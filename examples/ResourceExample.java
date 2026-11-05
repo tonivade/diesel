@@ -1,4 +1,3 @@
-
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //DEPS com.github.tonivade:diesel:0.14-SNAPSHOT
 
@@ -34,8 +33,8 @@ public class ResourceExample {
 
     List<String> lines = readLines(path).evalOrElseThrow();
 
-    System.out.println("Read " + lines.size() + " lines:");
-    lines.forEach(System.out::println);
+    IO.println("Read " + lines.size() + " lines:");
+    lines.forEach(IO::println);
   }
 
   static Program<Void, Throwable, List<String>> readLines(Path path) {
