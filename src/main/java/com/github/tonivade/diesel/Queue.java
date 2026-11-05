@@ -44,8 +44,9 @@ import org.pcollections.TreePVector;
  * </ul>
  *
  * <p>After a cancelled {@code take} gives back a value that an offer had already handed to it,
- * the queue can temporarily exceed its capacity. That value is put back even if the queue has been
- * closed in the meantime, since it was accepted before the close.
+ * the queue can temporarily exceed its capacity, until enough elements are taken: meanwhile, the
+ * blocked offers keep waiting. That value is put back even if the queue has been closed in the
+ * meantime, since it was accepted before the close.
  *
  * <p>Elements can't be {@code null}.
  *
@@ -523,15 +524,17 @@ public final class Queue<A> {
     Tuple2<TakeResult<A>, State<A>> take(Deferred<Optional<A>> waiter, boolean wait) {
       if (!items.isEmpty()) {
         var head = items.poll();
-        if (!offerers.isEmpty()) {
-          // a place was freed: the first blocked offer enters the queue and is woken up
+        var rest = head.second();
+        // a place was freed: the first blocked offer enters the queue and is woken up. A queue over
+        // its capacity, after a value was put back, doesn't free a place until it's below it
+        if (!offerers.isEmpty() && rest.size() < capacity) {
           return tuple(
               new Taken<>(head.first(), Optional.of(offerers.getFirst().done())),
-              new State<>(capacity, head.second().append(offerers.getFirst().value()), takers, offerers.minus(0), closed));
+              new State<>(capacity, rest.append(offerers.getFirst().value()), takers, offerers.minus(0), closed));
         }
         return tuple(
             new Taken<>(head.first(), Optional.empty()),
-            new State<>(capacity, head.second(), takers, offerers, closed));
+            new State<>(capacity, rest, takers, offerers, closed));
       }
       if (closed) {
         return tuple(new TakeClosed<>(), this);
@@ -544,12 +547,12 @@ public final class Queue<A> {
 
     Tuple2<Boolean, State<A>> removeTaker(Deferred<Optional<A>> waiter) {
       var rest = takers.minus(waiter);
-      return tuple(rest != takers, new State<>(capacity, items, rest, offerers, closed));
+      return tuple(rest.size() < takers.size(), new State<>(capacity, items, rest, offerers, closed));
     }
 
     Tuple2<Boolean, State<A>> removeOfferer(Deferred<Boolean> done) {
       var rest = offerers.minus(new Offerer<>(Unit.unit(), done));
-      return tuple(rest != offerers, new State<>(capacity, items, takers, rest, closed));
+      return tuple(rest.size() < offerers.size(), new State<>(capacity, items, takers, rest, closed));
     }
 
     Tuple2<Pending<A>, State<A>> close() {

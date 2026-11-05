@@ -333,6 +333,33 @@ class QueueTest {
     assertThat(queue.size().evalOrElseThrow()).isEqualTo(2);
   }
 
+  @Test
+  void aTakeFromAQueueOverCapacityDoesNotAdmitABlockedOffer() {
+    var queue = Queue.<Integer>bounded(1);
+    Deferred<Optional<Integer>> waiter = Deferred.create();
+    Deferred<Boolean> done = Deferred.create();
+
+    var first = queue.claim(waiter, true).discard()
+        .andThen(queue.offer(1))                            // handed to the waiting take
+        .andThen(queue.offer(2))                            // stored: the queue is full
+        .andThen(queue.register(3, done, Queue.Mode.WAIT))  // blocked
+        .andThen(queue.releaseTaker(waiter))                // 1 is put back: over capacity
+        .andThen(queue.take());
+
+    assertThat(first.evalOrElseThrow()).isEqualTo(1);
+    // still full after the take: the blocked offer has to keep waiting
+    assertThat(queue.size().evalOrElseThrow()).isEqualTo(1);
+    assertThat(queue.waitingOfferers()).isEqualTo(1);
+    assertThat(done.tryGet().evalOrElseThrow()).isEmpty();
+
+    // the next take makes room for it
+    assertThat(queue.take().evalOrElseThrow()).isEqualTo(2);
+    assertThat(queue.size().evalOrElseThrow()).isEqualTo(1);
+    assertThat(queue.waitingOfferers()).isZero();
+    assertThat(done.tryGet().evalOrElseThrow()).contains(true);
+    assertThat(queue.take().evalOrElseThrow()).isEqualTo(3);
+  }
+
   // ---------------------------------------------------------------------------------------------
   // close: offers
   // ---------------------------------------------------------------------------------------------
