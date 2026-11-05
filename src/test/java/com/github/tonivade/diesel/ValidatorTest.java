@@ -7,7 +7,7 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Result.success;
 import static com.github.tonivade.diesel.Validation.invalid;
 import static com.github.tonivade.diesel.Validation.valid;
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.function.Function;
@@ -37,24 +37,24 @@ class ValidatorTest {
     var positiveCombineEven = isPositive.combine(isEven);
 
     // Test with a positive even number
-    assertEquals(positiveAndEven.apply(4).eval(null), success(valid()));
-    assertEquals(positiveOrEven.apply(4).eval(null), success(valid()));
-    assertEquals(positiveCombineEven.apply(4).eval(null), success(valid()));
+    assertThat(positiveAndEven.apply(4).eval(null)).isEqualTo(success(valid()));
+    assertThat(positiveOrEven.apply(4).eval(null)).isEqualTo(success(valid()));
+    assertThat(positiveCombineEven.apply(4).eval(null)).isEqualTo(success(valid()));
 
     // Test with a positive odd number
-    assertEquals(positiveAndEven.apply(3).eval(null), success(invalid("Value must be even")));
-    assertEquals(positiveOrEven.apply(3).eval(null), success(valid()));
-    assertEquals(positiveCombineEven.apply(3).eval(null), success(invalid(List.of("Value must be even"))));
+    assertThat(positiveAndEven.apply(3).eval(null)).isEqualTo(success(invalid("Value must be even")));
+    assertThat(positiveOrEven.apply(3).eval(null)).isEqualTo(success(valid()));
+    assertThat(positiveCombineEven.apply(3).eval(null)).isEqualTo(success(invalid(List.of("Value must be even"))));
 
     // Test with a negative even number
-    assertEquals(positiveAndEven.apply(-2).eval(null), success(invalid("Value must be positive")));
-    assertEquals(positiveOrEven.apply(-2).eval(null), success(valid()));
-    assertEquals(positiveCombineEven.apply(-2).eval(null), success(invalid(List.of("Value must be positive"))));
+    assertThat(positiveAndEven.apply(-2).eval(null)).isEqualTo(success(invalid("Value must be positive")));
+    assertThat(positiveOrEven.apply(-2).eval(null)).isEqualTo(success(valid()));
+    assertThat(positiveCombineEven.apply(-2).eval(null)).isEqualTo(success(invalid(List.of("Value must be positive"))));
 
     // Test with a negative odd number
-    assertEquals(positiveAndEven.apply(-3).eval(null), success(invalid("Value must be positive")));
-    assertEquals(positiveOrEven.apply(-3).eval(null), success(invalid("Value must be even")));
-    assertEquals(positiveCombineEven.apply(-3).eval(null), success(invalid(List.of("Value must be positive", "Value must be even"))));
+    assertThat(positiveAndEven.apply(-3).eval(null)).isEqualTo(success(invalid("Value must be positive")));
+    assertThat(positiveOrEven.apply(-3).eval(null)).isEqualTo(success(invalid("Value must be even")));
+    assertThat(positiveCombineEven.apply(-3).eval(null)).isEqualTo(success(invalid(List.of("Value must be positive", "Value must be even"))));
   }
 
   @Test
@@ -66,14 +66,14 @@ class ValidatorTest {
     Validator<Object, String, Integer> mustExistMapped = Validator.fromFailure(lookup, error -> "error: " + error);
     Validator<Object, String, Integer> mustNotExist = Validator.fromSuccess(lookup, value -> value + " already exists");
 
-    assertEquals(mustExist.apply(1).eval(null), success(valid()));
-    assertEquals(mustExist.apply(-1).eval(null), success(invalid("not found")));
+    assertThat(mustExist.apply(1).eval(null)).isEqualTo(success(valid()));
+    assertThat(mustExist.apply(-1).eval(null)).isEqualTo(success(invalid("not found")));
 
-    assertEquals(mustExistMapped.apply(1).eval(null), success(valid()));
-    assertEquals(mustExistMapped.apply(-1).eval(null), success(invalid("error: not found")));
+    assertThat(mustExistMapped.apply(1).eval(null)).isEqualTo(success(valid()));
+    assertThat(mustExistMapped.apply(-1).eval(null)).isEqualTo(success(invalid("error: not found")));
 
-    assertEquals(mustNotExist.apply(1).eval(null), success(invalid("1 already exists")));
-    assertEquals(mustNotExist.apply(-1).eval(null), success(valid()));
+    assertThat(mustNotExist.apply(1).eval(null)).isEqualTo(success(invalid("1 already exists")));
+    assertThat(mustNotExist.apply(-1).eval(null)).isEqualTo(success(valid()));
   }
 
 }
