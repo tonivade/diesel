@@ -10,6 +10,7 @@ import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.join;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
@@ -564,7 +565,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   private static <S> Program<S, Void, Unit> cancelAndWait(CompletableFuture<?> future) {
     return pipe(
         task(() -> future.cancel(true)),
-        _ -> Program.join(future.<Result<Void, Unit>>handle((_, _) -> Result.success(Unit.unit()))));
+        _ -> join(future.handle((_, _) -> Result.unit())));
   }
 
   private static void close(AutoCloseable resource) {
