@@ -39,6 +39,10 @@ import java.util.function.Function;
  * <p>Resources are always released after use, including when the computation fails, throws an
  * exception, or is cancelled.
  *
+ * <p>Acquisition can't be cancelled: once {@link #use(Function)} starts acquiring, the whole
+ * acquisition runs to the end, including the delays of {@link #retry(int, Duration)}, so that
+ * whatever is acquired is also released.
+ *
  * <p>A release action cannot fail through the program's error channel, but it may throw an
  * exception. If a release action throws, that exception replaces the result of the computation
  * being finalized.
@@ -154,10 +158,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   /**
    * Folds both the acquisition error and the acquired value into a new resource.
    *
-   * <p>If acquisition fails, {@code mapError} is applied to the error. If acquisition succeeds,
-   * {@code mapper} is applied to the acquired value.
-   *
-   * <p>The selected resource determines the value and release action of the resulting resource.
+   * <p>If acquisition fails, {@code mapError} is applied to the error and the resource it returns
+   * is acquired instead. If acquisition succeeds, {@code mapper} is applied to the acquired value,
+   * like {@link #flatMap(Function)}: both resources are released, the new one first.
    *
    * @param mapError the function used to handle an acquisition error
    * @param mapper the function used to transform an acquired value into another resource
@@ -215,10 +218,11 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   /**
-   * Retries resource acquisition once when it fails.
+   * Retries resource acquisition once when it fails with an error.
    *
    * <p>Each retry performs a new acquisition attempt. Any resources acquired during a failed
-   * attempt are released before the next attempt begins.
+   * attempt are released before the next attempt begins. Exceptions thrown during acquisition
+   * are not retried.
    *
    * @return a resource that retries acquisition once
    */
@@ -227,10 +231,11 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   /**
-   * Retries resource acquisition when it fails.
+   * Retries resource acquisition when it fails with an error, up to {@code maxRetries} times.
    *
    * <p>The initial acquisition is followed by at most {@code maxRetries} additional attempts.
    * Any resources acquired during a failed attempt are released before the next attempt begins.
+   * Exceptions thrown during acquisition are not retried.
    *
    * @param maxRetries the maximum number of additional acquisition attempts
    * @return a resource that retries acquisition up to the specified number of times
@@ -240,8 +245,11 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   /**
-   * Retries resource acquisition once when it fails, waiting for the specified duration
-   * between attempts.
+   * Retries resource acquisition once when it fails with an error, waiting for the specified
+   * duration between attempts.
+   *
+   * <p>Any resources acquired during the failed attempt are released before the next attempt
+   * begins. Exceptions thrown during acquisition are not retried.
    *
    * @param delay the duration to wait before retrying
    * @return a resource that retries acquisition once after the specified delay
@@ -251,11 +259,12 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   /**
-   * Retries resource acquisition when it fails, waiting for the specified duration
-   * between attempts.
+   * Retries resource acquisition when it fails with an error, up to {@code maxRetries} times,
+   * waiting for the specified duration between attempts.
    *
    * <p>The initial acquisition is followed by at most {@code maxRetries} additional attempts.
    * Any resources acquired during a failed attempt are released before the next attempt begins.
+   * Exceptions thrown during acquisition are not retried.
    *
    * @param maxRetries the maximum number of additional acquisition attempts
    * @param delay the duration to wait between attempts
@@ -314,6 +323,21 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     return new Resource<>(chain(acquire, a -> tuple(a, release(a, release))));
   }
 
+  /**
+   * Creates a resource using the current program state to acquire its value, and a release
+   * function.
+   *
+   * <p>The acquire function is evaluated when the resource is used. The release function is
+   * evaluated when the resource is released, and the program it returns can't fail with an error,
+   * only throw an exception.
+   *
+   * @param acquire the function used to acquire the value from the current state
+   * @param release the function used to release the acquired value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <A> the type of the acquired value
+   * @return a resource that manages the acquired value and its release
+   */
   public static <S, E, A> Resource<S, E, A> make(
       Function<? super S, ? extends A> acquire, Function<? super A, ? extends Program<S, Void, ?>> release) {
     return make(access(acquire), release);
