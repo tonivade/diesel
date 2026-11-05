@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.bracket;
+import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.recover;
 import static com.github.tonivade.diesel.Concurrent.either;
 import static com.github.tonivade.diesel.Concurrent.parAll;
@@ -259,6 +260,37 @@ class CancellationTest {
     var program = bracket(
         success("resource"),
         _ -> start().andThen(never()),
+        _ -> task(released::incrementAndGet));
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void bracketFullCanCancelAPolledWaitInTheAcquisition() {
+    var used = new AtomicInteger();
+    var program = Combine.<Void, String, String, String>bracketFull(
+        poll -> poll.apply(pipe(start(), _ -> Program.never())),
+        _ -> pipe(task(used::incrementAndGet), _ -> success("used")),
+        _ -> task(released::incrementAndGet));
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(used).hasValue(0);
+    assertThat(released).hasValue(0); // nothing was acquired, so nothing is released
+  }
+
+  @Test
+  void bracketFullReleasesWhenCancelledAfterThePolledWait() {
+    var program = Combine.<Void, String, String, String>bracketFull(
+        poll -> pipe(
+            poll.apply(success("permit")),
+            _ -> start(),
+            _ -> success("resource")),
+        _ -> Program.never(),
         _ -> task(released::incrementAndGet));
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();

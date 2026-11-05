@@ -16,10 +16,12 @@ import static com.github.tonivade.diesel.Program.task;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
@@ -370,8 +372,66 @@ class ResourceTest {
   }
 
   // ---------------------------------------------------------------------------------------------
+  // makeFull
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void aPolledWaitInTheAcquisitionCanBeCancelled() {
+    var waiting = new CompletableFuture<Void>();
+    var program = waitingForever(waiting).use(this::use);
+
+    var future = program.fork().evalOrElseThrow();
+    waiting.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    assertThat(log).isEmpty(); // nothing was acquired, so nothing is released
+  }
+
+  @Test
+  void aPolledWaitInTheNextAcquisitionCanBeCancelledAndReleasesThePrevious() {
+    var waiting = new CompletableFuture<Void>();
+    var program = resource("a").flatMap(_ -> waitingForever(waiting)).use(this::use);
+
+    var future = program.fork().evalOrElseThrow();
+    waiting.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void theDelayOfRetryCanBeCancelled() {
+    var attempted = new CompletableFuture<Void>();
+    var program = Resource.<Void, String, String>of(suspend(() -> {
+          attempted.complete(null);
+          return failure("boom");
+        }))
+        .retry(1, Duration.ofHours(1))
+        .use(this::use);
+
+    var future = program.fork().evalOrElseThrow();
+    attempted.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    // it doesn't wait for the hour of the delay
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(log).isEmpty();
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // helpers
   // ---------------------------------------------------------------------------------------------
+
+  // a resource whose acquisition signals it's waiting and then waits forever, but cancelably
+  private Resource<Void, String, String> waitingForever(CompletableFuture<Void> waiting) {
+    return Resource.makeFull(
+        poll -> pipe(
+            task(() -> waiting.complete(null)),
+            _ -> poll.apply(never())),
+        value -> task(() -> log.add("release " + value)));
+  }
 
   private Resource<Void, String, String> resource(String name) {
     return Resource.from(

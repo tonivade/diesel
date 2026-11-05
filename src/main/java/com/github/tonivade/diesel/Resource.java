@@ -4,13 +4,14 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Combine.bracket;
+import static com.github.tonivade.diesel.Combine.bracketFull;
 import static com.github.tonivade.diesel.Combine.catchAll;
 import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.raise;
+import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
@@ -19,6 +20,7 @@ import static com.github.tonivade.diesel.Program.widen;
 import static com.github.tonivade.diesel.Tuple2.tuple;
 import static java.util.Objects.requireNonNull;
 
+import com.github.tonivade.diesel.Program.Poll;
 import com.github.tonivade.purefun.Kind;
 
 import java.time.Duration;
@@ -39,9 +41,11 @@ import java.util.function.Function;
  * <p>Resources are always released after use, including when the computation fails, throws an
  * exception, or is cancelled.
  *
- * <p>Acquisition can't be cancelled: once {@link #use(Function)} starts acquiring, the whole
- * acquisition runs to the end, including the delays of {@link #retry(int, Duration)}, so that
- * whatever is acquired is also released.
+ * <p>Acquisition can't be cancelled: once {@link #use(Function)} starts acquiring, the
+ * acquisition runs to the end, so that whatever is acquired is also released. The only exceptions
+ * are the waits that a resource made with {@link #makeFull(Function, Function)} wraps with its
+ * {@link Poll}, and the delays of {@link #retry(int, Duration)}: a cancellation during them stops
+ * the acquisition, and the resources already acquired are released.
  *
  * <p>A release action cannot fail through the program's error channel, but it may throw an
  * exception. If a release action throws, that exception replaces the result of the computation
@@ -53,12 +57,13 @@ import java.util.function.Function;
  */
 public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
 
-  // the acquired value and the program that releases it. The release can't fail with an error, like
+  // builds the acquisition with the Poll of the uncancelable region that use opens: it returns the
+  // acquired value and the program that releases it. The release can't fail with an error, like
   // the programs returned by fold, so changing the error type of the resource doesn't affect it
-  private final Program<S, E, Tuple2<A, Program<S, Void, Unit>>> resource;
+  private final Function<Poll, Program<S, E, Tuple2<A, Program<S, Void, Unit>>>> acquire;
 
-  private Resource(Program<S, E, Tuple2<A, Program<S, Void, Unit>>> resource) {
-    this.resource = requireNonNull(resource);
+  private Resource(Function<Poll, Program<S, E, Tuple2<A, Program<S, Void, Unit>>>> acquire) {
+    this.acquire = requireNonNull(acquire);
   }
 
   /**
@@ -85,7 +90,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource with the mapped error type
    */
   public <F> Resource<S, F, A> mapError(Function<? super E, ? extends F> mapper) {
-    return new Resource<>(resource.mapError(mapper));
+    return new Resource<>(poll -> acquire.apply(poll).mapError(mapper));
   }
 
   /**
@@ -103,7 +108,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource representing the composition of both resources
    */
   public <B> Resource<S, E, B> flatMap(Function<? super A, ? extends Resource<S, E, B>> mapper) {
-    return new Resource<>(resource.flatMap(ta -> acquireNext(ta, mapper)));
+    return new Resource<>(poll -> acquire.apply(poll).flatMap(ta -> acquireNext(poll, ta, mapper)));
   }
 
   /**
@@ -117,9 +122,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource that falls back to another resource when acquisition fails
    */
   public <F> Resource<S, F, A> flatMapError(Function<? super E, ? extends Resource<S, F, A>> mapper) {
-    return new Resource<>(resource.flatMapError(e -> {
-      var apply = mapper.apply(e);
-      return apply.resource;
+    return new Resource<>(poll -> acquire.apply(poll).flatMapError(e -> {
+      var next = mapper.apply(e);
+      return next.acquire.apply(poll);
     }));
   }
 
@@ -136,8 +141,8 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a program that manages the complete resource lifecycle
    */
   public <B> Program<S, E, B> use(Function<? super A, ? extends Program<S, E, B>> use) {
-    return bracket(
-        resource,
+    return bracketFull(
+        acquire,
         ta -> use.apply(ta.first()),
         Tuple2::second);
   }
@@ -171,12 +176,12 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   public <F, B> Resource<S, F, B> foldMap(
       Function<? super E, ? extends Resource<S, F, B>> mapError,
       Function<? super A, ? extends Resource<S, F, B>> mapper) {
-    return new Resource<>(resource.foldMap(
+    return new Resource<>(poll -> acquire.apply(poll).foldMap(
         error -> {
-          var apply = mapError.apply(error);
-          return apply.resource;
+          var next = mapError.apply(error);
+          return next.acquire.apply(poll);
         },
-        ta -> acquireNext(ta, mapper)));
+        ta -> acquireNext(poll, ta, mapper)));
   }
 
   /**
@@ -206,15 +211,17 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource containing the value of the successful acquisition
    */
   public <B> Resource<S, E, Either<A, B>> either(Resource<S, E, B> other) {
-    Program<S, E, Either<Tuple2<A, Program<S, Void, Unit>>, Tuple2<B, Program<S, Void, Unit>>>> foldM =
-        this.resource.foldMap(
-            _ -> other.resource.map(Either::right),
-            success -> success(Either.left(success)));
+    return new Resource<>(poll -> {
+      Program<S, E, Either<Tuple2<A, Program<S, Void, Unit>>, Tuple2<B, Program<S, Void, Unit>>>> foldM =
+          acquire.apply(poll).foldMap(
+              _ -> other.acquire.apply(poll).map(Either::right),
+              success -> success(Either.left(success)));
 
-    return new Resource<>(foldM.map(
-        e -> e.fold(
-            a -> tuple(Either.left(a.first()), a.second()),
-            b -> tuple(Either.right(b.first()), b.second()))));
+      return foldM.map(
+          e -> e.fold(
+              a -> tuple(Either.left(a.first()), a.second()),
+              b -> tuple(Either.right(b.first()), b.second())));
+    });
   }
 
   /**
@@ -241,7 +248,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource that retries acquisition up to the specified number of times
    */
   public Resource<S, E, A> retry(int maxRetries) {
-    return new Resource<>(resource.retry(maxRetries));
+    return new Resource<>(poll -> acquire.apply(poll).retry(maxRetries));
   }
 
   /**
@@ -266,12 +273,16 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * Any resources acquired during a failed attempt are released before the next attempt begins.
    * Exceptions thrown during acquisition are not retried.
    *
+   * <p>Unlike the rest of the acquisition, the delays can be cancelled.
+   *
    * @param maxRetries the maximum number of additional acquisition attempts
    * @param delay the duration to wait between attempts
    * @return a resource that retries acquisition up to the specified number of times
    */
   public Resource<S, E, A> retry(int maxRetries, Duration delay) {
-    return new Resource<>(resource.retry(maxRetries, delay));
+    // only the wait between attempts is cancelable: a failed attempt has already released what
+    // it acquired, so nothing is lost if it's cancelled
+    return new Resource<>(poll -> acquire.apply(poll).retry(maxRetries, poll.apply(sleep(delay))));
   }
 
   /**
@@ -320,7 +331,42 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    */
   public static <S, E, A> Resource<S, E, A> make(
       Program<S, E, A> acquire, Function<? super A, ? extends Program<S, Void, ?>> release) {
-    return new Resource<>(chain(acquire, a -> tuple(a, release(a, release))));
+    return makeFull(_ -> acquire, release);
+  }
+
+  /**
+   * Creates a resource whose acquisition can make some of its steps cancelable, and a release
+   * function.
+   *
+   * <p>The acquisition runs in an uncancelable region, so once the value is acquired there is no
+   * window where it could be lost before its release is guaranteed. The acquire function receives
+   * a {@link Poll}: only the programs wrapped with it can be cancelled, like waiting for a
+   * connection from an exhausted pool.
+   *
+   * <p>Wrap only the steps that wait, never the one that actually obtains the value: if a
+   * cancellation arrives inside a polled program, the value isn't acquired yet, so it isn't
+   * released either. If the resource is composed with others, the resources already acquired are
+   * released.
+   *
+   * <pre>{@code
+   * Resource<S, E, Connection> connection = Resource.makeFull(
+   *     poll -> pipe(
+   *         poll.apply(pool.awaitAvailable()),  // only the wait is cancelable
+   *         _ -> pool.open()),
+   *     conn -> task(conn::close));
+   * }</pre>
+   *
+   * @param acquire the function that receives the {@link Poll} and returns the acquisition
+   * @param release the function used to release the acquired value
+   * @param <S> the type of the state
+   * @param <E> the type of the acquisition error
+   * @param <A> the type of the acquired value
+   * @return a resource that manages the acquired value and its release
+   */
+  public static <S, E, A> Resource<S, E, A> makeFull(
+      Function<? super Poll, ? extends Program<S, E, A>> acquire,
+      Function<? super A, ? extends Program<S, Void, ?>> release) {
+    return new Resource<>(poll -> acquire(poll, acquire, release));
   }
 
   /**
@@ -410,12 +456,15 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   // acquires the next resource once the previous one is acquired: if it fails, throws or the
   // mapper throws, the previous resource is released before the error goes on, so nothing leaks.
   // Once both are acquired, the inner one is released first, and the outer one even if it fails
+  // A cancellation from a poll inside the next acquisition is handled the same way: it's raised
+  // in the closed part of the region, so the catchAll can release the previous resource
   private static <S, F, T, R> Program<S, F, Tuple2<R, Program<S, Void, Unit>>> acquireNext(
+      Poll poll,
       Tuple2<T, Program<S, Void, Unit>> ta,
       Function<? super T, ? extends Resource<S, F, R>> mapper) {
     return catchAll(suspend(() -> {
           var next = mapper.apply(ta.first());
-          return next.resource;
+          return next.acquire.apply(poll);
         }),
         error -> pipe(
             widen(ta.second()),
@@ -425,6 +474,17 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
                 widen(ta.second()),
                 _ -> failure(error)),
             tb -> success(tuple(tb.first(), tb.second().ensuring(ta.second()))));
+  }
+
+  // the acquisition is built when it runs, inside the region, so if building it throws, it's like
+  // any other failure of the acquisition
+  private static <S, E, A> Program<S, E, Tuple2<A, Program<S, Void, Unit>>> acquire(
+      Poll poll,
+      Function<? super Poll, ? extends Program<S, E, A>> acquire,
+      Function<? super A, ? extends Program<S, Void, ?>> release) {
+    return chain(
+        suspend(() -> acquire.apply(poll)),
+        a -> tuple(a, release(a, release)));
   }
 
   // the release program is built when it runs, so if building it throws, it happens inside the
