@@ -319,7 +319,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource containing the given value
    */
   public static <S, E, A> Resource<S, E, A> of(A resource) {
-    return of(success(resource));
+    return eval(success(resource));
   }
 
   /**
@@ -333,7 +333,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @param <A> the type of the acquired value
    * @return a resource wrapping the given acquisition program
    */
-  public static <S, E, A> Resource<S, E, A> of(Program<S, E, A> resource) {
+  public static <S, E, A> Resource<S, E, A> eval(Program<S, E, A> resource) {
     return make(resource, _ -> unit());
   }
 

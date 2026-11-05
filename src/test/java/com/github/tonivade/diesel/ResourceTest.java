@@ -64,7 +64,7 @@ class ResourceTest {
 
   @Test
   void doesNotReleaseWhenAcquireFails() {
-    var result = Resource.<Void, String, String>of(failure("boom"))
+    var result = Resource.<Void, String, String>eval(failure("boom"))
         .use(this::use)
         .eval();
 
@@ -210,7 +210,7 @@ class ResourceTest {
   @Test
   void flatMapReleasesTheFirstWhenTheSecondFails() {
     var result = resource("a")
-        .flatMap(_ -> Resource.<Void, String, String>of(failure("boom")))
+        .flatMap(_ -> Resource.<Void, String, String>eval(failure("boom")))
         .use(this::use)
         .eval();
 
@@ -221,7 +221,7 @@ class ResourceTest {
   @Test
   void flatMapReleasesTheFirstWhenTheSecondThrows() {
     var program = resource("a")
-        .flatMap(_ -> Resource.<Void, String, String>of(raise(IllegalStateException::new)))
+        .flatMap(_ -> Resource.<Void, String, String>eval(raise(IllegalStateException::new)))
         .use(this::use);
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
@@ -257,7 +257,7 @@ class ResourceTest {
   @Test
   void mapErrorKeepsTheRelease() {
     var result = resource("a")
-        .flatMap(_ -> Resource.of(failure("boom")))
+        .flatMap(_ -> Resource.eval(failure("boom")))
         .mapError(String::length)
         .use(Program::success)
         .eval();
@@ -276,7 +276,7 @@ class ResourceTest {
 
   @Test
   void orElseFallsBackWhenTheFirstFails() {
-    var result = Resource.<Void, String, String>of(failure("boom"))
+    var result = Resource.<Void, String, String>eval(failure("boom"))
         .orElse(resource("b"))
         .use(this::use)
         .eval();
@@ -295,7 +295,7 @@ class ResourceTest {
 
   @Test
   void eitherIsRightWhenTheFirstFails() {
-    var result = Resource.<Void, String, String>of(failure("boom"))
+    var result = Resource.<Void, String, String>eval(failure("boom"))
         .either(resource("b"))
         .use(Program::success)
         .eval();
@@ -341,7 +341,7 @@ class ResourceTest {
   @Test
   void theDelayOfRetryCanBeCancelledAfterAComposedAcquisitionFails() {
     var attempted = new CompletableFuture<Void>();
-    var failing = Resource.<Void, String, String>of(suspend(() -> {
+    var failing = Resource.<Void, String, String>eval(suspend(() -> {
       attempted.complete(null);
       return failure("boom");
     }));
@@ -565,7 +565,7 @@ class ResourceTest {
   @Test
   void aPolledWaitInTheFallbackOfFlatMapErrorCanBeCancelled() {
     var waiting = new CompletableFuture<Void>();
-    var program = Resource.<Void, String, String>of(failure("boom"))
+    var program = Resource.<Void, String, String>eval(failure("boom"))
         .flatMapError(_ -> waitingForever(waiting))
         .use(this::use);
 
@@ -580,7 +580,7 @@ class ResourceTest {
   @Test
   void aPolledWaitInTheAlternativeOfEitherCanBeCancelled() {
     var waiting = new CompletableFuture<Void>();
-    var program = Resource.<Void, String, String>of(failure("boom"))
+    var program = Resource.<Void, String, String>eval(failure("boom"))
         .either(waitingForever(waiting))
         .use(Program::success);
 
@@ -595,7 +595,7 @@ class ResourceTest {
   @Test
   void theDelayOfRetryCanBeCancelled() {
     var attempted = new CompletableFuture<Void>();
-    var program = Resource.<Void, String, String>of(suspend(() -> {
+    var program = Resource.<Void, String, String>eval(suspend(() -> {
           attempted.complete(null);
           return failure("boom");
         }))
