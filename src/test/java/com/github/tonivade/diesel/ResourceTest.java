@@ -64,7 +64,7 @@ class ResourceTest {
 
   @Test
   void doesNotReleaseWhenAcquireFails() {
-    var result = Resource.<Void, String, String>of(failure("boom"))
+    var result = Resource.<Void, String, String>eval(failure("boom"))
         .use(this::use)
         .eval();
 
@@ -169,6 +169,30 @@ class ResourceTest {
   }
 
   @Test
+  void mapReleasesWhenTheMapperThrows() {
+    var program = resource("a")
+        .<String>map(_ -> {
+          throw new IllegalStateException();
+        })
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void mapKeepsTheReleaseInAComposedResource() {
+    var result = resource("a")
+        .flatMap(a -> resource("b").map(b -> a + b))
+        .map(String::toUpperCase)
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("AB"));
+    assertThat(log).containsExactly("acquire a", "acquire b", "use AB", "release b", "release a");
+  }
+
+  @Test
   void flatMapReleasesInReverseOrder() {
     var result = resource("a")
         .flatMap(a -> resource(a + "b"))
@@ -186,7 +210,7 @@ class ResourceTest {
   @Test
   void flatMapReleasesTheFirstWhenTheSecondFails() {
     var result = resource("a")
-        .flatMap(_ -> Resource.<Void, String, String>of(failure("boom")))
+        .flatMap(_ -> Resource.<Void, String, String>eval(failure("boom")))
         .use(this::use)
         .eval();
 
@@ -197,7 +221,7 @@ class ResourceTest {
   @Test
   void flatMapReleasesTheFirstWhenTheSecondThrows() {
     var program = resource("a")
-        .flatMap(_ -> Resource.<Void, String, String>of(raise(IllegalStateException::new)))
+        .flatMap(_ -> Resource.<Void, String, String>eval(raise(IllegalStateException::new)))
         .use(this::use);
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
@@ -233,7 +257,7 @@ class ResourceTest {
   @Test
   void mapErrorKeepsTheRelease() {
     var result = resource("a")
-        .flatMap(_ -> Resource.of(failure("boom")))
+        .flatMap(_ -> Resource.eval(failure("boom")))
         .mapError(String::length)
         .use(Program::success)
         .eval();
@@ -252,7 +276,7 @@ class ResourceTest {
 
   @Test
   void orElseFallsBackWhenTheFirstFails() {
-    var result = Resource.<Void, String, String>of(failure("boom"))
+    var result = Resource.<Void, String, String>eval(failure("boom"))
         .orElse(resource("b"))
         .use(this::use)
         .eval();
@@ -271,7 +295,7 @@ class ResourceTest {
 
   @Test
   void eitherIsRightWhenTheFirstFails() {
-    var result = Resource.<Void, String, String>of(failure("boom"))
+    var result = Resource.<Void, String, String>eval(failure("boom"))
         .either(resource("b"))
         .use(Program::success)
         .eval();
@@ -317,7 +341,7 @@ class ResourceTest {
   @Test
   void theDelayOfRetryCanBeCancelledAfterAComposedAcquisitionFails() {
     var attempted = new CompletableFuture<Void>();
-    var failing = Resource.<Void, String, String>of(suspend(() -> {
+    var failing = Resource.<Void, String, String>eval(suspend(() -> {
       attempted.complete(null);
       return failure("boom");
     }));
@@ -541,7 +565,7 @@ class ResourceTest {
   @Test
   void aPolledWaitInTheFallbackOfFlatMapErrorCanBeCancelled() {
     var waiting = new CompletableFuture<Void>();
-    var program = Resource.<Void, String, String>of(failure("boom"))
+    var program = Resource.<Void, String, String>eval(failure("boom"))
         .flatMapError(_ -> waitingForever(waiting))
         .use(this::use);
 
@@ -556,7 +580,7 @@ class ResourceTest {
   @Test
   void aPolledWaitInTheAlternativeOfEitherCanBeCancelled() {
     var waiting = new CompletableFuture<Void>();
-    var program = Resource.<Void, String, String>of(failure("boom"))
+    var program = Resource.<Void, String, String>eval(failure("boom"))
         .either(waitingForever(waiting))
         .use(Program::success);
 
@@ -571,7 +595,7 @@ class ResourceTest {
   @Test
   void theDelayOfRetryCanBeCancelled() {
     var attempted = new CompletableFuture<Void>();
-    var program = Resource.<Void, String, String>of(suspend(() -> {
+    var program = Resource.<Void, String, String>eval(suspend(() -> {
           attempted.complete(null);
           return failure("boom");
         }))
@@ -588,6 +612,88 @@ class ResourceTest {
   }
 
   // ---------------------------------------------------------------------------------------------
+  // background
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void backgroundJoinsTheResultOfTheProgram() {
+    var result = Resource.<Void, String, Integer>background(success(42))
+        .use(join -> join)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success(42));
+  }
+
+  @Test
+  void backgroundIsCancelledWhenUseEnds() {
+    var started = new CompletableFuture<Void>();
+    var program = Resource.background(worker(started))
+        .use(_ -> pipe(
+            task(started::join),
+            _ -> task(() -> log.add("use"))));
+
+    program.eval();
+
+    // the release waits for the background program to stop
+    assertThat(log).containsExactly("use", "worker stopped");
+  }
+
+  @Test
+  void backgroundStopsBeforeTheResourcesItDependsOnAreReleased() {
+    var started = new CompletableFuture<Void>();
+    Program<Void, String, Unit> slowToStop = pipe(
+            task(() -> started.complete(null)),
+            _ -> Program.<Void, String, Unit>never())
+        .ensuring(pipe(
+            Program.<Void, Void>sleep(Duration.ofMillis(100)),
+            _ -> task(() -> log.add("worker stopped"))));
+
+    var program = resource("a")
+        .flatMap(a -> Resource.background(slowToStop).map(_ -> a))
+        .use(_ -> task(started::join));
+
+    program.eval();
+
+    assertThat(log).containsExactly("acquire a", "worker stopped", "release a");
+  }
+
+  @Test
+  void backgroundIsCancelledWhenUseIsCancelled() {
+    var started = new CompletableFuture<Void>();
+    var program = Resource.background(worker(started)).use(_ -> never());
+
+    var future = program.fork().evalOrElseThrow();
+    started.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    assertThat(log).containsExactly("worker stopped");
+  }
+
+  @Test
+  void aFailedBackgroundProgramDoesNotFailTheRelease() {
+    var stopped = new CompletableFuture<Void>();
+    Program<Void, String, Unit> failing = Program.<Void, String, Unit>raise(IllegalStateException::new)
+        .ensuring(task(() -> stopped.complete(null)));
+
+    var result = Resource.background(failing)
+        .use(_ -> pipe(
+            task(stopped::join),
+            _ -> success("done")))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("done"));
+  }
+
+  @Test
+  void joiningAFailedBackgroundProgramFails() {
+    var program = Resource.background(Program.<Void, String, Unit>raise(IllegalStateException::new))
+        .use(join -> join);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // helpers
   // ---------------------------------------------------------------------------------------------
 
@@ -598,6 +704,14 @@ class ResourceTest {
             task(() -> waiting.complete(null)),
             _ -> poll.apply(never())),
         value -> task(() -> log.add("release " + value)));
+  }
+
+  // a background program that signals it has started, waits forever and logs when it stops
+  private Program<Void, String, Unit> worker(CompletableFuture<Void> started) {
+    return pipe(
+            task(() -> started.complete(null)),
+            _ -> Program.<Void, String, Unit>never())
+        .ensuring(task(() -> log.add("worker stopped")));
   }
 
   private Resource<Void, String, String> resource(String name) {

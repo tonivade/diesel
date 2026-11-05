@@ -943,6 +943,34 @@ public final class Combine {
   }
 
   /**
+   * Installs a finalizer in a program.
+   *
+   * @param program the program to install the finalizer
+   * @param finalizer the finalizer to install in the program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return the same program but with the finalizer
+   */
+  public static <S, E, T> Program<S, E, T> withEnsuring(Program<S, E, T> program, Program<S, Void, ?> finalizer) {
+    return program.ensuring(finalizer);
+  }
+
+  /**
+   * Installs an on-cancel finalizer in a program.
+   *
+   * @param program the program to install the finalizer
+   * @param finalizer the on-cancel finalizer to install in the program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return the same program but with the on-cancel finalizer
+   */
+  public static <S, E, T> Program<S, E, T> withOnCancel(Program<S, E, T> program, Program<S, Void, ?> finalizer) {
+    return program.onCancel(finalizer);
+  }
+
+  /**
    * Creates a function that branches the program based on a condition.
    *
    * @param condition the condition used to branch the program

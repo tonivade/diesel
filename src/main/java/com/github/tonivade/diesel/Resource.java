@@ -8,10 +8,14 @@ import static com.github.tonivade.diesel.Combine.bracketFull;
 import static com.github.tonivade.diesel.Combine.catchAll;
 import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Combine.withEnsuring;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.join;
+import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
 import static com.github.tonivade.diesel.Program.unit;
@@ -23,6 +27,8 @@ import com.github.tonivade.diesel.Program.Poll;
 import com.github.tonivade.purefun.Kind;
 
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -87,7 +93,13 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource containing the mapped value
    */
   public <B> Resource<S, E, B> map(Function<? super A, ? extends B> mapper) {
-    return flatMap(a -> of(success(mapper.apply(a))));
+    // keeps the same release instead of adding a new resource with an empty one, but the release
+    // isn't installed until the whole acquisition returns, so it must run here if the mapper throws
+    return new Resource<>(poll -> pipe(
+        acquire.apply(poll),
+        ta -> releaseOnException(
+            supply(() -> tuple(mapper.apply(ta.first()), ta.second())),
+            ta.second())));
   }
 
   /**
@@ -307,7 +319,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource containing the given value
    */
   public static <S, E, A> Resource<S, E, A> of(A resource) {
-    return of(success(resource));
+    return eval(success(resource));
   }
 
   /**
@@ -321,7 +333,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @param <A> the type of the acquired value
    * @return a resource wrapping the given acquisition program
    */
-  public static <S, E, A> Resource<S, E, A> of(Program<S, E, A> resource) {
+  public static <S, E, A> Resource<S, E, A> eval(Program<S, E, A> resource) {
     return make(resource, _ -> unit());
   }
 
@@ -467,6 +479,57 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     return from(access(mapper), release);
   }
 
+  /**
+   * Creates a resource that runs a program in the background while the resource is used.
+   *
+   * <p>The program is forked when the resource is acquired, using virtual threads, and it's
+   * cancelled when the resource is released, whether {@code use} succeeds, fails, throws an
+   * exception or is cancelled. The release waits until the program has stopped and its finalizers
+   * have run, so the resources released after it, like the ones it depends on when it's composed
+   * with {@link #flatMap(Function)}, can't be used by it anymore. If the program has an uncancelable
+   * part, the release waits for it to finish.
+   *
+   * <p>The acquired value is a program that waits for the background program and returns its
+   * result. The release ignores how the background program ended, so a failure or an exception
+   * of it is only seen by joining it.
+   *
+   * <pre>{@code
+   * Resource<S, E, Connection> resource = connection.flatMap(
+   *     conn -> Resource.background(heartbeat(conn)).map(_ -> conn));
+   * // when it's released, the heartbeat is cancelled and stops before the connection is closed
+   * }</pre>
+   *
+   * @param program the program to run in the background
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result of the program
+   * @return a resource whose value is a program that joins the background program
+   * @see Program#fork()
+   */
+  public static <S, E, T> Resource<S, E, Program<S, E, T>> background(Program<S, E, T> program) {
+    return background(program, Concurrent.DEFAULT_EXECUTOR);
+  }
+
+  /**
+   * Creates a resource that runs a program in the background, using the given executor, while the
+   * resource is used.
+   *
+   * <p>Like {@link #background(Program)}, but the program is forked using the given executor.
+   *
+   * @param program the program to run in the background
+   * @param executor the executor used to fork the program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result of the program
+   * @return a resource whose value is a program that joins the background program
+   * @see Program#fork(Executor)
+   */
+  public static <S, E, T> Resource<S, E, Program<S, E, T>> background(Program<S, E, T> program, Executor executor) {
+    return new Resource<>(_ -> chain(
+        program.fork(executor),
+        future -> tuple(Program.join(future), cancelAndWait(future))));
+  }
+
   // acquires the next resource once the previous one is acquired: if it fails, throws or the
   // mapper throws, the previous resource is released before the error goes on, so nothing leaks.
   // Once both are acquired, the inner one is released first, and the outer one even if it fails
@@ -476,16 +539,26 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
       Poll poll,
       Tuple2<T, Program<S, Void, Unit>> ta,
       Function<? super T, ? extends Resource<S, F, R>> mapper) {
-    return catchAll(suspend(() -> {
+    return releaseOnException(suspend(() -> {
           var next = mapper.apply(ta.first());
           return next.acquire.apply(poll);
         }),
-        error -> Program.<S, F, Tuple2<R, Program<S, Void, Unit>>>raise(() -> error).ensuring(ta.second()))
+        ta.second())
         .foldMap(
             error -> pipe(
                 widen(ta.second()),
                 _ -> failure(error)),
             tb -> success(tuple(tb.first(), tb.second().ensuring(ta.second()))));
+  }
+
+  // if the program throws, runs the release of the resource already acquired, and the exception
+  // goes on, with the one of the release added as suppressed if it throws too
+  private static <S, E, T> Program<S, E, T> releaseOnException(
+      Program<S, E, T> program, Program<S, Void, Unit> release) {
+    return catchAll(
+        program,
+        error -> withEnsuring(raise(() -> error), release)
+      );
   }
 
   // the acquisition is built when it runs, inside the region, so if building it throws, it's like
@@ -504,6 +577,14 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   private static <S, A> Program<S, Void, Unit> release(
       A value, Function<? super A, ? extends Program<S, Void, ?>> release) {
     return suspend(() -> release.apply(value).discard());
+  }
+
+  // cancels a forked program and waits until it has stopped, whatever its outcome: the future of a
+  // fork only completes once the cancelled program has run its finalizers
+  private static <S> Program<S, Void, Unit> cancelAndWait(CompletableFuture<?> future) {
+    return pipe(
+        task(() -> future.cancel(true)),
+        _ -> join(future.handle((_, _) -> Result.unit())));
   }
 
   private static void close(AutoCloseable resource) {
