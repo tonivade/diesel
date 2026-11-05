@@ -428,6 +428,22 @@ class ProgramTest {
   }
 
   @Test
+  void theExceptionsOfChainedFinalizersAreSuppressedInTheFirstOne() {
+    var program = raise(() -> new IllegalArgumentException("program"))
+        .ensuring(raise(() -> new IllegalStateException("first")))
+        .ensuring(raise(() -> new IllegalStateException("second")));
+
+    // like try-with-resources: the exception of the program goes on, and the ones of the
+    // finalizers are added to it as suppressed, in the order they ran
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("program")
+        .satisfies(e -> assertThat(e.getSuppressed())
+            .extracting(Throwable::getMessage)
+            .containsExactly("first", "second"));
+  }
+
+  @Test
   void shouldRecoverFromError(@Mock TestDsl.Service service) {
     when(service.operation())
       .thenReturn(Result.failure(newUnknownError()));
