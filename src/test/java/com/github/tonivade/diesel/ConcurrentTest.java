@@ -16,11 +16,14 @@ import static com.github.tonivade.diesel.Program.never;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Program.task;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.github.tonivade.diesel.ProgramTest.Tuple;
 
 import java.time.Duration;
 import java.util.List;
@@ -32,8 +35,6 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoSettings;
-
-import com.github.tonivade.diesel.ProgramTest.Tuple;
 
 @MockitoSettings
 class ConcurrentTest {
@@ -111,8 +112,8 @@ class ConcurrentTest {
 
   @Test
   void shouldRaceWhenOneReturnFailure() {
-    var p1 = Program.<Void, String, Integer>delayed(Duration.ofSeconds(3), () -> 10);
-    var p2 = Program.<Void, String>sleep(Duration.ofSeconds(1)).andThen(failure("error"));
+    var p1 = delayed(Duration.ofSeconds(3), () -> 10);
+    var p2 = sleep(Duration.ofSeconds(1)).andThen(failure("error"));
 
     var result = either(p1, p2).timed().evalOrElseThrow();
 
@@ -124,8 +125,8 @@ class ConcurrentTest {
 
   @Test
   void shouldRaceWhenOneThrowsException() {
-    var p1 = Program.<Void, String, Integer>delayed(Duration.ofSeconds(3), () -> 10);
-    var p2 = Program.<Void, String>sleep(Duration.ofSeconds(1)).andThen(raise(UnsupportedOperationException::new));
+    var p1 = delayed(Duration.ofSeconds(3), () -> 10);
+    var p2 = sleep(Duration.ofSeconds(1)).andThen(raise(UnsupportedOperationException::new));
 
     var result = either(p1, p2).timed().evalOrElseThrow();
 
@@ -137,10 +138,10 @@ class ConcurrentTest {
 
   @Test
   void shouldReturnFirstSuccess() {
-    var p1 = Program.<Void, String, Integer>delayed(Duration.ofSeconds(3), () -> 10);
-    var p2 = Program.<Void, String, Integer>delayed(Duration.ofSeconds(2), () -> 20);
-    var p3 = Program.<Void, String>sleep(Duration.ofSeconds(1)).<Integer>andThen(failure("error"));
-    var p4 = Program.<Void, String>sleep(Duration.ofSeconds(1)).<Integer>andThen(raise(UnsupportedOperationException::new));
+    var p1 = delayed(Duration.ofSeconds(3), () -> 10);
+    var p2 = delayed(Duration.ofSeconds(2), () -> 20);
+    var p3 = sleep(Duration.ofSeconds(1)).<Integer>andThen(failure("error"));
+    var p4 = sleep(Duration.ofSeconds(1)).<Integer>andThen(raise(UnsupportedOperationException::new));
 
     var result = parAny(p1, p2, p3, p4).timed().evalOrElseThrow();
 
@@ -152,8 +153,8 @@ class ConcurrentTest {
 
   @Test
   void shouldFailWhenAllFail() {
-    var p1 = Program.<Void, String>sleep(Duration.ofSeconds(1)).<Integer>andThen(failure("error1"));
-    var p2 = Program.<Void, String>sleep(Duration.ofSeconds(2)).<Integer>andThen(failure("error2"));
+    var p1 = sleep(Duration.ofSeconds(1)).<Integer>andThen(failure("error1"));
+    var p2 = sleep(Duration.ofSeconds(2)).<Integer>andThen(failure("error2"));
 
     var start = System.nanoTime();
     var result = parAny(p1, p2).eval();
@@ -232,7 +233,7 @@ class ConcurrentTest {
 
   @Test
   void raceThrowsTheOriginalException() {
-    var program = race(boom(), Program.<Void, String, Integer>never());
+    var program = race(boom(), never());
 
     assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
   }
@@ -246,21 +247,21 @@ class ConcurrentTest {
 
   @Test
   void parZipThrowsTheOriginalException() {
-    var program = parZip(boom(), Program.<Void, String, Integer>never(), (a, _) -> a);
+    var program = parZip(boom(), never(), (a, _) -> a);
 
     assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test
   void parAllThrowsTheOriginalException() {
-    var program = parAll(boom(), Program.<Void, String, Integer>never());
+    var program = parAll(boom(), never());
 
     assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test
   void parSequenceThrowsTheOriginalException() {
-    var program = parSequence(boom(), Program.<Void, String, Integer>never());
+    var program = parSequence(boom(), never());
 
     assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
   }
@@ -281,7 +282,7 @@ class ConcurrentTest {
 
   @Test
   void catchAllReceivesTheOriginalException() {
-    var program = parZip(boom(), Program.<Void, String, Integer>never(), (_, _) -> "done")
+    var program = parZip(boom(), never(), (_, _) -> "done")
         .catchAll(e -> success(e.getClass().getSimpleName()));
 
     assertThat(program.evalOrElseThrow()).isEqualTo("UnsupportedOperationException");
@@ -300,8 +301,8 @@ class ConcurrentTest {
   void parAllCompletesWithUnitAfterAllProgramsFinish() {
     var calls = new AtomicInteger();
 
-    var first = Program.<Void, String>task(calls::incrementAndGet);
-    var second = Program.<Void, String>task(calls::incrementAndGet);
+    var first = task(calls::incrementAndGet);
+    var second = task(calls::incrementAndGet);
 
     var result = parAll(first, second).evalOrElseThrow();
 

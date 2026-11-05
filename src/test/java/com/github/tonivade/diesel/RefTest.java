@@ -125,7 +125,7 @@ class RefTest {
   void concurrentUpdatesAreNotLost() {
     var ref = Ref.of(0);
     var updates = IntStream.range(0, 1000)
-        .mapToObj(_ -> ref.<Void, Void>updateAndGet(x -> x + 1))
+        .mapToObj(_ -> ref.updateAndGet(x -> x + 1))
         .toList();
 
     var result = Concurrent.parAll(updates).andThen(ref.get());
@@ -137,7 +137,7 @@ class RefTest {
   void concurrentModifiesAreNotLost() {
     var ref = Ref.of(0);
     var updates = IntStream.range(0, 1000)
-        .mapToObj(_ -> ref.<Void, Void, Integer>modify(x -> tuple(x, x + 1)))
+        .mapToObj(_ -> ref.modify(x -> tuple(x, x + 1)))
         .toList();
 
     var previous = Concurrent.parSequence(updates).evalOrElseThrow();
@@ -156,7 +156,7 @@ class RefTest {
     assertThatThrownBy(ref.update(_ -> null)::evalOrElseThrow).isInstanceOf(NullPointerException.class);
     assertThatThrownBy(ref.updateAndGet(_ -> null)::evalOrElseThrow).isInstanceOf(NullPointerException.class);
     assertThatThrownBy(ref.getAndUpdate(_ -> null)::evalOrElseThrow).isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(ref.<Void, Void, String>modify(a -> tuple(a, null))::evalOrElseThrow)
+    assertThatThrownBy(ref.modify(a -> tuple(a, null))::evalOrElseThrow)
         .isInstanceOf(NullPointerException.class);
 
     assertThat(ref.get().evalOrElseThrow()).isEqualTo("a");

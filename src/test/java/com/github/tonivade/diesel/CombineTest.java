@@ -63,7 +63,7 @@ class CombineTest {
 
   @Test
   void shouldSequenceWhenEvaluatedTwice() {
-    var program = Combine.<Void, Void, Integer>sequence(success(1), success(2));
+    var program = sequence(success(1), success(2));
 
     var first = program.evalOrElseThrow();
     var second = program.evalOrElseThrow();

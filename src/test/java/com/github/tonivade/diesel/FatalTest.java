@@ -4,10 +4,11 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Concurrent.parAll;
 import static com.github.tonivade.diesel.Concurrent.parZip;
-import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
+import static com.github.tonivade.diesel.Program.task;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -76,7 +77,7 @@ class FatalTest {
   }
 
   private Program<Void, Void, String> recover() {
-    return Program.<Void, Void>task(recovered::incrementAndGet).andThen(success("recovered"));
+    return chain(task(recovered::incrementAndGet), _ -> "recovered");
   }
 
   private static Program<Void, Void, String> fatal() {

@@ -61,7 +61,9 @@ class ResourceTest {
 
   @Test
   void doesNotReleaseWhenAcquireFails() {
-    var result = Resource.<Void, String, String>of(failure("boom")).use(this::use).eval();
+    var result = Resource.<Void, String, String>of(failure("boom"))
+        .use(this::use)
+        .eval();
 
     assertThat(result).isEqualTo(Result.failure("boom"));
     assertThat(log).isEmpty();

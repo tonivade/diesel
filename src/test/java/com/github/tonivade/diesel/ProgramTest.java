@@ -13,6 +13,7 @@ import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.interruptibleTask;
 import static com.github.tonivade.diesel.Program.memoize;
 import static com.github.tonivade.diesel.Program.memoizeRecursive;
+import static com.github.tonivade.diesel.Program.never;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.recursive;
 import static com.github.tonivade.diesel.Program.sleep;
@@ -191,16 +192,16 @@ class ProgramTest {
 
   @Test
   void sleepWithAZeroOrNegativeDurationDoesNotWait() {
-    assertThat(Program.<Void, String>sleep(Duration.ZERO).eval()).isEqualTo(Result.unit());
-    assertThat(Program.<Void, String>sleep(Duration.ofSeconds(-1)).eval()).isEqualTo(Result.unit());
+    assertThat(sleep(Duration.ZERO).eval()).isEqualTo(Result.unit());
+    assertThat(sleep(Duration.ofSeconds(-1)).eval()).isEqualTo(Result.unit());
     // too negative to fit in nanoseconds
-    assertThat(Program.<Void, String>sleep(ChronoUnit.FOREVER.getDuration().negated()).eval()).isEqualTo(Result.unit());
+    assertThat(sleep(ChronoUnit.FOREVER.getDuration().negated()).eval()).isEqualTo(Result.unit());
   }
 
   @Test
   void sleepTooLongForNanosecondsNeverExpires() {
     // about 300 years: longer than Long.MAX_VALUE nanoseconds, but not ChronoUnit.FOREVER
-    var program = Program.<Void, String>sleep(Duration.ofDays(365L * 300)).timeout(Duration.ofMillis(100));
+    var program = sleep(Duration.ofDays(365L * 300)).timeout(Duration.ofMillis(100));
 
     assertThatThrownBy(program::eval).isInstanceOf(TimeoutException.class);
   }
@@ -223,7 +224,7 @@ class ProgramTest {
     // waits for it
     var executor = Executors.newSingleThreadExecutor();
     try {
-      var program = Program.<Void, String, Integer>never().timeout(Duration.ofMillis(100), executor);
+      var program = never().timeout(Duration.ofMillis(100), executor);
 
       var future = program.fork().evalOrElseThrow();
 
@@ -247,7 +248,7 @@ class ProgramTest {
 
   @Test
   void timeoutReturnsTheResultOfAProgramThatFinishesWhileBeingCancelled() {
-    var program = Program.<Void, Void, String>delayed(Duration.ofMillis(300), () -> "done")
+    var program = delayed(Duration.ofMillis(300), () -> "done")
         .uncancelable()
         .timeout(Duration.ofMillis(50));
 
@@ -267,7 +268,7 @@ class ProgramTest {
 
   @Test
   void shouldFailBeforeTimeout() {
-    var p1 = Program.<Void, String>sleep(Duration.ofSeconds(1)).andThen(failure("error"));
+    var p1 = sleep(Duration.ofSeconds(1)).andThen(failure("error"));
     var p2 = p1.timeout(Duration.ofSeconds(10));
 
     var start = System.nanoTime();
@@ -290,7 +291,8 @@ class ProgramTest {
 
   @Test
   void shouldCatchException() {
-    var program = raise(UnsupportedOperationException::new).catchAll(_ -> success(10));
+    var program = raise(UnsupportedOperationException::new)
+        .catchAll(_ -> success(10));
 
     var result = program.evalOrElseThrow();
 
@@ -319,7 +321,7 @@ class ProgramTest {
 
   @Test
   void shouldRecoverWhenProgramIsNull() {
-    var program = Program.<Void, Void, Integer>suspend(() -> null)
+    var program = suspend(() -> null)
         .catchAll(_ -> success(-1));
 
     var result = program.eval();
@@ -329,7 +331,7 @@ class ProgramTest {
 
   @Test
   void shouldNotCatchExceptionOutsideCatchScope() {
-    var program = Program.<Void, Void, Integer>success(1)
+    var program = success(1)
         .catchAll(_ -> success(-1))
         .map(_ -> {
           throw new UnsupportedOperationException();
@@ -340,7 +342,7 @@ class ProgramTest {
 
   @Test
   void shouldDiscardContinuationsInsideCatchScope() {
-    var program = Program.<Void, Void, Integer>raise(UnsupportedOperationException::new)
+    var program = raise(UnsupportedOperationException::new)
         .map(x -> "mapped:" + x)
         .catchAll(_ -> success("recovered"));
 
@@ -351,7 +353,7 @@ class ProgramTest {
 
   @Test
   void shouldPropagateExceptionFromHandlerToOuterCatch() {
-    var program = Program.<Void, Void, String>raise(UnsupportedOperationException::new)
+    var program = raise(UnsupportedOperationException::new)
         .catchAll(_ -> raise(IllegalStateException::new))
         .catchAll(e -> success(e.getClass().getSimpleName()));
 
@@ -487,7 +489,7 @@ class ProgramTest {
     var executor = Executors.newSingleThreadExecutor();
 
     try {
-      var future = Program.<Void, String>interruptibleTask(executor, () -> {
+      var future = interruptibleTask(executor, () -> {
           started.countDown();
           try {
             Thread.sleep(Long.MAX_VALUE);
@@ -519,7 +521,7 @@ class ProgramTest {
     var stopped = new AtomicBoolean();
     var stoppedWhenReleased = new CompletableFuture<Boolean>();
 
-    var future = Program.<Void, String>interruptibleTask(() -> {
+    var future = interruptibleTask(() -> {
         started.countDown();
         try {
           Thread.sleep(Long.MAX_VALUE);
@@ -546,7 +548,7 @@ class ProgramTest {
   void taskReturnsUnitAndExecutesActionOnce() {
     var calls = new AtomicInteger();
 
-    var result = Program.<Void, String>task(calls::incrementAndGet)
+    var result = task(calls::incrementAndGet)
         .evalOrElseThrow();
 
     assertThat(result).isEqualTo(Unit.unit());

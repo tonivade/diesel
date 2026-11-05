@@ -485,7 +485,7 @@ class SourceTest {
       var source = Source.<Void, Void, Integer>iterate(calls::incrementAndGet);
 
       var exists = source.foldRight(
-          Program.<Void, Void, Boolean>success(false),
+          success(false),
           (x, rest) -> x > 3 ? success(true) : rest);
 
       assertThat(exists.evalOrElseThrow()).isTrue();
@@ -498,7 +498,7 @@ class SourceTest {
       var source = Source.<Void, Void, Integer>iterate(calls::incrementAndGet);
 
       var result = source.foldRight(
-          Program.<Void, Void, Boolean>success(false),
+          success(false),
           (_, _) -> success(true));
 
       assertThat(result.evalOrElseThrow()).isTrue();
@@ -512,7 +512,7 @@ class SourceTest {
       // the combinator evaluates rest twice: without memoized cells, the second time would find the
       // iterator exhausted and the fold would not see the elements
       var result = source.foldRight(
-          Program.<Void, Void, Integer>success(0),
+          success(0),
           (x, rest) -> rest.flatMap(a -> rest.map(b -> a + b + x)));
 
       // f(3) = 0 + 0 + 3, f(2) = 3 + 3 + 2, f(1) = 8 + 8 + 1
