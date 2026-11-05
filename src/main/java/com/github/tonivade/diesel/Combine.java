@@ -1052,7 +1052,9 @@ public final class Combine {
    * release is guaranteed. The acquire function receives a {@link Poll}: only the programs wrapped
    * with it can be cancelled, like waiting for a connection from an exhausted pool. Wrap only the
    * steps that wait, never the one that actually obtains the resource: if a cancellation arrives
-   * inside a polled program, the resource isn't acquired yet, so it isn't released either.
+   * inside a polled program, the resource isn't acquired yet, so it isn't released either. So don't
+   * write {@code poll.apply(pool.open())}: a connection opened just when the cancellation arrives
+   * would be lost without being released.
    *
    * <p>Once acquired, the resource is released whether {@code use} succeeds, fails, throws an
    * exception or is cancelled.

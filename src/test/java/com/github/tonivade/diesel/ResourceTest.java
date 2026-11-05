@@ -16,6 +16,7 @@ import static com.github.tonivade.diesel.Program.task;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CancellationException;
@@ -75,6 +76,19 @@ class ResourceTest {
         .eval();
 
     assertThat(log).containsExactly("use", "close");
+  }
+
+  @Test
+  void theCheckedExceptionOfCloseIsThrownAsItIs() {
+    var exception = new IOException("close");
+    AutoCloseable closeable = () -> {
+      throw exception;
+    };
+
+    var program = Resource.<Void, String, AutoCloseable>from(success(closeable))
+        .use(_ -> success("used"));
+
+    assertThatThrownBy(program::eval).isSameAs(exception);
   }
 
   @Test
@@ -265,6 +279,26 @@ class ResourceTest {
         "acquire a", "use b", "release b", "release a");
   }
 
+  @Test
+  void theDelayOfRetryCanBeCancelledAfterAComposedAcquisitionFails() {
+    var attempted = new CompletableFuture<Void>();
+    var failing = Resource.<Void, String, String>of(suspend(() -> {
+      attempted.complete(null);
+      return failure("boom");
+    }));
+    var program = resource("a").flatMap(_ -> failing)
+        .retry(1, Duration.ofHours(1))
+        .use(this::use);
+
+    var future = program.fork().evalOrElseThrow();
+    attempted.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    // the first resource was released before the delay started, and it's not acquired again
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
   // ---------------------------------------------------------------------------------------------
   // make
   // ---------------------------------------------------------------------------------------------
@@ -331,6 +365,34 @@ class ResourceTest {
             .extracting(Throwable::getMessage)
             .isEqualTo("outer"));
     assertThat(log).containsExactly("use b");
+  }
+
+  @Test
+  void theReleaseExceptionsAreSuppressedInsideEachOther() {
+    var outer = Resource.<Void, String, String>make(
+        success("a"),
+        _ -> raise(() -> new IllegalStateException("outer")));
+    var inner = Resource.<Void, String, String>make(
+        success("b"),
+        _ -> raise(() -> new IllegalStateException("inner")));
+
+    var program = outer.flatMap(_ -> inner)
+        .use(_ -> raise(() -> new IllegalArgumentException("use")));
+
+    // both releases are a single finalizer, so the exception of the outer release is suppressed
+    // inside the one of the inner release, and that one inside the exception of use
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("use")
+        .satisfies(use -> assertThat(use.getSuppressed())
+            .singleElement()
+            .satisfies(release -> {
+              assertThat(release).hasMessage("inner");
+              assertThat(release.getSuppressed())
+                  .singleElement()
+                  .extracting(Throwable::getMessage)
+                  .isEqualTo("outer");
+            }));
   }
 
   @Test
@@ -439,6 +501,36 @@ class ResourceTest {
     assertThat(future.cancel(true)).isTrue();
     assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
     assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void aPolledWaitInTheFallbackOfFlatMapErrorCanBeCancelled() {
+    var waiting = new CompletableFuture<Void>();
+    var program = Resource.<Void, String, String>of(failure("boom"))
+        .flatMapError(_ -> waitingForever(waiting))
+        .use(this::use);
+
+    var future = program.fork().evalOrElseThrow();
+    waiting.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    assertThat(log).isEmpty(); // neither the failed nor the fallback resource was acquired
+  }
+
+  @Test
+  void aPolledWaitInTheAlternativeOfEitherCanBeCancelled() {
+    var waiting = new CompletableFuture<Void>();
+    var program = Resource.<Void, String, String>of(failure("boom"))
+        .either(waitingForever(waiting))
+        .use(Program::success);
+
+    var future = program.fork().evalOrElseThrow();
+    waiting.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    assertThat(log).isEmpty(); // neither the failed nor the alternative resource was acquired
   }
 
   @Test

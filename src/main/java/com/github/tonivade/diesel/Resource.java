@@ -345,8 +345,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    *
    * <p>Wrap only the steps that wait, never the one that actually obtains the value: if a
    * cancellation arrives inside a polled program, the value isn't acquired yet, so it isn't
-   * released either. If the resource is composed with others, the resources already acquired are
-   * released.
+   * released either. So don't write {@code poll.apply(pool.open())}: a connection opened just when
+   * the cancellation arrives would be lost without being released. If the resource is composed with
+   * others, the resources already acquired are released.
    *
    * <pre>{@code
    * Resource<S, E, Connection> connection = Resource.makeFull(

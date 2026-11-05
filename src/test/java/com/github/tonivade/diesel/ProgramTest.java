@@ -31,6 +31,7 @@ import static org.mockito.Mockito.when;
 
 import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -413,6 +414,17 @@ class ProgramTest {
     assertThrows(UnsupportedOperationException.class, program::eval);
 
     verify(resource).close();
+  }
+
+  @Test
+  void bracketThrowsTheCheckedExceptionOfCloseAsItIs() {
+    var exception = new IOException("close");
+    AutoCloseable resource = () -> {
+      throw exception;
+    };
+    var program = bracket(supply(() -> resource), _ -> success("used"));
+
+    assertThatThrownBy(program::eval).isSameAs(exception);
   }
 
   @Test
