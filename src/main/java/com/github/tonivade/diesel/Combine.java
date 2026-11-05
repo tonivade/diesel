@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.supply;
+import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.unit;
 import static java.util.function.Function.identity;
 
@@ -1025,7 +1026,8 @@ public final class Combine {
    *
    * @param acquire the supplier of the resource to be acquired
    * @param use the function used to use the acquired resource
-   * @param release the function used to release the acquired resource
+   * @param release the function used to release the acquired resource. It can't fail with an
+   *     error, only throw an exception, which replaces the result of {@code use}
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the resource
@@ -1035,16 +1037,20 @@ public final class Combine {
   public static <S, E, T, R> Program<S, E, R> bracket(
       Program<S, E, T> acquire,
       Function<? super T, ? extends Program<S, E, R>> use,
-      Function<? super T, ? extends Program<S, E, ?>> release) {
+      Function<? super T, ? extends Program<S, Void, ?>> release) {
     // installing the finalizer never observes a cancellation, so there is no gap between
     // acquiring the resource and guaranteeing its release
     return pipe(
         acquire.uncancelable(),
         // use and release are called inside suspend, after the finalizer is installed: if they
         // throw while building their programs, the resource is released anyway
-        resource -> Program.<S, E, R>suspend(() -> use.apply(resource))
-            .ensuring(Program.suspend(() -> release.apply(resource).andThen(unit())))
+        resource -> suspend(() -> use.apply(resource)).ensuring(release(resource, release))
         );
+  }
+
+  private static <S, T> Program<S, Void, Unit> release(
+      T resource, Function<? super T, ? extends Program<S, Void, ?>> release) {
+    return suspend(() -> release.apply(resource).discard());
   }
 
   private static <S, E, R> Program<S, E, Collection<R>> append(Program<S, E, Collection<R>> acc, Program<S, E, R> value) {

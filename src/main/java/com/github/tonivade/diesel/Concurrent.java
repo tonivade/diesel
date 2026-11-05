@@ -45,6 +45,35 @@ public final class Concurrent {
   private Concurrent() {}
 
   /**
+   * Forks the program to be executed asynchronously in a virtual thread.
+   *
+   * @param program the original program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the forked computation
+   * @see Program#fork()
+   */
+  public static <S, E, T> Program<S, E, CompletableFuture<Result<E, T>>> fork(Program<S, E, T> program) {
+    return program.fork();
+  }
+
+  /**
+   * Forks the program to be executed asynchronously in a virtual thread.
+   *
+   * @param program the original program
+   * @param executor the executor used to execute the program asynchronously
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the forked computation
+   * @see Program#fork()
+   */
+  public static <S, E, T> Program<S, E, CompletableFuture<Result<E, T>>> fork(Program<S, E, T> program, Executor executor) {
+    return program.fork(executor);
+  }
+
+  /**
    * Creates a new program that represents an either of two programs executed in parallel using virtual threads.
    *
    * <p>First without error/exception wins. The other program is cancelled, and the resulting

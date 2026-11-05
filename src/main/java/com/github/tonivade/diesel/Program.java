@@ -179,7 +179,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Ensuring<S, E, T>(Program<S, E, T> current, Program<S, E, ?> finalizer) implements Program<S, E, T> {}
+  record Ensuring<S, E, T>(Program<S, E, T> current, Program<S, Void, ?> finalizer) implements Program<S, E, T> {}
 
   /**
    * Represents a computation that runs a finalizer only when the program is cancelled. The
@@ -191,7 +191,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record OnCancel<S, E, T>(Program<S, E, T> current, Program<S, E, ?> finalizer) implements Program<S, E, T> {}
+  record OnCancel<S, E, T>(Program<S, E, T> current, Program<S, Void, ?> finalizer) implements Program<S, E, T> {}
 
   /**
    * Represents a memoized computation that caches the result of the program.
@@ -403,6 +403,24 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
+   * Widens a program that can't fail with an error to any error type.
+   *
+   * <p>A program with {@code Void} as error type, like the ones returned by {@link #fold}, never
+   * fails with an error, so it can be used where a program with any error type is expected.
+   *
+   * @param program the program that can't fail with an error
+   * @param <S> the type of the state
+   * @param <E> the new type of the error
+   * @param <T> the type of the result
+   * @return the same computation with the new error type
+   */
+  static <S, E, T> Program<S, E, T> widen(Program<S, Void, T> program) {
+    return program.mapError(_ -> {
+      throw new IllegalStateException("a program with Void as error type can't fail with an error");
+    });
+  }
+
+  /**
    * Creates a program that returns a success with a valid validation result.
    *
    * @param <S> The state type of the Program
@@ -581,7 +599,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * finishes, and returns a canceler: a program that stops the operation. If the program is
    * cancelled while it waits for the operation, the canceler runs before the cancellation goes on,
    * and it can't be cancelled itself. It doesn't run when the operation completes, nor when the
-   * program runs in an uncancelable region, which waits for the operation to finish instead.
+   * program runs in an uncancelable region, which waits for the operation to finish instead. Like
+   * any finalizer, the canceler can't fail with an error.
    *
    * <p>Use it when cancelling the program has to stop the operation too, like a scheduled task or a
    * request to an external system. With {@link #async(BiConsumer)} the program stops waiting, but
@@ -598,7 +617,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing a cancelable asynchronous computation
    */
   static <S, E, T> Program<S, E, T> asyncCancelable(
-      BiFunction<? super S, ? super CompletableFuture<Result<E, T>>, ? extends Program<S, E, Unit>> register) {
+      BiFunction<? super S, ? super CompletableFuture<Result<E, T>>, ? extends Program<S, Void, Unit>> register) {
     // accessProgram defers all this to evaluation time: the operation has to start when the program
     // runs, not when it's built, with the state of that evaluation, and once per evaluation, so
     // each one has its own future and canceler. suspend would defer it too, but without the state.
@@ -606,7 +625,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     // onCancel never stops for a cancellation, so a started operation always has its canceler
     return accessProgram(state -> {
       var future = new CompletableFuture<Result<E, T>>();
-      Program<S, E, Unit> canceler = register.apply(state, future);
+      Program<S, Void, Unit> canceler = register.apply(state, future);
       return Program.<S, E, T>join(future).onCancel(canceler);
     });
   }
@@ -1189,12 +1208,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * Ensures that the finalizer program is executed after the current program, regardless of success or failure.
    *
    * <p>The finalizer also runs when the program throws an exception or is cancelled, and it can't be
-   * cancelled itself. If the finalizer fails, its failure replaces the result of the program.
+   * cancelled itself. The finalizer can't fail with an error, only throw an exception, which
+   * replaces the result of the program, or the exception it threw.
    *
    * @param finalizer the program to be executed as a finalizer
    * @return a new program representing the computation with the finalizer
    */
-  default Program<S, E, T> ensuring(Program<S, E, ?> finalizer) {
+  default Program<S, E, T> ensuring(Program<S, Void, ?> finalizer) {
     return new Ensuring<>(this, finalizer);
   }
 
@@ -1202,8 +1222,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * Runs the finalizer only when the program is cancelled, before the cancellation goes on.
    *
    * <p>The finalizer doesn't run when the program completes, fails or throws an exception, and it
-   * can't be cancelled itself. Use it to undo the work of a program that was interrupted, like
-   * rolling back a transaction. To run it in every case, use {@link #ensuring(Program)}.
+   * can't be cancelled itself, nor fail with an error. Use it to undo the work of a program that
+   * was interrupted, like rolling back a transaction. To run it in every case, use
+   * {@link #ensuring(Program)}.
    *
    * <p>A program is cancelled when its own cancellation is requested: joining a forked program that
    * was cancelled is an ordinary exception for the program that joins it, and doesn't run the
@@ -1212,7 +1233,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param finalizer the program to be executed if the program is cancelled
    * @return a new program representing the computation with the finalizer
    */
-  default Program<S, E, T> onCancel(Program<S, E, ?> finalizer) {
+  default Program<S, E, T> onCancel(Program<S, Void, ?> finalizer) {
     return new OnCancel<>(this, finalizer);
   }
 

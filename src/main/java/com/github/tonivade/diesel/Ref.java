@@ -20,11 +20,14 @@ import java.util.function.UnaryOperator;
  * <p>It provides a way to functionally manage in-memory state. All operations are atomic and thread-safe,
  * giving a reliable foundation for synchronizing concurrent programs.
  *
- * @param <S> the type of the state
- * @param <E> the type of the error
+ * <p>The value can't be {@code null}: the operations that would store a {@code null} fail with a
+ * {@link NullPointerException} and leave the value unchanged.
+ *
  * @param <A> type of stored value
  */
-public final class Ref<S, E, A> {
+public final class Ref<A> {
+
+  private static final String NULL_VALUE = "the value of a ref can't be null";
 
   private final AtomicReference<A> value;
 
@@ -36,23 +39,24 @@ public final class Ref<S, E, A> {
   /**
    * Returns the currently stored value.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that reads the current value when evaluated
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, A> get() {
+  public <S, E> Program<S, E, A> get() {
     return supply(value::get);
   }
 
   /**
    * Atomically replaces the stored value.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
-   * @param newValue the value to store
-   * @return a program that sets the value and returns {@code null}
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param newValue the value to store, not {@code null}
+   * @return a program that sets the value
+   * @throws NullPointerException if the value is {@code null}
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Unit> set(A newValue) {
+  public <S, E> Program<S, E, Unit> set(A newValue) {
     requireNonNull(newValue);
     return task(() -> value.set(newValue));
   }
@@ -63,24 +67,26 @@ public final class Ref<S, E, A> {
    * <p>The function may be applied more than once if concurrent updates contend; it should
    * therefore be side-effect-free.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
-   * @param update the function used to compute the new value
-   * @return a program that performs the update and returns {@code null}
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param update the function used to compute the new value, which can't be {@code null}
+   * @return a program that performs the update
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, Unit> update(UnaryOperator<A> update) {
-    return task(() -> value.updateAndGet(update));
+  public <S, E> Program<S, E, Unit> update(UnaryOperator<A> update) {
+    return task(() -> value.updateAndGet(nonNull(update)));
   }
 
   /**
    * Atomically replaces the stored value and returns the previous value.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
-   * @param newValue the value to store
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param newValue the value to store, not {@code null}
    * @return a program that returns the value held before the update
+   * @throws NullPointerException if the value is {@code null}
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, A> getAndSet(A newValue) {
+  public <S, E> Program<S, E, A> getAndSet(A newValue) {
+    requireNonNull(newValue);
     return supply(() -> value.getAndSet(newValue));
   }
 
@@ -90,13 +96,13 @@ public final class Ref<S, E, A> {
    * <p>The function may be applied more than once if concurrent updates contend; it should
    * therefore be side-effect-free.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
-   * @param update the function used to compute the new value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param update the function used to compute the new value, which can't be {@code null}
    * @return a program that returns the updated value
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, A> updateAndGet(UnaryOperator<A> update) {
-    return supply(() -> value.updateAndGet(update));
+  public <S, E> Program<S, E, A> updateAndGet(UnaryOperator<A> update) {
+    return supply(() -> value.updateAndGet(nonNull(update)));
   }
 
   /**
@@ -105,13 +111,13 @@ public final class Ref<S, E, A> {
    * <p>The function may be applied more than once if concurrent updates contend; it should
    * therefore be side-effect-free.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
-   * @param update the function used to compute the new value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param update the function used to compute the new value, which can't be {@code null}
    * @return a program that returns the value held before the update
    */
-  public <S1 extends S, E1 extends E> Program<S1, E1, A> getAndUpdate(UnaryOperator<A> update) {
-    return supply(() -> value.getAndUpdate(update));
+  public <S, E> Program<S, E, A> getAndUpdate(UnaryOperator<A> update) {
+    return supply(() -> value.getAndUpdate(nonNull(update)));
   }
 
   /**
@@ -122,18 +128,19 @@ public final class Ref<S, E, A> {
    * the change can be applied, the function may be invoked again with the newer value.
    * The function should therefore be side-effect-free.
    *
-   * @param <S1> the type of the state
-   * @param <E1> the type of the error
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @param <B> the type of the result produced by the change
-   * @param change a function from the current value to the result and replacement value
+   * @param change a function from the current value to the result and replacement value, which
+   *     can't be {@code null}
    * @return a program that returns the result associated with the successfully applied change
    */
-  public <S1 extends S, E1 extends E, B> Program<S1, E1, B> modify(Function<? super A, ? extends Tuple2<B, A>> change) {
+  public <S, E, B> Program<S, E, B> modify(Function<? super A, ? extends Tuple2<B, A>> change) {
     return supply(() -> {
       while (true) {
         A current = value.get();
         var tuple = change.apply(current);
-        if (value.compareAndSet(current, tuple.second())) {
+        if (value.compareAndSet(current, requireNonNull(tuple.second(), NULL_VALUE))) {
           return tuple.first();
         }
       }
@@ -150,7 +157,7 @@ public final class Ref<S, E, A> {
    * @param value the initial value
    * @return a program that creates a fresh reference when evaluated
    */
-  public static <S, E, A> Program<S, E, Ref<S, E, A>> make(A value) {
+  public static <S, E, A> Program<S, E, Ref<A>> make(A value) {
     return supply(() -> of(value));
   }
 
@@ -161,7 +168,7 @@ public final class Ref<S, E, A> {
    * @param value the initial value
    * @return a new reference
    */
-  public static <S, E, A> Ref<S, E, A> of(A value) {
+  public static <A> Ref<A> of(A value) {
     return new Ref<>(value);
   }
 
@@ -173,5 +180,9 @@ public final class Ref<S, E, A> {
   @Override
   public String toString() {
     return "Ref(%s)".formatted(value.get());
+  }
+
+  private static <A> UnaryOperator<A> nonNull(UnaryOperator<A> update) {
+    return current -> requireNonNull(update.apply(current), NULL_VALUE);
   }
 }

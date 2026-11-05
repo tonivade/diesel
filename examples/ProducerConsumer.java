@@ -14,8 +14,8 @@ import static com.github.tonivade.diesel.Concurrent.parAll;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
+import static com.github.tonivade.diesel.Program.unit;
 import static com.github.tonivade.diesel.Tuple2.tuple;
-import static com.github.tonivade.diesel.Unit.unit;
 
 import com.github.tonivade.diesel.Deferred;
 import com.github.tonivade.diesel.Program;
@@ -70,19 +70,19 @@ public class ProducerConsumer {
   }
 
   static Program<Void, Void, Unit> produce(
-      Queue<Void, Void, Integer> queue,
+      Queue<Integer> queue,
       List<Integer> values
   ) {
-    return traverse(
-        value -> queue.offer(value),
-        values
-    ).discard();
+    return pipe(
+        traverse(queue::offer, values),
+        _ -> unit()
+    );
   }
 
   static Program<Void, Void, Unit> consume(
       int id,
-      Queue<Void, Void, Integer> queue,
-      Ref<Void, Void, Integer> processed
+      Queue<Integer> queue,
+      Ref<Integer> processed
   ) {
     return suspend(() ->
         pipe(

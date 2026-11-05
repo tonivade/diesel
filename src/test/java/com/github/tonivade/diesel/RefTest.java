@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
 package com.github.tonivade.diesel;
@@ -8,6 +8,7 @@ import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Tuple2.tuple;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Locale;
 import java.util.Set;
@@ -19,7 +20,7 @@ class RefTest {
 
   @Test
   void canBeUsedInMoreSpecificProgramContext() {
-    Ref<Object, Exception, Integer> ref = Ref.of(10);
+    Ref<Integer> ref = Ref.of(10);
 
     Program<String, RuntimeException, Integer> program = ref.get();
 
@@ -143,5 +144,21 @@ class RefTest {
 
     assertThat(Set.copyOf(previous)).hasSize(1000);
     assertThat(ref.get().evalOrElseThrow()).isEqualTo(1000);
+  }
+
+  @Test
+  @SuppressWarnings("NullAway") // NullAway already rejects it at compile time, but not every caller uses it
+  void cannotStoreANull() {
+    var ref = Ref.of("a");
+
+    assertThatThrownBy(() -> ref.set(null)).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> ref.getAndSet(null)).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(ref.update(_ -> null)::evalOrElseThrow).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(ref.updateAndGet(_ -> null)::evalOrElseThrow).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(ref.getAndUpdate(_ -> null)::evalOrElseThrow).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(ref.<Void, Void, String>modify(a -> tuple(a, null))::evalOrElseThrow)
+        .isInstanceOf(NullPointerException.class);
+
+    assertThat(ref.get().evalOrElseThrow()).isEqualTo("a");
   }
 }
