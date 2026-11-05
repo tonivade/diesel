@@ -26,7 +26,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
+// a regression in the cancellation tests would leave them waiting forever instead of failing
+@Timeout(value = 10, unit = TimeUnit.SECONDS)
 class ResourceTest {
 
   private final List<String> log = new CopyOnWriteArrayList<>();
@@ -121,6 +124,36 @@ class ResourceTest {
         .isInstanceOf(CancellationException.class);
     assertThat(log)
         .containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void releasesAComposedResourceInReverseOrderWhenUseIsCancelled() {
+    var started = new CompletableFuture<Void>();
+    var program = resource("a").flatMap(_ -> resource("b")).use(_ -> {
+      started.complete(null);
+      return never();
+    });
+
+    var future = program.fork().evalOrElseThrow();
+    started.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    assertThatThrownBy(future::join)
+        .isInstanceOf(CancellationException.class);
+    assertThat(log)
+        .containsExactly("acquire a", "acquire b", "release b", "release a");
+  }
+
+  @Test
+  void aLongChainBuiltInALoopIsStackSafe() {
+    var resource = Resource.<Void, String, Integer>of(0);
+    for (int i = 0; i < 50_000; i++) {
+      resource = resource.map(x -> x + 1);
+    }
+
+    var result = resource.use(Program::success).eval();
+
+    assertThat(result).isEqualTo(Result.success(50_000));
   }
 
   // ---------------------------------------------------------------------------------------------

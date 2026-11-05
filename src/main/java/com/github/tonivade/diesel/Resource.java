@@ -50,6 +50,12 @@ import java.util.function.Function;
  * exception. If a release action throws, that exception replaces the result of the computation
  * being finalized. Like in try-with-resources, if the computation already threw an exception, or
  * an inner release threw one, that one goes on and the next ones are added to it as suppressed.
+ * If the computation failed with an error instead, the exception of the release replaces that
+ * error, which is lost, because an error can't be added as suppressed.
+ *
+ * <p>A program forked during the acquisition isn't cancelled with the program that uses the
+ * resource, because it's forked in an uncancelable region. If the resource starts a background
+ * program, its release must cancel it.
  *
  * @param <S> the type of the state
  * @param <E> the type of the error
@@ -62,8 +68,12 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   // the programs returned by fold, so changing the error type of the resource doesn't affect it
   private final Function<Poll, Program<S, E, Tuple2<A, Program<S, Void, Unit>>>> acquire;
 
+  // the acquisition is built lazily, when it runs: combinators like flatMap call the acquisition of
+  // the previous resource, so building it eagerly would nest a Java call for each step of a long
+  // chain, like a map in a loop, and overflow the stack
   private Resource(Function<Poll, Program<S, E, Tuple2<A, Program<S, Void, Unit>>>> acquire) {
-    this.acquire = requireNonNull(acquire);
+    requireNonNull(acquire);
+    this.acquire = poll -> suspend(() -> acquire.apply(poll));
   }
 
   /**
@@ -348,6 +358,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * released either. So don't write {@code poll.apply(pool.open())}: a connection opened just when
    * the cancellation arrives would be lost without being released. If the resource is composed with
    * others, the resources already acquired are released.
+   *
+   * <p>A program forked during the acquisition, even inside a polled program, isn't cancelled with
+   * the program that uses the resource, so the release must cancel it.
    *
    * <pre>{@code
    * Resource<S, E, Connection> connection = Resource.makeFull(
