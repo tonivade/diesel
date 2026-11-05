@@ -8,6 +8,7 @@ import static com.github.tonivade.diesel.Combine.branch;
 import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
+import static com.github.tonivade.diesel.Combine.withOnCancel;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
@@ -218,7 +219,7 @@ public final class Queue<A> {
                 return success(Optional.empty());
               }
               if (result instanceof Waiting) {
-                return poll.apply(waiter.<S, E>get().onCancel(releaseTaker(waiter)));
+                return poll.apply(withOnCancel(waiter.get(), releaseTaker(waiter)));
               }
               return raise(IllegalStateException::new);
             })));
