@@ -6,9 +6,11 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Program.suspend;
+import static com.github.tonivade.diesel.Program.uncancelable;
 import static com.github.tonivade.diesel.Program.unit;
 import static java.util.function.Function.identity;
 
+import com.github.tonivade.diesel.Program.Poll;
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
 import com.github.tonivade.diesel.function.Finisher4;
@@ -18,7 +20,6 @@ import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 
-import java.lang.reflect.UndeclaredThrowableException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -1027,7 +1028,8 @@ public final class Combine {
    * @param acquire the supplier of the resource to be acquired
    * @param use the function used to use the acquired resource
    * @param release the function used to release the acquired resource. It can't fail with an
-   *     error, only throw an exception, which replaces the result of {@code use}
+   *     error, only throw an exception, which replaces the result of {@code use}, or is added as
+   *     suppressed to the exception thrown by {@code use}
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the resource
@@ -1038,14 +1040,50 @@ public final class Combine {
       Program<S, E, T> acquire,
       Function<? super T, ? extends Program<S, E, R>> use,
       Function<? super T, ? extends Program<S, Void, ?>> release) {
-    // installing the finalizer never observes a cancellation, so there is no gap between
-    // acquiring the resource and guaranteeing its release
-    return pipe(
-        acquire.uncancelable(),
+    return bracketFull(_ -> acquire, use, release);
+  }
+
+  /**
+   * Creates a new program that acquires a resource, uses it, and then releases it, where the
+   * acquisition can make some of its steps cancelable.
+   *
+   * <p>Like {@link #bracket(Program, Function, Function)}, the acquisition runs in an uncancelable
+   * region, so once the resource is acquired there is no window where it could be lost before its
+   * release is guaranteed. The acquire function receives a {@link Poll}: only the programs wrapped
+   * with it can be cancelled, like waiting for a connection from an exhausted pool. Wrap only the
+   * steps that wait, never the one that actually obtains the resource: if a cancellation arrives
+   * inside a polled program, the resource isn't acquired yet, so it isn't released either. So don't
+   * write {@code poll.apply(pool.open())}: a connection opened just when the cancellation arrives
+   * would be lost without being released.
+   *
+   * <p>Once acquired, the resource is released whether {@code use} succeeds, fails, throws an
+   * exception or is cancelled.
+   *
+   * @param acquire the function that receives the {@link Poll} and returns the acquisition
+   * @param use the function used to use the acquired resource
+   * @param release the function used to release the acquired resource. It can't fail with an
+   *     error, only throw an exception, which replaces the result of {@code use}, or is added as
+   *     suppressed to the exception thrown by {@code use}
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the resource
+   * @param <R> the type of the result
+   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
+   */
+  public static <S, E, T, R> Program<S, E, R> bracketFull(
+      Function<? super Poll, ? extends Program<S, E, T>> acquire,
+      Function<? super T, ? extends Program<S, E, R>> use,
+      Function<? super T, ? extends Program<S, Void, ?>> release) {
+    // the acquisition runs in the closed part of the region, except what it wraps with the poll.
+    // Installing the finalizer never observes a cancellation, so there is no gap between acquiring
+    // the resource and guaranteeing its release: a cancellation requested meanwhile takes effect
+    // when the polled use starts, and the release runs
+    return uncancelable(poll -> pipe(
+        suspend(() -> acquire.apply(poll)),
         // use and release are called inside suspend, after the finalizer is installed: if they
         // throw while building their programs, the resource is released anyway
-        resource -> suspend(() -> use.apply(resource)).ensuring(release(resource, release))
-        );
+        resource -> poll.apply(suspend(() -> use.apply(resource))).ensuring(release(resource, release))
+        ));
   }
 
   private static <S, T> Program<S, Void, Unit> release(
@@ -1067,7 +1105,7 @@ public final class Combine {
       try {
         resource.close();
       } catch (Exception e) {
-        throw new UndeclaredThrowableException(e);
+        Fatal.sneakyThrow(e);
       }
     });
   }

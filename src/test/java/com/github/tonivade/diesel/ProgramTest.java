@@ -31,6 +31,7 @@ import static org.mockito.Mockito.when;
 
 import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -413,6 +414,33 @@ class ProgramTest {
     assertThrows(UnsupportedOperationException.class, program::eval);
 
     verify(resource).close();
+  }
+
+  @Test
+  void bracketThrowsTheCheckedExceptionOfCloseAsItIs() {
+    var exception = new IOException("close");
+    AutoCloseable resource = () -> {
+      throw exception;
+    };
+    var program = bracket(supply(() -> resource), _ -> success("used"));
+
+    assertThatThrownBy(program::eval).isSameAs(exception);
+  }
+
+  @Test
+  void theExceptionsOfChainedFinalizersAreSuppressedInTheFirstOne() {
+    var program = raise(() -> new IllegalArgumentException("program"))
+        .ensuring(raise(() -> new IllegalStateException("first")))
+        .ensuring(raise(() -> new IllegalStateException("second")));
+
+    // like try-with-resources: the exception of the program goes on, and the ones of the
+    // finalizers are added to it as suppressed, in the order they ran
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("program")
+        .satisfies(e -> assertThat(e.getSuppressed())
+            .extracting(Throwable::getMessage)
+            .containsExactly("first", "second"));
   }
 
   @Test
