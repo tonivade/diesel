@@ -588,6 +588,88 @@ class ResourceTest {
   }
 
   // ---------------------------------------------------------------------------------------------
+  // background
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void backgroundJoinsTheResultOfTheProgram() {
+    var result = Resource.<Void, String, Integer>background(success(42))
+        .use(join -> join)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success(42));
+  }
+
+  @Test
+  void backgroundIsCancelledWhenUseEnds() {
+    var started = new CompletableFuture<Void>();
+    var program = Resource.background(worker(started))
+        .use(_ -> pipe(
+            task(started::join),
+            _ -> task(() -> log.add("use"))));
+
+    program.eval();
+
+    // the release waits for the background program to stop
+    assertThat(log).containsExactly("use", "worker stopped");
+  }
+
+  @Test
+  void backgroundStopsBeforeTheResourcesItDependsOnAreReleased() {
+    var started = new CompletableFuture<Void>();
+    Program<Void, String, Unit> slowToStop = pipe(
+            task(() -> started.complete(null)),
+            _ -> Program.<Void, String, Unit>never())
+        .ensuring(pipe(
+            Program.<Void, Void>sleep(Duration.ofMillis(100)),
+            _ -> task(() -> log.add("worker stopped"))));
+
+    var program = resource("a")
+        .flatMap(a -> Resource.background(slowToStop).map(_ -> a))
+        .use(_ -> task(started::join));
+
+    program.eval();
+
+    assertThat(log).containsExactly("acquire a", "worker stopped", "release a");
+  }
+
+  @Test
+  void backgroundIsCancelledWhenUseIsCancelled() {
+    var started = new CompletableFuture<Void>();
+    var program = Resource.background(worker(started)).use(_ -> never());
+
+    var future = program.fork().evalOrElseThrow();
+    started.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    assertThat(log).containsExactly("worker stopped");
+  }
+
+  @Test
+  void aFailedBackgroundProgramDoesNotFailTheRelease() {
+    var stopped = new CompletableFuture<Void>();
+    Program<Void, String, Unit> failing = Program.<Void, String, Unit>raise(IllegalStateException::new)
+        .ensuring(task(() -> stopped.complete(null)));
+
+    var result = Resource.background(failing)
+        .use(_ -> pipe(
+            task(stopped::join),
+            _ -> success("done")))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("done"));
+  }
+
+  @Test
+  void joiningAFailedBackgroundProgramFails() {
+    var program = Resource.background(Program.<Void, String, Unit>raise(IllegalStateException::new))
+        .use(join -> join);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // helpers
   // ---------------------------------------------------------------------------------------------
 
@@ -598,6 +680,14 @@ class ResourceTest {
             task(() -> waiting.complete(null)),
             _ -> poll.apply(never())),
         value -> task(() -> log.add("release " + value)));
+  }
+
+  // a background program that signals it has started, waits forever and logs when it stops
+  private Program<Void, String, Unit> worker(CompletableFuture<Void> started) {
+    return pipe(
+            task(() -> started.complete(null)),
+            _ -> Program.<Void, String, Unit>never())
+        .ensuring(task(() -> log.add("worker stopped")));
   }
 
   private Resource<Void, String, String> resource(String name) {

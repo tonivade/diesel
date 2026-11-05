@@ -23,6 +23,8 @@ import com.github.tonivade.diesel.Program.Poll;
 import com.github.tonivade.purefun.Kind;
 
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -467,6 +469,57 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     return from(access(mapper), release);
   }
 
+  /**
+   * Creates a resource that runs a program in the background while the resource is used.
+   *
+   * <p>The program is forked when the resource is acquired, using virtual threads, and it's
+   * cancelled when the resource is released, whether {@code use} succeeds, fails, throws an
+   * exception or is cancelled. The release waits until the program has stopped and its finalizers
+   * have run, so the resources released after it, like the ones it depends on when it's composed
+   * with {@link #flatMap(Function)}, can't be used by it anymore. If the program has an uncancelable
+   * part, the release waits for it to finish.
+   *
+   * <p>The acquired value is a program that waits for the background program and returns its
+   * result. The release ignores how the background program ended, so a failure or an exception
+   * of it is only seen by joining it.
+   *
+   * <pre>{@code
+   * Resource<S, E, Connection> resource = connection.flatMap(
+   *     conn -> Resource.background(heartbeat(conn)).map(_ -> conn));
+   * // when it's released, the heartbeat is cancelled and stops before the connection is closed
+   * }</pre>
+   *
+   * @param program the program to run in the background
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result of the program
+   * @return a resource whose value is a program that joins the background program
+   * @see Program#fork()
+   */
+  public static <S, E, T> Resource<S, E, Program<S, E, T>> background(Program<S, E, T> program) {
+    return background(program, Concurrent.DEFAULT_EXECUTOR);
+  }
+
+  /**
+   * Creates a resource that runs a program in the background, using the given executor, while the
+   * resource is used.
+   *
+   * <p>Like {@link #background(Program)}, but the program is forked using the given executor.
+   *
+   * @param program the program to run in the background
+   * @param executor the executor used to fork the program
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result of the program
+   * @return a resource whose value is a program that joins the background program
+   * @see Program#fork(Executor)
+   */
+  public static <S, E, T> Resource<S, E, Program<S, E, T>> background(Program<S, E, T> program, Executor executor) {
+    return new Resource<>(_ -> chain(
+        program.fork(executor),
+        future -> tuple(Program.join(future), cancelAndWait(future))));
+  }
+
   // acquires the next resource once the previous one is acquired: if it fails, throws or the
   // mapper throws, the previous resource is released before the error goes on, so nothing leaks.
   // Once both are acquired, the inner one is released first, and the outer one even if it fails
@@ -504,6 +557,14 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   private static <S, A> Program<S, Void, Unit> release(
       A value, Function<? super A, ? extends Program<S, Void, ?>> release) {
     return suspend(() -> release.apply(value).discard());
+  }
+
+  // cancels a forked program and waits until it has stopped, whatever its outcome: the future of a
+  // fork only completes once the cancelled program has run its finalizers
+  private static <S> Program<S, Void, Unit> cancelAndWait(CompletableFuture<?> future) {
+    return pipe(
+        task(() -> future.cancel(true)),
+        _ -> Program.join(future.<Result<Void, Unit>>handle((_, _) -> Result.success(Unit.unit()))));
   }
 
   private static void close(AutoCloseable resource) {
