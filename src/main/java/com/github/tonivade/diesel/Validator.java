@@ -154,6 +154,21 @@ public interface Validator<S, E, T> {
   /**
    * Creates a Validator based on a function that returns a Validation result.
    *
+   * @param accessor The function to access the field to be validated
+   * @param validator the function that generates the Validation result
+   * @param <S> The state type of the Program
+   * @param <E> The error type for validation failures
+   * @param <T> The type of the value to be validated
+   * @param <R> The type of the field to be validated
+   * @return A Validator that uses the given function
+   */
+  static <S, E, T, R> Validator<S, E, T> of(Function<? super T, ? extends R> accessor, Function<? super R, ? extends Validation<E>> validator) {
+    return of(validator.compose(accessor));
+  }
+
+  /**
+   * Creates a Validator based on a function that returns a Validation result.
+   *
    * @param validator the function that generates the Validation result
    * @param <S> The state type of the Program
    * @param <E> The error type for validation failures
