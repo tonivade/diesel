@@ -1028,7 +1028,8 @@ public final class Combine {
    * @param acquire the supplier of the resource to be acquired
    * @param use the function used to use the acquired resource
    * @param release the function used to release the acquired resource. It can't fail with an
-   *     error, only throw an exception, which replaces the result of {@code use}
+   *     error, only throw an exception, which replaces the result of {@code use}, or is added as
+   *     suppressed to the exception thrown by {@code use}
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the resource
@@ -1059,7 +1060,8 @@ public final class Combine {
    * @param acquire the function that receives the {@link Poll} and returns the acquisition
    * @param use the function used to use the acquired resource
    * @param release the function used to release the acquired resource. It can't fail with an
-   *     error, only throw an exception, which replaces the result of {@code use}
+   *     error, only throw an exception, which replaces the result of {@code use}, or is added as
+   *     suppressed to the exception thrown by {@code use}
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the resource

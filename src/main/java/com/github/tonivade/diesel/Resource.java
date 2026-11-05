@@ -10,7 +10,6 @@ import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
-import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
@@ -49,7 +48,8 @@ import java.util.function.Function;
  *
  * <p>A release action cannot fail through the program's error channel, but it may throw an
  * exception. If a release action throws, that exception replaces the result of the computation
- * being finalized.
+ * being finalized. Like in try-with-resources, if the computation already threw an exception, or
+ * an inner release threw one, that one goes on and the next ones are added to it as suppressed.
  *
  * @param <S> the type of the state
  * @param <E> the type of the error
@@ -466,9 +466,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
           var next = mapper.apply(ta.first());
           return next.acquire.apply(poll);
         }),
-        error -> pipe(
-            widen(ta.second()),
-            _ -> raise(() -> error)))
+        error -> Program.<S, F, Tuple2<R, Program<S, Void, Unit>>>raise(() -> error).ensuring(ta.second()))
         .foldMap(
             error -> pipe(
                 widen(ta.second()),

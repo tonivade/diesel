@@ -1209,7 +1209,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * <p>The finalizer also runs when the program throws an exception or is cancelled, and it can't be
    * cancelled itself. The finalizer can't fail with an error, only throw an exception, which
-   * replaces the result of the program, or the exception it threw.
+   * replaces the result of the program. If the program threw an exception or was cancelled, that
+   * exception goes on and the one of the finalizer is added to it as suppressed, like
+   * try-with-resources does.
    *
    * @param finalizer the program to be executed as a finalizer
    * @return a new program representing the computation with the finalizer

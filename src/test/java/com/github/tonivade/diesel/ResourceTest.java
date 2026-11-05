@@ -311,7 +311,7 @@ class ResourceTest {
   }
 
   @Test
-  void theOuterReleaseExceptionWinsWhenBothReleasesThrow() {
+  void theInnerReleaseExceptionWinsWhenBothReleasesThrow() {
     var outer = Resource.<Void, String, String>make(
         success("a"),
         _ -> raise(() -> new IllegalStateException("outer")));
@@ -321,11 +321,51 @@ class ResourceTest {
 
     var program = outer.flatMap(_ -> inner).use(this::use);
 
-    // like a finally block: the exception of the last release replaces the previous one
+    // like try-with-resources: the first exception wins and the next ones are suppressed
     assertThatThrownBy(program::eval)
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("outer");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("inner")
+        .satisfies(e -> assertThat(e.getSuppressed())
+            .singleElement()
+            .isInstanceOf(IllegalStateException.class)
+            .extracting(Throwable::getMessage)
+            .isEqualTo("outer"));
     assertThat(log).containsExactly("use b");
+  }
+
+  @Test
+  void theUseExceptionWinsWhenTheReleaseThrows() {
+    var resource = Resource.<Void, String, String>make(
+        success("a"),
+        _ -> raise(() -> new IllegalStateException("release")));
+
+    var program = resource.use(_ -> raise(() -> new IllegalArgumentException("use")));
+
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("use")
+        .satisfies(e -> assertThat(e.getSuppressed())
+            .singleElement()
+            .isInstanceOf(IllegalStateException.class));
+  }
+
+  @Test
+  void theNextAcquisitionExceptionWinsWhenThePreviousReleaseThrows() {
+    var outer = Resource.<Void, String, String>make(
+        success("a"),
+        _ -> raise(() -> new IllegalStateException("release")));
+    var inner = Resource.<Void, String, String>make(
+        raise(() -> new IllegalArgumentException("acquire")),
+        _ -> Program.unit());
+
+    var program = outer.flatMap(_ -> inner).use(this::use);
+
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("acquire")
+        .satisfies(e -> assertThat(e.getSuppressed())
+            .singleElement()
+            .isInstanceOf(IllegalStateException.class));
   }
 
   // ---------------------------------------------------------------------------------------------

@@ -181,10 +181,7 @@ final class Runtime {
             }
             case FinalizerFrame(var finalizer) -> {
               // keep unwinding with the same exception once the finalizer is done
-              stack.push(Frame.fold(
-                  _ -> Program.raise(() -> e),
-                  _ -> Program.raise(() -> e)));
-              enterUncancelable(stack, regions);
+              runFinalizer(stack, regions, e);
               current = finalizer;
               resumed = true;
             }
@@ -193,10 +190,7 @@ final class Runtime {
               // cancelled fork joined by this program
               if (regions.isEmpty() && token.isCancelled()) {
                 // run the finalizer, then keep unwinding with the same exception
-                stack.push(Frame.fold(
-                    _ -> Program.raise(() -> e),
-                    _ -> Program.raise(() -> e)));
-                enterUncancelable(stack, regions);
+                runFinalizer(stack, regions, e);
                 current = finalizer;
                 resumed = true;
               }
@@ -277,6 +271,27 @@ final class Runtime {
     } catch (CompletionException e) {
       return sneakyThrow(e.getCause() != null ? e.getCause() : e);
     }
+  }
+
+  /**
+   * Prepares the stack to run a finalizer while unwinding an exception: the finalizer can't be
+   * cancelled, and once it's done the same exception goes on. If the finalizer throws too, its
+   * exception is added as suppressed to the one being unwound, like try-with-resources does, so
+   * neither is lost. It compares the instances because an exception can't suppress itself.
+   */
+  @SuppressWarnings("ReferenceEquality")
+  private static <S> void runFinalizer(Deque<Frame<S>> stack, Deque<Region> regions, Throwable e) {
+    stack.push(Frame.fold(
+        _ -> Program.raise(() -> e),
+        _ -> Program.raise(() -> e)));
+    enterUncancelable(stack, regions);
+    // inside the region, so the handler runs even if the program is being cancelled
+    stack.push(Frame.catch_(error -> {
+      if (error != e) {
+        e.addSuppressed(error);
+      }
+      return Program.raise(() -> e);
+    }));
   }
 
   // the region ends when the UnmaskFrame is popped
