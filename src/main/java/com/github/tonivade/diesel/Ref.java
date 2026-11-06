@@ -23,11 +23,16 @@ import java.util.function.UnaryOperator;
  * <p>The value can't be {@code null}: the operations that would store a {@code null} fail with a
  * {@link NullPointerException} and leave the value unchanged.
  *
+ * <p>The types of the state and the error aren't parameters of the class but of each operation,
+ * so the same reference can be used in programs of any state and error type. Java infers them from
+ * where the program is used, which a chained call doesn't tell: in {@code ref.get().map(...)}
+ * they are inferred as {@code Object}. Pass the program to a {@link Combine} helper instead, like
+ * {@code pipe(ref.get(), value -> ...)}, or give the types, like
+ * {@code ref.<Void, String>get().map(...)}.
+ *
  * @param <A> type of stored value
  */
 public final class Ref<A> {
-
-  private static final String NULL_VALUE = "the value of a ref can't be null";
 
   private final AtomicReference<A> value;
 
@@ -140,7 +145,8 @@ public final class Ref<A> {
       while (true) {
         A current = value.get();
         var tuple = change.apply(current);
-        if (value.compareAndSet(current, requireNonNull(tuple.second(), NULL_VALUE))) {
+        // a tuple can't hold a null, so the new value is never null
+        if (value.compareAndSet(current, tuple.second())) {
           return tuple.first();
         }
       }
@@ -183,6 +189,6 @@ public final class Ref<A> {
   }
 
   private static <A> UnaryOperator<A> nonNull(UnaryOperator<A> update) {
-    return current -> requireNonNull(update.apply(current), NULL_VALUE);
+    return current -> requireNonNull(update.apply(current), "the value of a ref can't be null");
   }
 }

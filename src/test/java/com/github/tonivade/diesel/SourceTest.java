@@ -4,6 +4,7 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Program.attempt;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
@@ -709,21 +710,11 @@ class SourceTest {
           readFileLazy("LICENSE").evalOrElseThrow());
     }
 
-    private Program<Void, String, String> readFileLazy(String file) {
-      return Resource.from(reader(file))
-          .use(reader -> Source.<Void, String, String>fromStream(reader::lines)
+    private Program<Void, Throwable, String> readFileLazy(String file) {
+      return Resource.<Void, Throwable, BufferedReader>from(attempt(() -> Files.newBufferedReader(Paths.get(file))))
+          .use(reader -> Source.<Void, Throwable, String>fromStream(reader::lines)
               .foldLeft("", (a, b) -> a + '\n' + b))
-          .catchAll(_ -> failure("--- file not found ---"));
-    }
-
-    private Program<Void, String, BufferedReader> reader(String file) {
-      return supply(() -> {
-        try {
-          return Files.newBufferedReader(Paths.get(file));
-        } catch (IOException e) {
-          throw new UncheckedIOException(e);
-        }
-      });
+          .catchAll(_ -> success("--- file not found ---"));
     }
 
     private String impureReadFile(String file) {

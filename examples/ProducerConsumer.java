@@ -1,5 +1,4 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-
 //DEPS com.github.tonivade:diesel:0.14-SNAPSHOT
 
 /*
@@ -16,12 +15,14 @@ import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
 import static com.github.tonivade.diesel.Program.unit;
 import static com.github.tonivade.diesel.Tuple2.tuple;
+import static com.github.tonivade.diesel.impl.Console.writeLine;
 
 import com.github.tonivade.diesel.Deferred;
 import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Queue;
 import com.github.tonivade.diesel.Ref;
 import com.github.tonivade.diesel.Unit;
+import com.github.tonivade.diesel.impl.Console;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,12 +32,12 @@ import java.util.Optional;
 public class ProducerConsumer {
 
   public static void main(String[] args) {
-    int total = program().evalOrElseThrow();
+    int total = program().eval(new Console.Service() {}).getOrElseThrow();
 
-    System.out.println();
-    System.out.println("================================");
-    System.out.println("Processed messages: " + total);
-    System.out.println("================================");
+    IO.println();
+    IO.println("================================");
+    IO.println("Processed messages: " + total);
+    IO.println("================================");
 
     if (total != 10) {
       throw new AssertionError(
@@ -45,9 +46,9 @@ public class ProducerConsumer {
     }
   }
 
-  static Program<Void, Void, Integer> program() {
+  static Program<Console.Service, Void, Integer> program() {
     return pipe(
-        Queue.<Void, Void, Integer>makeBounded(3),
+        Queue.<Console.Service, Void, Integer>makeBounded(3),
         queue -> pipe(
             Ref.make(0),
             processed -> pipe(
@@ -69,37 +70,24 @@ public class ProducerConsumer {
     );
   }
 
-  static Program<Void, Void, Unit> produce(
-      Queue<Integer> queue,
-      List<Integer> values
-  ) {
+  static Program<Console.Service, Void, Unit> produce(Queue<Integer> queue, List<Integer> values) {
     return pipe(
         traverse(queue::offer, values),
         _ -> unit()
     );
   }
 
-  static Program<Void, Void, Unit> consume(
-      int id,
-      Queue<Integer> queue,
-      Ref<Integer> processed
-  ) {
+  static Program<Console.Service, Void, Unit> consume(int id, Queue<Integer> queue, Ref<Integer> processed) {
     return suspend(() ->
         pipe(
             queue.takeOrClosed(),
             message -> {
               if (message.isEmpty()) {
-                return task(() -> System.out.printf("Consumer %d stopped%n", id));
+                return writeLine("Consumer %d stopped", id);
               }
 
               return pipe(
-                  task(() ->
-                      System.out.printf(
-                          "Consumer %d processed %d%n",
-                          id,
-                          message.get()
-                      )
-                  ),
+                  writeLine("Consumer %d processed %d", id, message.get()),
                   _ -> processed.updateAndGet(n -> n + 1),
                   _ -> suspend(() -> consume(id, queue, processed))
               );

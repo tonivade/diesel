@@ -335,7 +335,7 @@ public final class Concurrent {
    * @throws NoSuchElementException when evaluated if no programs are given
    */
   public static <S, E, T> Program<S, E, T> parAny(Executor executor, Collection<? extends Program<S, E, T>> programs) {
-    if (programs.size() == 0) {
+    if (programs.isEmpty()) {
       return raise(NoSuchElementException::new);
     }
 

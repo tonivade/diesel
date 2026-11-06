@@ -6,11 +6,12 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
-import static com.github.tonivade.diesel.Combine.withOnCancel;
 import static com.github.tonivade.diesel.Fatal.sneakyThrow;
 import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Frame.Region;
+import com.github.tonivade.diesel.function.CheckedRunnable;
+import com.github.tonivade.diesel.function.CheckedSupplier;
 import com.github.tonivade.purefun.Kind;
 
 import java.time.Duration;
@@ -98,17 +99,29 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Catch<S, E, T>(
       Program<S, E, T> current,
-      Function<? super Throwable, ? extends Program<S, E, T>> recover) implements Program<S, E, T> {}
+      Function<? super Throwable, ? extends Program<S, E, T>> recover) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "Catch[current=%s, recover=...]".formatted(current);
+    }
+  }
 
   /**
    * Represents a computation that raises an exception.
    *
-   * @param throwable the exception to be raised
+   * @param supplier the exception to be raised
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Raise<S, E, T>(Supplier<? extends Throwable> throwable) implements Program<S, E, T> {}
+  record Raise<S, E, T>(Supplier<? extends Throwable> supplier) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "Raise[supplier=...]";
+    }
+  }
 
   /**
    * Represents a computation that folds over the result of the program.
@@ -125,7 +138,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
       Function<? super E, ? extends Program<S, F, R>> onFailure,
-      Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {}
+      Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {
+
+    @Override
+    public final String toString() {
+      return "FoldMap[current=%s, onFailure=..., onSuccess=...]".formatted(current);
+    }
+  }
 
   /**
    * Represents an asynchronous computation within the program.
@@ -137,6 +156,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Async<S, E, T>(
       BiConsumer<? super S, ? super CompletableFuture<Result<E, T>>> callback) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "Async[callback=...]";
+    }
   }
 
   /**
@@ -158,7 +182,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Access<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {}
+  record Access<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "Access[mapper=...]";
+    }
+  }
 
   /**
    * Represents a new program that describes a computation that suspends its execution.
@@ -168,7 +198,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Suspend<S, E, T>(Supplier<? extends Program<S, E, T>> supplier) implements Program<S, E, T> {}
+  record Suspend<S, E, T>(Supplier<? extends Program<S, E, T>> supplier) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "Suspend[supplier=...]";
+    }
+  }
 
   /**
    * Represents a computation that runs a finalizer after the program, whether it succeeds, fails,
@@ -237,6 +273,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     public void set(Result<E, T> result) {
       cache.compareAndSet(null, result);
     }
+
+    @Override
+    public String toString() {
+      return "Memoized[current=%s]".formatted(current);
+    }
   }
 
   /**
@@ -262,7 +303,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record UncancelableWith<S, E, T>(Function<? super Poll, ? extends Program<S, E, T>> body) implements Program<S, E, T> {}
+  record UncancelableWith<S, E, T>(Function<? super Poll, ? extends Program<S, E, T>> body) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "UncancelableWith[body=...]";
+    }
+  }
 
   /**
    * Represents a computation that can be cancelled inside an uncancelable region.
@@ -452,7 +499,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing a computation that attempts to execute the supplier
    */
-  static <S, T> Program<S, Throwable, T> attempt(Supplier<? extends T> supplier) {
+  static <S, T> Program<S, Throwable, T> attempt(CheckedSupplier<? extends T> supplier) {
     return suspend(() -> from(Result.attempt(supplier)));
   }
 
@@ -515,7 +562,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Creates a new program that represents an interruptible task, executed in the
-   * {@link ForkJoinPool#commonPool()}. See {@link #interruptibleTask(Executor, Runnable)}.
+   * {@link ForkJoinPool#commonPool()}. See {@link #interruptibleTask(Executor, CheckedRunnable)}.
    *
    * <p>The common pool suits CPU-intensive actions. An action that mostly blocks, like waiting for
    * I/O, holds a thread of the pool while it runs: pass an executor of its own, like one of
@@ -526,7 +573,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing an interruptible task
    */
-  static <S, E> Program<S, E, Unit> interruptibleTask(Runnable action) {
+  static <S, E> Program<S, E, Unit> interruptibleTask(CheckedRunnable action) {
     return interruptibleTask(ForkJoinPool.commonPool(), action);
   }
 
@@ -546,7 +593,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing an interruptible task
    */
-  static <S, E> Program<S, E, Unit> interruptibleTask(Executor executor, Runnable action) {
+  static <S, E> Program<S, E, Unit> interruptibleTask(Executor executor, CheckedRunnable action) {
     return asyncCancelable((_, callback) -> {
       var claimed = new AtomicBoolean();
       var finished = new CompletableFuture<Unit>();
@@ -627,7 +674,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return accessProgram(state -> {
       var future = new CompletableFuture<Result<E, T>>();
       var canceler = register.apply(state, future);
-      return withOnCancel(join(future), canceler);
+      return Combine.onCancel(join(future), canceler);
     });
   }
 
@@ -949,6 +996,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Maps the program to a new program using the provided function for errors.
    *
+   * <p>Only an error of the program is handled: an exception is propagated as it is, use
+   * {@link #catchAll(Function)} to recover from it.
+   *
    * @param next the function used to map the program
    * @param <F> the type of the new program
    * @return a new program representing the mapped computation
@@ -969,6 +1019,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Maps the program to a new program using the provided functions for success and failure.
+   *
+   * <p>Only an error of the program is handled: an exception is propagated as it is, use
+   * {@link #catchAll(Function)} to recover from it.
    *
    * @param onFailure the function used to map the program in case of failure
    * @param onSuccess the function used to map the program in case of success

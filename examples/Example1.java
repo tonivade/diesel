@@ -44,7 +44,7 @@ class Example1 {
             .take(5)
             .mapEval(value -> pipe(
                 processed.updateAndGet(count -> count + 1),
-                _ -> success(value)))
+                success(_ -> value)))
             .toList(),
         values -> chain(
             processed.get(),

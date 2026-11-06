@@ -31,6 +31,13 @@ import java.util.function.Consumer;
  *
  * <p>The value can't be {@code null}.
  *
+ * <p>The types of the state and the error aren't parameters of the class but of each operation,
+ * so the same deferred can be used in programs of any state and error type. Java infers them from
+ * where the program is used, which a chained call doesn't tell: in {@code deferred.get().map(...)}
+ * they are inferred as {@code Object}. Pass the program to a {@link Combine} helper instead, like
+ * {@code pipe(deferred.get(), value -> ...)}, or give the types, like
+ * {@code deferred.<Void, String>get().map(...)}.
+ *
  * @param <A> type of stored value
  */
 public final class Deferred<A> {

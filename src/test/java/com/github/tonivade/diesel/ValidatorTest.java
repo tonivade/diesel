@@ -18,14 +18,14 @@ class ValidatorTest {
 
   @Test
   void shouldCompose() {
-    Validator<Object, String, Integer> isPositive = Validator.of(value -> {
+    Validator<Object, String, Integer> isPositive = Validator.fromValidation(value -> {
       if (value > 0) {
         return valid();
       }
       return invalid("Value must be positive");
     });
 
-    Validator<Object, String, Integer> isEven = Validator.of(value -> {
+    Validator<Object, String, Integer> isEven = Validator.fromValidation(value -> {
       if (value % 2 == 0) {
         return valid();
       }

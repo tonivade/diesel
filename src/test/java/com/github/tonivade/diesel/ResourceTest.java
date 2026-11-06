@@ -181,6 +181,17 @@ class ResourceTest {
   }
 
   @Test
+  @SuppressWarnings("NullAway") // NullAway already rejects it at compile time, but not every caller uses it
+  void mapRejectsANullAndReleases() {
+    var program = resource("a")
+        .<String>map(_ -> null)
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(NullPointerException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
   void mapKeepsTheReleaseInAComposedResource() {
     var result = resource("a")
         .flatMap(a -> resource("b").map(b -> a + b))
