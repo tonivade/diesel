@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Concurrent.parZip;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.inspect;
 import static com.github.tonivade.diesel.Program.never;
@@ -223,12 +224,12 @@ class ResourceTest {
   @Test
   void evalMapRunsTheProgramAndKeepsTheRelease() {
     var result = resource("a")
-        .evalMap(a -> pipe(task(() -> log.add("eval " + a)), _ -> success(a.toUpperCase())))
+        .evalMap(a -> pipe(task(() -> log.add("eval " + a)), _ -> success(a + a)))
         .use(this::use)
         .eval();
 
-    assertThat(result).isEqualTo(Result.success("A"));
-    assertThat(log).containsExactly("acquire a", "eval a", "use A", "release a");
+    assertThat(result).isEqualTo(Result.success("aa"));
+    assertThat(log).containsExactly("acquire a", "eval a", "use aa", "release a");
   }
 
   @Test
@@ -380,6 +381,46 @@ class ResourceTest {
   }
 
   @Test
+  void foldMapReleasesTheFirstWhenTheMapperThrows() {
+    var program = resource("a")
+        .foldMap(
+            _ -> resource("fallback"),
+            _ -> {
+              throw new IllegalStateException();
+            })
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void foldMapPropagatesAnExceptionOfTheErrorMapper() {
+    var program = Resource.<Void, String, String>eval(failure("boom"))
+        .foldMap(
+            _ -> {
+              throw new IllegalStateException();
+            },
+            this::resource)
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).isEmpty();
+  }
+
+  @Test
+  void flatMapErrorPropagatesAnExceptionOfTheMapper() {
+    var program = Resource.<Void, String, String>eval(failure("boom"))
+        .<String>flatMapError(_ -> {
+          throw new IllegalStateException();
+        })
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).isEmpty();
+  }
+
+  @Test
   void eitherIsLeftWhenTheFirstSucceeds() {
     var result = resource("a").either(resource("b")).use(Program::success).eval();
 
@@ -396,6 +437,17 @@ class ResourceTest {
 
     assertThat(result).isEqualTo(Result.success(Either.right("b")));
     assertThat(log).containsExactly("acquire b", "release b");
+  }
+
+  @Test
+  void eitherFailsWithTheErrorOfTheAlternativeWhenBothFail() {
+    var result = Resource.<Void, String, String>eval(failure("first"))
+        .either(Resource.<Void, String, String>eval(failure("second")))
+        .use(Program::success)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("second"));
+    assertThat(log).isEmpty();
   }
 
   @Test
@@ -430,6 +482,22 @@ class ResourceTest {
     assertThat(log).containsExactly(
         "acquire a", "release a",
         "acquire a", "use b", "release b", "release a");
+  }
+
+  @Test
+  void retryWithZeroRetriesDoesNotAcquireAgain() {
+    var attempts = new AtomicInteger();
+    var failing = Resource.<Void, String, String>eval(
+        suspend(() -> {
+          attempts.incrementAndGet();
+          return failure("boom");
+        }));
+
+    var result = failing.retry(0).use(this::use).eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(attempts).hasValue(1);
+    assertThat(log).isEmpty();
   }
 
   @Test
@@ -785,6 +853,44 @@ class ResourceTest {
         .use(join -> join);
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // parallel use
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void resourcesUsedInParallelAreAllReleased() {
+    var result = parZip(
+        resource("a").use(this::use),
+        resource("b").use(this::use),
+        String::concat)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("ab"));
+    assertThat(log)
+        .hasSize(6)
+        .containsSubsequence("acquire a", "use a", "release a")
+        .containsSubsequence("acquire b", "use b", "release b");
+  }
+
+  @Test
+  void aResourceUsedInParallelIsReleasedWhenTheOtherUseFails() {
+    var started = new CompletableFuture<Void>();
+    var waiting = resource("a").use(_ -> pipe(
+        task(() -> started.complete(null)),
+        _ -> Program.<Void, String, String>never()));
+    var failing = resource("b").use(_ -> pipe(
+        task(started::join),
+        _ -> Program.<Void, String, String>failure("boom")));
+
+    var result = parZip(waiting, failing, (a, b) -> a + b).eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(log)
+        .hasSize(4)
+        .containsSubsequence("acquire a", "release a")
+        .containsSubsequence("acquire b", "release b");
   }
 
   // ---------------------------------------------------------------------------------------------
