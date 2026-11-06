@@ -5,7 +5,7 @@
 package com.github.tonivade.diesel.function;
 
 /**
- * Similar to {@link Runnable} but {@code run()} method throws an checked exception.
+ * Similar to {@link Runnable} but {@code run()} method throws a checked exception.
  */
 @FunctionalInterface
 public interface CheckedRunnable {

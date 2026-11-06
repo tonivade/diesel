@@ -7,7 +7,7 @@ package com.github.tonivade.diesel.function;
 import java.util.function.Supplier;
 
 /**
- * Similar to {@link Supplier} but {@code get()} method throws an checked exception.
+ * Similar to {@link Supplier} but {@code get()} method throws a checked exception.
  */
 @FunctionalInterface
 public interface CheckedSupplier<T> {
