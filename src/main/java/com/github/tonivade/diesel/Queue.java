@@ -51,6 +51,13 @@ import org.pcollections.TreePVector;
  *
  * <p>Elements can't be {@code null}.
  *
+ * <p>The types of the state and the error aren't parameters of the class but of each operation,
+ * so the same queue can be used in programs of any state and error type. Java infers them from
+ * where the program is used, which a chained call doesn't tell: in {@code queue.take().map(...)}
+ * they are inferred as {@code Object}. Pass the program to a {@link Combine} helper instead, like
+ * {@code pipe(queue.take(), value -> ...)}, or give the types, like
+ * {@code queue.<Void, String>take().map(...)}.
+ *
  * @param <A> the type of the elements
  */
 public final class Queue<A> {

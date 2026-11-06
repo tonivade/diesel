@@ -139,6 +139,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * <p>If this resource is acquired successfully, the mapper is not evaluated. If acquisition
    * fails, the mapper is applied to the error and the resulting resource is acquired instead.
    *
+   * <p>Only an error of the acquisition is handled: an exception thrown during the acquisition is
+   * propagated as it is.
+   *
    * @param mapper the function used to create a resource from the acquisition error
    * @param <F> the error type of the resulting resource
    * @return a resource that falls back to another resource when acquisition fails
@@ -175,6 +178,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * <p>The alternative resource is acquired only when this resource fails during acquisition.
    * Errors from the alternative resource are propagated normally.
    *
+   * <p>Only an error of the acquisition is handled: an exception thrown during the acquisition is
+   * propagated as it is.
+   *
    * @param other the alternative resource to acquire when this resource fails
    * @return a resource that falls back to the given alternative
    */
@@ -188,6 +194,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * <p>If acquisition fails, {@code mapError} is applied to the error and the resource it returns
    * is acquired instead. If acquisition succeeds, {@code mapper} is applied to the acquired value,
    * like {@link #flatMap(Function)}: both resources are released, the new one first.
+   *
+   * <p>Only an error of the acquisition is handled: an exception thrown during the acquisition is
+   * propagated as it is.
    *
    * @param mapError the function used to handle an acquisition error
    * @param mapper the function used to transform an acquired value into another resource
@@ -230,6 +239,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    *
    * <p>If both acquisitions fail, the resulting resource fails with the error of the alternative
    * one, and the error of this resource is discarded.
+   *
+   * <p>Only an error of the acquisition is handled: an exception thrown during the acquisition is
+   * propagated as it is.
    *
    * @param other the alternative resource to acquire when this resource fails
    * @param <B> the type of the alternative resource

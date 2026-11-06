@@ -996,6 +996,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Maps the program to a new program using the provided function for errors.
    *
+   * <p>Only an error of the program is handled: an exception is propagated as it is, use
+   * {@link #catchAll(Function)} to recover from it.
+   *
    * @param next the function used to map the program
    * @param <F> the type of the new program
    * @return a new program representing the mapped computation
@@ -1016,6 +1019,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Maps the program to a new program using the provided functions for success and failure.
+   *
+   * <p>Only an error of the program is handled: an exception is propagated as it is, use
+   * {@link #catchAll(Function)} to recover from it.
    *
    * @param onFailure the function used to map the program in case of failure
    * @param onSuccess the function used to map the program in case of success
