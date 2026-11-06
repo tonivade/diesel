@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel;
 
+import static java.util.Objects.requireNonNull;
+
 import java.util.function.Function;
 
 /**
@@ -25,7 +27,12 @@ public sealed interface Either<L, R> {
    * @param <L> the type of the left value
    * @param <R> the type of the right value
    */
-  record Left<L, R>(L left) implements Either<L, R> {}
+  record Left<L, R>(L left) implements Either<L, R> {
+
+    public Left {
+      requireNonNull(left);
+    }
+  }
 
   /**
    * Represents the right value of the Either type.
@@ -33,7 +40,12 @@ public sealed interface Either<L, R> {
    * @param <L> the type of the left value
    * @param <R> the type of the right value
    */
-  record Right<L, R>(R right) implements Either<L, R> {}
+  record Right<L, R>(R right) implements Either<L, R> {
+
+    public Right {
+      requireNonNull(right);
+    }
+  }
 
   /**
    * Creates an instance of Either representing a left value.

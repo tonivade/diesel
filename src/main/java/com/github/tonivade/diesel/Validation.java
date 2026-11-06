@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel;
 
+import static java.util.Objects.requireNonNull;
+
 import java.util.Collection;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
@@ -45,7 +47,12 @@ public sealed interface Validation<E> {
    * @param <E> The type of the error
    * @param error The error associated with the invalid validation
    */
-  record Invalid<E>(E error) implements Validation<E> {}
+  record Invalid<E>(E error) implements Validation<E> {
+
+    public Invalid {
+      requireNonNull(error);
+    }
+  }
 
   /**
    * Returns the error associated with an invalid validation.
