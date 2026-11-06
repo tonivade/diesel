@@ -953,7 +953,7 @@ public final class Combine {
    * @param <T> the type of the result
    * @return the same program but with the finalizer
    */
-  public static <S, E, T> Program<S, E, T> withEnsuring(Program<S, E, T> program, Program<S, Void, ?> finalizer) {
+  public static <S, E, T> Program<S, E, T> ensuring(Program<S, E, T> program, Program<S, Void, ?> finalizer) {
     return program.ensuring(finalizer);
   }
 
@@ -967,7 +967,7 @@ public final class Combine {
    * @param <T> the type of the result
    * @return the same program but with the on-cancel finalizer
    */
-  public static <S, E, T> Program<S, E, T> withOnCancel(Program<S, E, T> program, Program<S, Void, ?> finalizer) {
+  public static <S, E, T> Program<S, E, T> onCancel(Program<S, E, T> program, Program<S, Void, ?> finalizer) {
     return program.onCancel(finalizer);
   }
 

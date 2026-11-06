@@ -8,7 +8,7 @@ import static com.github.tonivade.diesel.Combine.bracketFull;
 import static com.github.tonivade.diesel.Combine.catchAll;
 import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
-import static com.github.tonivade.diesel.Combine.withEnsuring;
+import static com.github.tonivade.diesel.Combine.ensuring;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.join;
@@ -557,7 +557,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
       Program<S, E, T> program, Program<S, Void, Unit> release) {
     return catchAll(
         program,
-        error -> withEnsuring(raise(() -> error), release)
+        error -> ensuring(raise(() -> error), release)
       );
   }
 

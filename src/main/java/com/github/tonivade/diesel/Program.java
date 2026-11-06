@@ -6,7 +6,6 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
-import static com.github.tonivade.diesel.Combine.withOnCancel;
 import static com.github.tonivade.diesel.Fatal.sneakyThrow;
 import static java.util.function.Function.identity;
 
@@ -629,7 +628,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return accessProgram(state -> {
       var future = new CompletableFuture<Result<E, T>>();
       var canceler = register.apply(state, future);
-      return withOnCancel(join(future), canceler);
+      return Combine.onCancel(join(future), canceler);
     });
   }
 
