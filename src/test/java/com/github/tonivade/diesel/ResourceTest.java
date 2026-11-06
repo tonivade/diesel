@@ -145,6 +145,23 @@ class ResourceTest {
   }
 
   @Test
+  void useForeverKeepsTheResourceUntilItIsCancelled() {
+    var acquired = new CompletableFuture<Void>();
+    var program = resource("a")
+        .evalTap(_ -> task(() -> acquired.complete(null)))
+        .useForever();
+
+    var future = program.fork().evalOrElseThrow();
+    acquired.join();
+
+    assertThat(future.cancel(true)).isTrue();
+    assertThatThrownBy(future::join)
+        .isInstanceOf(CancellationException.class);
+    assertThat(log)
+        .containsExactly("acquire a", "release a");
+  }
+
+  @Test
   void aLongChainBuiltInALoopIsStackSafe() {
     var resource = Resource.<Void, String, Integer>of(0);
     for (int i = 0; i < 50_000; i++) {
@@ -201,6 +218,72 @@ class ResourceTest {
 
     assertThat(result).isEqualTo(Result.success("AB"));
     assertThat(log).containsExactly("acquire a", "acquire b", "use AB", "release b", "release a");
+  }
+
+  @Test
+  void evalMapRunsTheProgramAndKeepsTheRelease() {
+    var result = resource("a")
+        .evalMap(a -> pipe(task(() -> log.add("eval " + a)), _ -> success(a.toUpperCase())))
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("A"));
+    assertThat(log).containsExactly("acquire a", "eval a", "use A", "release a");
+  }
+
+  @Test
+  void evalMapReleasesWhenTheProgramFails() {
+    var result = resource("a")
+        .<String>evalMap(_ -> failure("boom"))
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void evalMapReleasesWhenTheProgramThrows() {
+    var program = resource("a")
+        .<String>evalMap(_ -> raise(IllegalStateException::new))
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void evalMapReleasesWhenTheMapperThrows() {
+    var program = resource("a")
+        .<String>evalMap(_ -> {
+          throw new IllegalStateException();
+        })
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("acquire a", "release a");
+  }
+
+  @Test
+  void evalTapKeepsTheValue() {
+    var result = resource("a")
+        .evalTap(a -> task(() -> log.add("tap " + a)))
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("a"));
+    assertThat(log).containsExactly("acquire a", "tap a", "use a", "release a");
+  }
+
+  @Test
+  void evalTapReleasesWhenTheProgramFails() {
+    var result = resource("a")
+        .evalTap(_ -> failure("boom"))
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(log).containsExactly("acquire a", "release a");
   }
 
   @Test
