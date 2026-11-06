@@ -11,11 +11,18 @@ import static java.util.Objects.requireNonNull;
  *
  * @param <A> the type of the first value
  * @param <B> the type of the second value
- * @param first first elevement of the tuple
- * @param second second elevement of the tuple
+ * @param first first element of the tuple
+ * @param second second element of the tuple
  */
 public record Tuple2<A, B>(A first, B second) {
 
+  /**
+   * Creates a pair, rejecting null values.
+   *
+   * @param first first element of the tuple
+   * @param second second element of the tuple
+   * @throws NullPointerException if any of the values is {@code null}
+   */
   public Tuple2 {
     requireNonNull(first);
     requireNonNull(second);

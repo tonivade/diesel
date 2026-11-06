@@ -27,8 +27,6 @@ import java.util.function.UnaryOperator;
  */
 public final class Ref<A> {
 
-  private static final String NULL_VALUE = "the value of a ref can't be null";
-
   private final AtomicReference<A> value;
 
   private Ref(A value) {
@@ -140,7 +138,8 @@ public final class Ref<A> {
       while (true) {
         A current = value.get();
         var tuple = change.apply(current);
-        if (value.compareAndSet(current, requireNonNull(tuple.second(), NULL_VALUE))) {
+        // a tuple can't hold a null, so the new value is never null
+        if (value.compareAndSet(current, tuple.second())) {
           return tuple.first();
         }
       }
@@ -183,6 +182,6 @@ public final class Ref<A> {
   }
 
   private static <A> UnaryOperator<A> nonNull(UnaryOperator<A> update) {
-    return current -> requireNonNull(update.apply(current), NULL_VALUE);
+    return current -> requireNonNull(update.apply(current), "the value of a ref can't be null");
   }
 }
