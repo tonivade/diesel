@@ -4,19 +4,17 @@
  */
 package com.github.tonivade.diesel.function;
 
-import java.util.function.Supplier;
-
 /**
- * Similar to {@link Supplier} but {@code get()} method throws an checked exception.
+ * Similar to {@link Runnable} but {@code run()} method throws an checked exception.
  */
-public interface UncheckedSupplier<T> {
+@FunctionalInterface
+public interface CheckedRunnable {
 
   /**
-   * Gets a result.
+   * Runs this operation.
    *
-   * @return a result
    * @throws Exception a checked exception
    */
-  T get() throws Exception;
+  void run() throws Exception;
 
 }

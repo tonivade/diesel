@@ -11,8 +11,8 @@ import static com.github.tonivade.diesel.Fatal.sneakyThrow;
 import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Frame.Region;
-import com.github.tonivade.diesel.function.UncheckedRunnable;
-import com.github.tonivade.diesel.function.UncheckedSupplier;
+import com.github.tonivade.diesel.function.CheckedRunnable;
+import com.github.tonivade.diesel.function.CheckedSupplier;
 import com.github.tonivade.purefun.Kind;
 
 import java.time.Duration;
@@ -454,7 +454,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing a computation that attempts to execute the supplier
    */
-  static <S, T> Program<S, Throwable, T> attempt(UncheckedSupplier<? extends T> supplier) {
+  static <S, T> Program<S, Throwable, T> attempt(CheckedSupplier<? extends T> supplier) {
     return suspend(() -> from(Result.attempt(supplier)));
   }
 
@@ -517,7 +517,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Creates a new program that represents an interruptible task, executed in the
-   * {@link ForkJoinPool#commonPool()}. See {@link #interruptibleTask(Executor, UncheckedRunnable)}.
+   * {@link ForkJoinPool#commonPool()}. See {@link #interruptibleTask(Executor, CheckedRunnable)}.
    *
    * <p>The common pool suits CPU-intensive actions. An action that mostly blocks, like waiting for
    * I/O, holds a thread of the pool while it runs: pass an executor of its own, like one of
@@ -528,7 +528,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing an interruptible task
    */
-  static <S, E> Program<S, E, Unit> interruptibleTask(UncheckedRunnable action) {
+  static <S, E> Program<S, E, Unit> interruptibleTask(CheckedRunnable action) {
     return interruptibleTask(ForkJoinPool.commonPool(), action);
   }
 
@@ -548,7 +548,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing an interruptible task
    */
-  static <S, E> Program<S, E, Unit> interruptibleTask(Executor executor, UncheckedRunnable action) {
+  static <S, E> Program<S, E, Unit> interruptibleTask(Executor executor, CheckedRunnable action) {
     return asyncCancelable((_, callback) -> {
       var claimed = new AtomicBoolean();
       var finished = new CompletableFuture<Unit>();

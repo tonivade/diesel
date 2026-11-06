@@ -15,7 +15,7 @@ import com.github.tonivade.diesel.function.Finisher6;
 import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
-import com.github.tonivade.diesel.function.UncheckedSupplier;
+import com.github.tonivade.diesel.function.CheckedSupplier;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -84,7 +84,7 @@ public sealed interface Result<F, S> {
    * @param <S> The type of the success value.
    * @return A result representing the outcome of the supplier execution.
    */
-  static <S> Result<Throwable, S> attempt(UncheckedSupplier<? extends S> supplier) {
+  static <S> Result<Throwable, S> attempt(CheckedSupplier<? extends S> supplier) {
     try {
       return success(supplier.get());
     } catch (Throwable e) {

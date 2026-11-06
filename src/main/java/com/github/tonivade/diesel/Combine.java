@@ -19,7 +19,7 @@ import com.github.tonivade.diesel.function.Finisher6;
 import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
-import com.github.tonivade.diesel.function.UncheckedSupplier;
+import com.github.tonivade.diesel.function.CheckedSupplier;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -924,7 +924,7 @@ public final class Combine {
    * @return a new program representing a computation that attempts to execute the supplier and maps exceptions to errors
    */
   public static <S, E, T> Program<S, E, T> attempt(
-      UncheckedSupplier<? extends T> supplier, Function<? super Throwable, ? extends E> mapError) {
+      CheckedSupplier<? extends T> supplier, Function<? super Throwable, ? extends E> mapError) {
     return recover(Program.attempt(supplier), mapError.andThen(Program::failure));
   }
 
@@ -1021,7 +1021,7 @@ public final class Combine {
    * @return a new program representing a computation that acquires a resource, uses it, and then releases it
    */
   public static <S, T extends AutoCloseable, R> Program<S, Throwable, R> bracket(
-      UncheckedSupplier<? extends T> acquire, Function<? super T, ? extends Program<S, Throwable, R>> use) {
+      CheckedSupplier<? extends T> acquire, Function<? super T, ? extends Program<S, Throwable, R>> use) {
     return bracket(
         Program.attempt(acquire),
         use,
