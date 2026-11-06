@@ -99,17 +99,29 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Catch<S, E, T>(
       Program<S, E, T> current,
-      Function<? super Throwable, ? extends Program<S, E, T>> recover) implements Program<S, E, T> {}
+      Function<? super Throwable, ? extends Program<S, E, T>> recover) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "Catch[current=%s, recover=...]".formatted(current);
+    }
+  }
 
   /**
    * Represents a computation that raises an exception.
    *
-   * @param throwable the exception to be raised
+   * @param supplier the exception to be raised
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Raise<S, E, T>(Supplier<? extends Throwable> throwable) implements Program<S, E, T> {}
+  record Raise<S, E, T>(Supplier<? extends Throwable> supplier) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "Raise[supplier=...]";
+    }
+  }
 
   /**
    * Represents a computation that folds over the result of the program.
@@ -126,7 +138,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
       Function<? super E, ? extends Program<S, F, R>> onFailure,
-      Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {}
+      Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {
+
+    @Override
+    public final String toString() {
+      return "FoldMap[current=%s, onFailure=..., onSuccess=...]".formatted(current);
+    }
+  }
 
   /**
    * Represents an asynchronous computation within the program.
@@ -138,6 +156,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Async<S, E, T>(
       BiConsumer<? super S, ? super CompletableFuture<Result<E, T>>> callback) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "Async[callback=...]";
+    }
   }
 
   /**
@@ -159,7 +182,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Access<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {}
+  record Access<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "Access[mapper=...]";
+    }
+  }
 
   /**
    * Represents a new program that describes a computation that suspends its execution.
@@ -169,7 +198,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Suspend<S, E, T>(Supplier<? extends Program<S, E, T>> supplier) implements Program<S, E, T> {}
+  record Suspend<S, E, T>(Supplier<? extends Program<S, E, T>> supplier) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "Suspend[supplier=...]";
+    }
+  }
 
   /**
    * Represents a computation that runs a finalizer after the program, whether it succeeds, fails,
@@ -238,6 +273,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     public void set(Result<E, T> result) {
       cache.compareAndSet(null, result);
     }
+
+    @Override
+    public String toString() {
+      return "Memoized[current=%s]".formatted(current);
+    }
   }
 
   /**
@@ -263,7 +303,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record UncancelableWith<S, E, T>(Function<? super Poll, ? extends Program<S, E, T>> body) implements Program<S, E, T> {}
+  record UncancelableWith<S, E, T>(Function<? super Poll, ? extends Program<S, E, T>> body) implements Program<S, E, T> {
+
+    @Override
+    public final String toString() {
+      return "UncancelableWith[body=...]";
+    }
+  }
 
   /**
    * Represents a computation that can be cancelled inside an uncancelable region.
