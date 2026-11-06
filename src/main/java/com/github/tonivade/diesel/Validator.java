@@ -108,7 +108,7 @@ public interface Validator<S, E, T> {
    */
   static <S, E, T> Validator<S, E, T> of(
       Predicate<? super T> predicate, Function<? super T, ? extends E> mapper) {
-    return of(identity(), predicate, mapper);
+    return ofField(identity(), predicate, mapper);
   }
 
   /**
@@ -123,9 +123,9 @@ public interface Validator<S, E, T> {
    * @param <R> The type of the field to be validated
    * @return A Validator that uses the given accessor, predicate, and mapper
    */
-  static <S, E, T, R> Validator<S, E, T> of(
+  static <S, E, T, R> Validator<S, E, T> ofField(
       Function<? super T, ? extends R> accessor, Predicate<? super R> predicate, Function<? super R, ? extends E> mapper) {
-    return of(value -> {
+    return fromValidation(value -> {
       var field = accessor.apply(value);
       if (predicate.test(field)) {
         return Validation.valid();
@@ -146,9 +146,9 @@ public interface Validator<S, E, T> {
    * @param <R> The type of the field to be validated
    * @return A Validator that uses the given accessor, predicate, and error
    */
-  static <S, E, T, R> Validator<S, E, T> of(
+  static <S, E, T, R> Validator<S, E, T> ofField(
       Function<? super T, ? extends R> accessor, Predicate<? super R> predicate, E error) {
-    return of(accessor, predicate, _ -> error);
+    return ofField(accessor, predicate, _ -> error);
   }
 
   /**
@@ -162,8 +162,9 @@ public interface Validator<S, E, T> {
    * @param <R> The type of the field to be validated
    * @return A Validator that uses the given function
    */
-  static <S, E, T, R> Validator<S, E, T> of(Function<? super T, ? extends R> accessor, Function<? super R, ? extends Validation<E>> validator) {
-    return of(validator.compose(accessor));
+  static <S, E, T, R> Validator<S, E, T> fromValidation(
+      Function<? super T, ? extends R> accessor, Function<? super R, ? extends Validation<E>> validator) {
+    return fromValidation(validator.compose(accessor));
   }
 
   /**
@@ -175,7 +176,7 @@ public interface Validator<S, E, T> {
    * @param <T> The type of the value to be validated
    * @return A Validator that uses the given function
    */
-  static <S, E, T> Validator<S, E, T> of(Function<? super T, ? extends Validation<E>> validator) {
+  static <S, E, T> Validator<S, E, T> fromValidation(Function<? super T, ? extends Validation<E>> validator) {
     return value -> validator.apply(value).fold(Program::valid, Program::invalid);
   }
 

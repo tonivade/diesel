@@ -38,9 +38,9 @@ public class ValidationExample {
       RegistrationForm form) {
     return validate(
         form,
-        Validator.of(RegistrationForm::name, ValidationExample::validateName),
-        Validator.of(RegistrationForm::email, ValidationExample::validateEmail),
-        Validator.of(RegistrationForm::password, ValidationExample::validatePassword)
+        Validator.fromValidation(RegistrationForm::name, ValidationExample::validateName),
+        Validator.fromValidation(RegistrationForm::email, ValidationExample::validateEmail),
+        Validator.fromValidation(RegistrationForm::password, ValidationExample::validatePassword)
       );
   }
 

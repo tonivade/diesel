@@ -365,8 +365,8 @@ class ProgramTest {
   @Test
   void shouldValidate() {
     var validator = Program.<Void, String, Tuple<Integer, String>>validator(
-        Validator.of(Tuple::a, Objects::nonNull, _ -> "cannot be null"),
-        Validator.of(Tuple::b, not(String::isEmpty), _ -> "cannot be empty"));
+        Validator.ofField(Tuple::a, Objects::nonNull, _ -> "cannot be null"),
+        Validator.ofField(Tuple::b, not(String::isEmpty), _ -> "cannot be empty"));
 
     var result1 = validator.apply(new Tuple<>(1, "hola")).eval();
     var result2 = validator.apply(new Tuple<>(1, "")).eval();
