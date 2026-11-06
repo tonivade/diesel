@@ -228,6 +228,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    *
    * <p>Only the successfully acquired resource is released.
    *
+   * <p>If both acquisitions fail, the resulting resource fails with the error of the alternative
+   * one, and the error of this resource is discarded.
+   *
    * @param other the alternative resource to acquire when this resource fails
    * @param <B> the type of the alternative resource
    * @return a resource containing the value of the successful acquisition
@@ -237,7 +240,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
       Program<S, E, Either<Tuple2<A, Program<S, Void, Unit>>, Tuple2<B, Program<S, Void, Unit>>>> foldM =
           acquire.apply(poll).foldMap(
               _ -> other.acquire.apply(poll).map(Either::right),
-              success -> success(Either.left(success)));
+              acquired -> success(Either.left(acquired)));
 
       return foldM.map(
           e -> e.fold(
