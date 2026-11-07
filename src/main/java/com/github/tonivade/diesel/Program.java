@@ -4,6 +4,7 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Combine.zip;
@@ -1119,15 +1120,32 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Measures the time taken to execute the program and returns the elapsed time along with the result.
-   *
-   * @return a new program representing the computation with elapsed time measurement
+   * Measures the time taken to execute the program, using the system monotonic clock.
+
+   * @return a program that yields the result with the elapsed time
    */
   default Program<S, E, ElapsedTime<T>> timed() {
+    return timed(supply(System::nanoTime));
+  }
+
+  /**
+   * Measures the time taken to execute the program, reading the time from the given program.
+   *
+   * <p>The program must return a monotonic time in nanoseconds, like {@code System.nanoTime()}:
+   * only the difference between two readings is used. It's read before and after this program.
+   * If this program fails or throws, no elapsed time is produced.
+   *
+   * @param nanoTime a program that returns the current monotonic time in nanoseconds
+   * @return a program that yields the result with the elapsed time
+   */
+  default Program<S, E, ElapsedTime<T>> timed(Program<S, E, Long> nanoTime) {
     return pipe(
-        start(),
-        start -> map(value -> end(start, value))
-        );
+        nanoTime,
+        start -> pipe(
+            this,
+            value -> chain(
+                nanoTime,
+                end -> new ElapsedTime<>(Duration.ofNanos(end - start), value))));
   }
 
   /**
@@ -1576,13 +1594,5 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         callback.completeExceptionally(new NullPointerException());
       }
     });
-  }
-
-  private static <S, E> Program<S, E, Long> start() {
-    return supply(System::nanoTime);
-  }
-
-  private static <T> ElapsedTime<T> end(long start, T value) {
-    return new ElapsedTime<>(Duration.ofNanos(System.nanoTime() - start), value);
   }
 }

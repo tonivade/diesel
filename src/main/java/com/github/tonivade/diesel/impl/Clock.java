@@ -8,6 +8,8 @@ import static com.github.tonivade.diesel.Program.access;
 
 import com.github.tonivade.diesel.Program;
 
+import java.time.Instant;
+
 /**
  * A sealed interface representing a clock that provides the current time.
  * This interface is part of the Diesel DSL (Domain Specific Language) and
@@ -18,27 +20,44 @@ import com.github.tonivade.diesel.Program;
  */
 public interface Clock {
 
-  /**
-   * The service interface of the clock, providing a method to retrieve the
-   * current time.
-   */
   interface Service {
     /**
      * Retrieves the current time.
      *
      * @return the current time in nanoseconds
+     * @deprecated use {@link #nanoTime()}
      */
+    @Deprecated
     long currentTime();
+
+    /**
+     * Monotonic time in nanoseconds, only meaningful to measure elapsed time.
+     */
+    default long nanoTime() {
+      return System.nanoTime();
+    }
+
+    /**
+     * Wall-clock time.
+     */
+    default Instant now() {
+      return Instant.now();
+    }
+  }
+
+  static <S extends Service, E> Program<S, E, Long> nanoTime() {
+    return access(Service::nanoTime);
+  }
+
+  static <S extends Service, E> Program<S, E, Instant> now() {
+    return access(Service::now);
   }
 
   /**
-   * Creates a new program that retrieves the current time.
-   *
-   * @param <S> the service type
-   * @param <E> the error type
-   * @return a program that retrieves the current time
+   * Like {@link Program#timed()}, but reading the time from the {@link Service}
+   * of the context.
    */
-  static <S extends Service, E> Program<S, E, Long> currentTime() {
-    return access(Service::currentTime);
+  static <S extends Service, E, T> Program<S, E, Program.ElapsedTime<T>> timed(Program<S, E, T> program) {
+    return program.timed(nanoTime());
   }
 }
