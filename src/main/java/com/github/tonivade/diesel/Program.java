@@ -1121,11 +1121,21 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   /**
    * Measures the time taken to execute the program, using the system monotonic clock.
-
+   *
    * @return a program that yields the result with the elapsed time
    */
   default Program<S, E, ElapsedTime<T>> timed() {
     return timed(supply(System::nanoTime));
+  }
+
+  /**
+   * Measures the time taken to execute the program, preserving its result
+   * (including typed failures) as a Result.
+   *
+   * @return a program that yields the elapsed time and the original result
+   */
+  default Program<S, Void, ElapsedTime<Result<E, T>>> timedResult() {
+    return timedResult(supply(System::nanoTime));
   }
 
   /**
@@ -1141,11 +1151,26 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default Program<S, E, ElapsedTime<T>> timed(Program<S, E, Long> nanoTime) {
     return pipe(
         nanoTime,
-        start -> pipe(
-            this,
-            value -> chain(
-                nanoTime,
-                end -> new ElapsedTime<>(Duration.ofNanos(end - start), value))));
+        start -> flatMap(value -> chain(nanoTime, end -> elapsedTime(start, end, value))));
+  }
+
+  /**
+   * Measures the time taken to execute the program, preserving its result
+   * (including typed failures) as a Result.
+   *
+   * <p>The program used to read the clock must not fail with a typed error.
+   * If reading the clock throws or is cancelled, no elapsed time is produced.
+   *
+   * @param nanoTime a program that returns the current monotonic time in nanoseconds
+   * @return a program that yields the elapsed time and the original result
+   */
+  default Program<S, Void, ElapsedTime<Result<E, T>>> timedResult(Program<S, Void, Long> nanoTime) {
+    return pipe(
+        nanoTime,
+        start -> foldMap(
+            error -> chain(nanoTime, end -> elapsedTime(start, end, Result.failure(error))),
+            value -> chain(nanoTime, end -> elapsedTime(start, end, Result.success(value))))
+        );
   }
 
   /**
@@ -1594,5 +1619,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         callback.completeExceptionally(new NullPointerException());
       }
     });
+  }
+
+  private static <T> ElapsedTime<T> elapsedTime(Long start, Long end, T value) {
+    return new ElapsedTime<>(Duration.ofNanos(end - start), value);
   }
 }
