@@ -10,24 +10,21 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
 
-@ExtendWith(MockitoExtension.class)
+@MockitoSettings
 class GameTest {
 
   @Test
   void testWin(@Mock Game.Context context) {
     when(context.nextInt(10)).thenReturn(3);
-    when(context.get()).thenReturn(3);
     when(context.readLine()).thenReturn("y", "1", "2", "3");
 
     game().eval(context);
 
     var inOrder = inOrder(context);
     inOrder.verify(context).writeLine("Do you want to play a game? (Y/y)");
-    inOrder.verify(context).set(3);
     inOrder.verify(context, times(3)).writeLine("Enter a number");
     inOrder.verify(context).writeLine("YOU WIN!!");
   }
@@ -35,14 +32,12 @@ class GameTest {
   @Test
   void testInvalidValue(@Mock Game.Context context) {
     when(context.nextInt(10)).thenReturn(3);
-    when(context.get()).thenReturn(3);
     when(context.readLine()).thenReturn("y", "c", "?", "3");
 
     game().eval(context);
 
     var inOrder = inOrder(context);
     inOrder.verify(context).writeLine("Do you want to play a game? (Y/y)");
-    inOrder.verify(context).set(3);
     inOrder.verify(context).writeLine("Enter a number");
     inOrder.verify(context).writeLine("Invalid value");
     inOrder.verify(context, times(2)).writeLine("Enter a number");

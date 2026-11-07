@@ -12,12 +12,10 @@ import static com.github.tonivade.diesel.Combine.recover;
 import static com.github.tonivade.diesel.impl.Console.prompt;
 import static com.github.tonivade.diesel.impl.Console.writeLine;
 import static com.github.tonivade.diesel.impl.Random.nextInt;
-import static com.github.tonivade.diesel.impl.Reference.get;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Ref;
 import com.github.tonivade.diesel.Unit;
-
-import java.util.concurrent.atomic.AtomicInteger;
 
 interface Game {
 
@@ -28,6 +26,8 @@ interface Game {
   static void main(String... args) {
     game().eval(new Context() {});
   }
+
+  static Ref<Integer> reference = Ref.of(0);
 
   static Program<Context, Error, Unit> game() {
     return pipe(
@@ -42,7 +42,7 @@ interface Game {
   static Program<Context, Error, Unit> randomNumber() {
     return pipe(
         nextInt(10),
-        Reference::set
+        reference::set
       );
   }
 
@@ -69,23 +69,10 @@ interface Game {
 
   static Program<Context, Error, Boolean> checkNumber(int number) {
     return chain(
-        get(),
+        reference.get(),
         value -> value == number
       );
   }
 
-  abstract class Context implements Random.Service, Reference.Service<Integer>, Console.Service {
-
-    private final AtomicInteger value = new AtomicInteger();
-
-    @Override
-    public void set(Integer value) {
-      this.value.set(value);
-    }
-
-    @Override
-    public Integer get() {
-      return value.get();
-    }
-  }
+  abstract class Context implements Random.Service, Console.Service {}
 }

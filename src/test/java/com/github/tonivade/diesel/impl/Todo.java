@@ -15,19 +15,18 @@ import static com.github.tonivade.diesel.Program.inspect;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.impl.Console.prompt;
 import static com.github.tonivade.diesel.impl.Console.writeLine;
-import static com.github.tonivade.diesel.impl.Counter.increment;
 import static com.github.tonivade.diesel.impl.Todo.State.COMPLETED;
 import static com.github.tonivade.diesel.impl.Todo.State.NOT_COMPLETED;
 import static java.util.stream.Collectors.joining;
 
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Ref;
 import com.github.tonivade.diesel.Unit;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
 interface Todo {
@@ -56,6 +55,62 @@ interface Todo {
     }
   }
 
+  static Ref<Integer> reference = Ref.of(0);
+
+  static void main(String... args) {
+    program().eval(new Context() {});
+  }
+
+  static Program<Context, Error, Unit> program() {
+    return pipe(
+        printMenuAndGetOption(),
+        Todo::executeAction
+      );
+  }
+
+  static Program<Context, Error, Integer> printMenuAndGetOption() {
+    return recover(
+        pipe(
+          printMenu(),
+          _ -> readOption()
+        ),
+        _ -> printMenuAndGetOption()
+      );
+  }
+
+  static Program<Context, Error, Unit> executeAction(int action) {
+    return switch (action) {
+      case 1 -> createTodo();
+      case 2 -> findAllTodos();
+      case 3 -> findTodo();
+      case 4 -> deleteTodo();
+      case 5 -> deleteAllTodos();
+      case 6 -> markCompleted();
+      case 7 -> writeLine("Bye!");
+      default -> failure(new InvalidOption(action));
+    };
+  }
+
+  static Program<Context, Error, Integer> readOption() {
+    return pipe(
+        prompt("Select an option:"),
+        Todo::parseInt
+      );
+  }
+
+  static Program<Context, Error, Unit> printMenu() {
+    return chainAll(
+        writeLine("Menu"),
+        writeLine("1. Create"),
+        writeLine("2. List"),
+        writeLine("3. Find"),
+        writeLine("4. Delete"),
+        writeLine("5. Clear"),
+        writeLine("6. Completed"),
+        writeLine("7. Exit")
+      );
+  }
+
   static <S extends Repository, E extends Error> Program<S, E, Unit> create(TodoEntity todo) {
     return inspect(repository -> repository.create(todo));
   }
@@ -80,56 +135,6 @@ interface Todo {
     return inspect(repository -> repository.deleteAll());
   }
 
-  static Program<Context, Error, Unit> program() {
-    return pipe(
-        printMenuAndGetOption(),
-        Todo::executeAction
-      );
-  }
-
-  static Program<Context, Error, Integer> printMenuAndGetOption() {
-    return recover(
-        pipe(
-          printMenu(),
-          _ -> readOption()
-        ),
-        _ -> printMenuAndGetOption()
-      );
-  }
-
-  static Program<Context, Error, Integer> readOption() {
-    return pipe(
-        prompt("Select an option:"),
-        Todo::parseInt
-      );
-  }
-
-  static Program<Context, Error, Unit> printMenu() {
-    return chainAll(
-        writeLine("Menu"),
-        writeLine("1. Create"),
-        writeLine("2. List"),
-        writeLine("3. Find"),
-        writeLine("4. Delete"),
-        writeLine("5. Clear"),
-        writeLine("6. Completed"),
-        writeLine("7. Exit")
-      );
-  }
-
-  static Program<Context, Error, Unit> executeAction(int action) {
-    return switch (action) {
-      case 1 -> createTodo();
-      case 2 -> findAllTodos();
-      case 3 -> findTodo();
-      case 4 -> deleteTodo();
-      case 5 -> deleteAllTodos();
-      case 6 -> markCompleted();
-      case 7 -> writeLine("Bye!");
-      default -> failure(new InvalidOption(action));
-    };
-  }
-
   static Program<Context, Error, Unit> findAllTodos() {
     return pipe(
         findAll(),
@@ -148,7 +153,10 @@ interface Todo {
 
   static Program<Context, Error, Unit> createTodo() {
     return pipe(
-        zip(increment(), prompt("Enter title"), (id, title) -> new TodoEntity(id, title, NOT_COMPLETED)),
+        zip(
+            reference.updateAndGet(x -> x + 1),
+            prompt("Enter title"),
+            (id, title) -> new TodoEntity(id, title, NOT_COMPLETED)),
         Todo::create,
         _ -> writeLine("todo created"),
         _ -> program());
@@ -193,24 +201,9 @@ interface Todo {
     return attempt(() -> Integer.parseInt(value), _ -> new NumberFormatError(value));
   }
 
-  static void main(String... args) {
-    program().eval(new Context(){});
-  }
+  abstract class Context implements Todo.Repository, Console.Service {
 
-  abstract class Context implements Todo.Repository, Console.Service, Counter.Service<Integer> {
-
-    private final AtomicInteger counter = new AtomicInteger();
     private final Map<Integer, TodoEntity> repository = new HashMap<>();
-
-    @Override
-    public Integer increment() {
-      return counter.incrementAndGet();
-    }
-
-    @Override
-    public Integer decrement() {
-      return counter.decrementAndGet();
-    }
 
     @Override
     public void create(TodoEntity todo) {
