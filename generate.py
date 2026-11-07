@@ -97,16 +97,14 @@ program_parzip_template = environment.from_string("""
 public static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program<S, E, R> parZip(
   {% for i in range(value) %} Program<S, E, T{{ i }}> p{{ i }},
   {% endfor %} Finisher{{ value }}<{% for i in range(value) %}T{{ i }}, {% endfor %}R> finisher,
-  Executor executor) {
-    return zip(
-      {% for i in range(value) %} p{{ i }}.fork(executor), 
-      {% endfor %} ({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}) -> {
-        return parAllFailFast(List.of({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}))
-          .thenApply(result -> result.fold(
-            Result::<E, R>failure,
-            _ -> Result.zip({% for i in range(value) %}f{{ i }}.join(), {% endfor %}finisher)));
-      })
-      .flatMap(Program::join);
+   Executor executor) {
+     return zip(
+      {% for i in range(value) %} p{{ i }}.fork(executor),
+      {% endfor %} ({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}) ->
+        Concurrent.<S, E, R>joinAll(
+          List.of({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}),
+          () -> Result.zip({% for i in range(value) %}f{{ i }}.join(), {% endfor %}finisher)))
+      .flatMap(identity());
 }
 """)
 

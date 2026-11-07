@@ -4,7 +4,7 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Program.supply;
+import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.uncancelable;
 import static com.github.tonivade.diesel.Program.unit;
@@ -21,12 +21,14 @@ import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 import com.github.tonivade.diesel.function.CheckedSupplier;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import org.pcollections.PSequence;
+import org.pcollections.TreePVector;
 
 /**
  * Sequential combinators to compose {@link Program}s.
@@ -889,11 +891,11 @@ public final class Combine {
   public static <S, E, T, R> Program<S, E, Collection<R>> traverse(
       Function<? super T, ? extends Program<S, E, R>> function, Collection<T> values) {
     // the accumulator is created on each evaluation, so the program can be evaluated more than once
-    Program<S, E, Collection<R>> acc = supply(ArrayList::new);
+    Program<S, E, PSequence<R>> acc = success(TreePVector.empty());
     for (T t : values) {
       acc = append(acc, function.apply(t));
     }
-    return acc;
+    return acc.map(identity());
   }
 
   /**
@@ -1120,13 +1122,8 @@ public final class Combine {
     return suspend(() -> release.apply(resource).discard());
   }
 
-  private static <S, E, R> Program<S, E, Collection<R>> append(Program<S, E, Collection<R>> acc, Program<S, E, R> value) {
-    return zip(acc, value, Combine::append);
-  }
-
-  private static <T> Collection<T> append(Collection<T> list, T value) {
-    list.add(value);
-    return list;
+  private static <S, E, R> Program<S, E, PSequence<R>> append(Program<S, E, PSequence<R>> acc, Program<S, E, R> value) {
+    return zip(acc, value, PSequence::plus);
   }
 
   private static <S, E, T extends AutoCloseable> Program<S, E, Unit> close(T resource) {

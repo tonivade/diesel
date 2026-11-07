@@ -17,13 +17,15 @@ import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 import com.github.tonivade.diesel.function.CheckedSupplier;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
+
+import org.pcollections.PSequence;
+import org.pcollections.TreePVector;
 
 /**
  * The Result type is used to represent a value that may or may not be present.
@@ -549,19 +551,14 @@ public sealed interface Result<F, S> {
    * @return A result containing a collection of mapped success values, or a failure if any mapping fails.
    */
   static <F, S, R> Result<F, Collection<R>> traverse(Collection<S> values, Function<S, Result<F, R>> mapper) {
-    Result<F, Collection<R>> acc = success(new ArrayList<>());
+    Result<F, PSequence<R>> acc = success(TreePVector.empty());
     for (S s : values) {
       acc = append(acc, mapper.apply(s));
     }
-    return acc;
+    return acc.map(identity());
   }
 
-  private static <F, R> Result<F, Collection<R>> append(Result<F, Collection<R>> acc, Result<F, R> value) {
-    return zip(acc, value, Result::append);
-  }
-
-  private static <R> Collection<R> append(Collection<R> list, R value) {
-    list.add(value);
-    return list;
+  private static <F, R> Result<F, PSequence<R>> append(Result<F, PSequence<R>> acc, Result<F, R> value) {
+    return zip(acc, value, PSequence::plus);
   }
 }

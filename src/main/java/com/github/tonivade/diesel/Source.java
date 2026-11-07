@@ -6,11 +6,11 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Tuple2.tuple;
+import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.purefun.Kind;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -20,6 +20,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
+
+import org.pcollections.PSequence;
+import org.pcollections.TreePVector;
 
 /**
  * A sequence of programs, evaluated lazily, one element at a time, when it's traversed.
@@ -1053,11 +1056,8 @@ public sealed interface Source<S, E, T> extends Kind<Source<S, E, ?>, T> {
    * @return a program yielding a list of all elements
    */
   default Program<S, E, List<T>> toList() {
-    // a new list for each evaluation, otherwise every evaluation would add to the same list
-    return Program.suspend(() -> foldLeft(new ArrayList<>(), (acc, t) -> {
-      acc.add(t);
-      return acc;
-    }));
+    return this.<PSequence<T>>foldLeft(TreePVector.empty(), PSequence::plus)
+        .map(identity());
   }
 
   // evaluates the suspended sources until it reaches one that isn't, so an operation applied to

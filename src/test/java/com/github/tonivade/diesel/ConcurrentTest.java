@@ -27,9 +27,11 @@ import com.github.tonivade.diesel.ProgramTest.Tuple;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
@@ -308,6 +310,64 @@ class ConcurrentTest {
 
     assertThat(result).isEqualTo(Unit.unit());
     assertThat(calls).hasValue(2);
+  }
+
+  @Test
+  void parZipFinisherRunsInTheThreadThatEvaluatesTheParent() {
+    var finisherThread = new AtomicReference<Thread>();
+    var program = parZip(
+        delayed(Duration.ofMillis(50), () -> 1),
+        delayed(Duration.ofMillis(100), () -> 2),
+        (a, b) -> {
+          finisherThread.set(Thread.currentThread());
+          return a + b;
+        });
+
+    assertThat(program.evalOrElseThrow()).isEqualTo(3);
+    assertThat(finisherThread.get()).isSameAs(Thread.currentThread());
+  }
+
+  @Test
+  void anExceptionInTheFinisherIsRecoverableWithCatchAll() {
+    var program = parZip(
+        success(1),
+        success(2),
+        (_, _) -> {
+          throw new IllegalStateException("boom");
+        })
+        .catchAll(e -> success(e.getClass().getSimpleName()));
+
+    // the original exception, not a CompletionException
+    assertThat(program.evalOrElseThrow()).isEqualTo("IllegalStateException");
+  }
+
+  @Test
+  void theFinisherDoesNotOccupyTheThreadOfAChild() {
+    var executor = Executors.newSingleThreadExecutor();
+    try {
+      var started = new CompletableFuture<Unit>();
+      var release = new CompletableFuture<Unit>();
+      var program = parZip(
+          success(1),
+          success(2),
+          (a, b) -> {
+            started.complete(Unit.unit());
+            release.join();               // a finisher that blocks
+            return a + b;
+          },
+          executor);
+
+      var future = program.fork().evalOrElseThrow();
+      started.join();
+
+      // the only thread of the executor is free, so another program can run on it
+      var other = success(7).fork(executor).evalOrElseThrow();
+      assertThat(other.join()).isEqualTo(Result.success(7));
+      release.complete(Unit.unit());
+      assertThat(future.join()).isEqualTo(Result.success(3));
+    } finally {
+      executor.shutdownNow();
+    }
   }
 
   private static Program<Void, String, Integer> boom() {
