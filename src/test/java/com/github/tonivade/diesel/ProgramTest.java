@@ -555,6 +555,22 @@ class ProgramTest {
     assertThat(calls).hasValue(1);
   }
 
+  @Test
+  void accessFutureCatchesError() {
+    var program = Program.accessFuture(
+        _ -> CompletableFuture.completedFuture(null));
+
+    assertThatThrownBy(() -> program.eval()).isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void accessFutureResultCatchesError() {
+    var program = Program.accessFutureResult(
+        _ -> CompletableFuture.completedFuture(null));
+
+    assertThatThrownBy(() -> program.eval()).isInstanceOf(NullPointerException.class);
+  }
+
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
   static Program<TestDsl.Service, TestDsl.TestError, Integer> newOperation() {

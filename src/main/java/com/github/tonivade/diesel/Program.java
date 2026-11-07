@@ -1498,13 +1498,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <E, T, A> void completeWith(CompletableFuture<Result<E, T>> callback,
       CompletableFuture<? extends A> future, Function<? super A, ? extends Result<E, T>> adapter) {
-    // not async: completing the callback is cheap, and it avoids depending on the common pool
-    // the returned future can be ignored because the action cannot throw
     var _ = future.whenComplete((result, error) -> {
       if (error != null) {
         callback.completeExceptionally(error);
       } else {
-        callback.complete(adapter.apply(result));
+        try {
+          callback.complete(adapter.apply(result));
+        } catch (Throwable e) {
+          Fatal.rethrowIfFatal(e);
+          callback.completeExceptionally(e);
+        }
       }
     });
   }
