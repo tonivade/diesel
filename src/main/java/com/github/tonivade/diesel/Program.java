@@ -7,7 +7,6 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Fatal.sneakyThrow;
-import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Frame.Region;
@@ -1502,13 +1501,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     var _ = future.whenComplete((result, error) -> {
       if (error != null) {
         callback.completeExceptionally(error);
+      } else if (result != null) {
+        callback.complete(adapter.apply(result));
       } else {
-        try {
-          callback.complete(requireNonNull(adapter.apply(result)));
-        } catch (Throwable e) {
-          Fatal.rethrowIfFatal(e);
-          callback.completeExceptionally(e);
-        }
+        callback.completeExceptionally(new NullPointerException());
       }
     });
   }
