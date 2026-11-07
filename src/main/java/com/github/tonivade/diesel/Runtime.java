@@ -144,21 +144,7 @@ final class Runtime {
             current = supplier.get();
           }
           case Memoized memoized -> {
-            var result = memoized.get();
-            if (result != null) {
-              current = Program.from(result);
-            } else {
-              stack.push(Frame.fold(
-                  error -> {
-                    memoized.set(Result.failure(error));
-                    return Program.failure(error);
-                  },
-                  value -> {
-                    memoized.set(Result.success(value));
-                    return Program.success(value);
-                  }));
-              current = memoized.current();
-            }
+            current = memoized.run();
           }
         }
       } catch (Throwable e) {

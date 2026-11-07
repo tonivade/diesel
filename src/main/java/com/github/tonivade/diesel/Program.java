@@ -6,7 +6,9 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
+import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Fatal.sneakyThrow;
+import static com.github.tonivade.diesel.function.Finisher2.first;
 import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Frame.Region;
@@ -18,6 +20,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -233,45 +236,78 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Represents a memoized computation that caches the result of the program.
    *
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
+   * <p>Concurrent evaluations are single-flight: the first one runs the program and the others wait
+   * for its result, so the effect runs once. Only a success or a typed failure is cached; if the
+   * running evaluation throws or is cancelled, nothing is cached and one of the waiting evaluations
+   * runs the program again.
+   *
+   * <p>An evaluation that waits for itself, like a program that evaluates the same memoized
+   * program recursively, waits forever.
    */
   final class Memoized<S, E, T> implements Program<S, E, T> {
 
-    private final Program<S, E, T> current;
-    private final AtomicReference<Result<E, T>> cache = new AtomicReference<>();
+    private sealed interface State<E, T> {}
+    private record Idle<E, T>() implements State<E, T> {}
+    private record Running<E, T>(Deferred<Optional<Result<E, T>>> done) implements State<E, T> {}
+    private record Done<E, T>(Result<E, T> result) implements State<E, T> {}
 
-    /**
-     * Creates a memoized program that caches the result of the given program.
-     *
-     * @param current the program whose result will be cached
-     */
-    public Memoized(Program<S, E, T> current) {
+    private final Program<S, E, T> current;
+    private final AtomicReference<State<E, T>> state = new AtomicReference<>(new Idle<>());
+
+    Memoized(Program<S, E, T> current) {
       this.current = current;
     }
 
-    Program<S, E, T> current() {
-      return current;
+    /** The program the interpreter runs in place of this one. */
+    Program<S, E, T> run() {
+      return suspend(() -> {
+        var observed = state.get();
+        return switch (observed) {
+          case null -> throw new IllegalStateException("this should not happen");
+          case Done<E, T>(var result) -> from(result);
+          case Running<E, T>(var done) -> await(done);
+          case Idle<E, T> _ -> {
+            var running = new Running<E, T>(Deferred.create());
+            // if another evaluation claimed it first, look at the state again
+            yield state.compareAndSet(observed, running) ? lead(running) : run();
+          }
+        };
+      });
     }
 
-    /**
-     * Returns the cached result of the computation if it is available, or {@code null} if the computation has not been executed yet.
-     *
-     * @return the cached result or {@code null} if not available
-     */
-    @Nullable
-    public Result<E, T> get() {
-      return cache.get();
+    private Program<S, E, T> lead(Running<E, T> running) {
+      return current.foldMap(
+          error -> pipe(
+              publish(running, Result.failure(error)),
+              _ -> failure(error)),
+          value -> pipe(
+              publish(running, Result.success(value)),
+              _ -> success(value)))
+          // always runs, also on exception or cancellation. After a normal publish it does nothing
+          .ensuring(suspend(() -> release(running)));
     }
 
-    /**
-     * Sets the result of the computation in the cache if it is not already set.
-     *
-     * @param result the result to be set in the cache
-     */
-    public void set(Result<E, T> result) {
-      cache.compareAndSet(null, result);
+    private Program<S, E, T> await(Deferred<Optional<Result<E, T>>> done) {
+      // the wait is cancelable, and a cancelled waiter doesn't affect the others
+      return pipe(
+          done.get(),
+          outcome -> outcome
+              .map(result -> Program.<S, E, T>from(result))
+              .orElseGet(this::run)); // the leader gave up: try again
+    }
+
+    private <F> Program<S, F, Unit> publish(Running<E, T> running, Result<E, T> result) {
+      return zip(
+          task(() -> state.set(new Done<>(result))),
+          running.done().complete(Optional.of(result)),
+          first());
+    }
+
+    private Program<S, Void, Unit> release(Running<E, T> running) {
+      return zip(
+          task(() -> state.compareAndSet(running, new Idle<>())),
+          running.done().complete(Optional.empty()),
+          first());
     }
 
     @Override
@@ -1014,6 +1050,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default Program<S, E, T> tapError(Function<? super E, ? extends Program<S, E, ?>> effect) {
     return flatMapError(error -> effect.apply(error).andThen(failure(error)));
   }
+
   /**
    * Maps the program to a new program using the provided function.
    *

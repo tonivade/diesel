@@ -11,7 +11,6 @@ import static com.github.tonivade.diesel.Program.accessResult;
 import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.interruptibleTask;
-import static com.github.tonivade.diesel.Program.memoize;
 import static com.github.tonivade.diesel.Program.memoizeRecursive;
 import static com.github.tonivade.diesel.Program.never;
 import static com.github.tonivade.diesel.Program.raise;
@@ -47,6 +46,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -628,6 +628,52 @@ class ProgramTest {
     assertThat(calls).hasValue(0);
   }
 
+  @Test
+  void concurrentEvaluationsRunTheEffectOnce() {
+    var calls = new AtomicInteger();
+    var program =
+        Program.delayed(Duration.ofMillis(100), supply(calls::incrementAndGet))
+            .memoized();
+    var evaluations =
+        IntStream.range(0, 50).mapToObj(_ -> program).toList();
+
+    var result = Concurrent.parSequence(evaluations).evalOrElseThrow();
+
+    assertThat(result).hasSize(50).containsOnly(1);
+    assertThat(calls).hasValue(1);
+  }
+
+  @Test
+  void aTypedFailureIsCachedAndSharedToo() {
+    var calls = new AtomicInteger();
+    var program =
+        Program.suspend(() -> {
+          calls.incrementAndGet();
+          return failure("boom");
+        }).memoized();
+
+    assertThat(program.eval()).isEqualTo(Result.failure("boom"));
+    assertThat(program.eval()).isEqualTo(Result.failure("boom"));
+    assertThat(calls).hasValue(1);
+  }
+
+  @Test
+  void anExceptionIsNotCachedAndAWaiterRunsItAgain() {
+    var attempts = new AtomicInteger();
+    var flaky = Program.delayed(Duration.ofMillis(50), suspend(() ->
+            attempts.incrementAndGet() == 1
+                ? raise(IllegalStateException::new)
+                : success(42)))
+            .memoized();
+    var safe = flaky.catchAll(_ -> success(-1));
+
+    // one evaluation leads and fails, the other waits, retries and gets 42
+    var result = Concurrent.parSequence(safe, flaky.catchAll(_ -> success(-1))).evalOrElseThrow();
+
+    assertThat(result).containsExactlyInAnyOrder(-1, 42);
+    assertThat(attempts).hasValue(2);
+  }
+
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
   static Program<TestDsl.Service, TestDsl.TestError, Integer> newOperation() {
@@ -671,15 +717,13 @@ class ProgramTest {
     return zip(fib2, fib1, Integer::sum);
   }
 
-  Function<BigInteger, Program<Void, Void, BigInteger>> fibMemoized = memoize(new Function<>() {
-    @Override
-    public Program<Void, Void, BigInteger> apply(BigInteger n) {
-      if (n.equals(BigInteger.ZERO) || n.equals(BigInteger.ONE)) {
-        return success(BigInteger.ONE);
-      }
-      var fib2 = suspend(() -> fibMemoized.apply(n.subtract(BigInteger.valueOf(2))));
-      var fib1 = suspend(() -> fibMemoized.apply(n.subtract(BigInteger.ONE)));
-      return zip(fib2, fib1, BigInteger::add);
-    }
-  });
+  Function<BigInteger, Program<Void, Void, BigInteger>> fibMemoized = memoizeRecursive(
+      (self, n) -> {
+        if (n.equals(BigInteger.ZERO) || n.equals(BigInteger.ONE)) {
+          return success(BigInteger.ONE);
+        }
+        var fib2 = self.apply(n.subtract(BigInteger.valueOf(2)));
+        var fib1 = self.apply(n.subtract(BigInteger.ONE));
+        return zip(fib2, fib1, BigInteger::add);
+      });
 }
