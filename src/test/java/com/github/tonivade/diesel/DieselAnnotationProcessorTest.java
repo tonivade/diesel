@@ -61,6 +61,54 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
+  void shouldGenerateDslCodeWithInheritedInterfaces() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+
+      interface Reader {
+        String readLine();
+      }
+
+      @Diesel
+      public interface Console extends Reader {
+        void writeLine(String line);
+      }""");
+
+    var expected = forSourceLines("test.ConsoleApi",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Unit;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface ConsoleDsl {
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Console, E> Program<S, E, String> readLine() {
+          return Program.access(state -> state.readLine());
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Console, E> Program<S, E, Unit> writeLine(String line) {
+          return Program.inspect(state -> state.writeLine(line));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
   void shouldGenerateDslCodeWithVarArgs() {
     var file = forSourceLines("test.Console",
       """
@@ -158,6 +206,51 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
+  void shouldIgnoreEmptyDslName() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+
+      @Diesel("")
+      public interface Console {
+        String readLine();
+        void writeLine(String line);
+      }""");
+
+    var expected = forSourceLines("test.ConsoleDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Unit;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface ConsoleDsl {
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Console, E> Program<S, E, String> readLine() {
+          return Program.access(state -> state.readLine());
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Console, E> Program<S, E, Unit> writeLine(String line) {
+          return Program.inspect(state -> state.writeLine(line));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
   void shouldGenerateDslCodeWithCustomName() {
     var file = forSourceLines("test.Console",
       """
@@ -165,7 +258,7 @@ class DieselAnnotationProcessorTest {
 
       import com.github.tonivade.diesel.Diesel;
 
-      @Diesel(value = "ConsoleApi")
+      @Diesel("ConsoleApi")
       public interface Console {
         String readLine();
         void writeLine(String line);
@@ -931,6 +1024,51 @@ class DieselAnnotationProcessorTest {
 
         @SuppressWarnings({ "unchecked", "rawtypes" } )
         static <S extends Store, E, T> Program<S, E, Unit> put(String key, T value) {
+          return Program.inspect(state -> state.put(key,value));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
+  void shouldGenerateDslCodeWithGenericClass() {
+    var file = forSourceLines("test.Store",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+
+      @Diesel
+      public interface Store<T> {
+        T get(String key);
+        void put(String key, T value);
+      }""");
+
+    var expected = forSourceLines("test.StoreDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Unit;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface StoreDsl<T> {
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <T, S extends Store<T>, E> Program<S, E, T> get(String key) {
+          return Program.access(state -> state.get(key));
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <T, S extends Store<T>, E> Program<S, E, Unit> put(String key, T value) {
           return Program.inspect(state -> state.put(key,value));
         }
       }""");
