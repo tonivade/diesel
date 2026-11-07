@@ -77,7 +77,7 @@ public sealed interface Either<L, R> {
    * @param onRight the function to apply if the instance is a Right
    * @return the result of applying the appropriate function
    */
-  default <T> T fold(Function<L, T> onLeft, Function<R, T> onRight) {
+  default <T> T fold(Function<? super L, ? extends T> onLeft, Function<? super R, ? extends T> onRight) {
     return switch (this) {
       case Left<L, R>(L left) -> onLeft.apply(left);
       case Right<L, R>(R right) -> onRight.apply(right);

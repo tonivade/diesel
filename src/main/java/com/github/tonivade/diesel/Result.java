@@ -428,7 +428,7 @@ public sealed interface Result<F, S> {
    * @param <R> The type of the mapped success value.
    * @return A new result with the mapped success value.
    */
-  default <R> Result<F, R> map(Function<S, R> mapper) {
+  default <R> Result<F, R> map(Function<? super S, ? extends R> mapper) {
     return flatMap(mapper.andThen(Result::success));
   }
 
@@ -439,7 +439,7 @@ public sealed interface Result<F, S> {
    * @param <R> The type of the mapped failure value.
    * @return A new result with the mapped failure value.
    */
-  default <R> Result<R, S> mapError(Function<F, R> mapper) {
+  default <R> Result<R, S> mapError(Function<? super F, ? extends R> mapper) {
     return flatMapError(mapper.andThen(Result::failure));
   }
 
