@@ -133,7 +133,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var dslTypeBuilder = createDslType(dslName);
 
     for (Element enclosedElement : element.getEnclosedElements()) {
-      if (enclosedElement.getKind() == ElementKind.METHOD) {
+      if (enclosedElement.getKind() == ElementKind.METHOD && !isPrivateOrStatic(enclosedElement)) {
         var method = (ExecutableElement) enclosedElement;
         if (hasClashingTypeVariables(method)) {
           printError("type variables in method " + method.getSimpleName()
@@ -151,6 +151,10 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     }
 
     return JavaFile.builder(packageName, dslTypeBuilder.build()).build();
+  }
+
+  private boolean isPrivateOrStatic(Element enclosedElement) {
+    return enclosedElement.getModifiers().contains(Modifier.STATIC) || enclosedElement.getModifiers().contains(Modifier.PRIVATE);
   }
 
   private TypeSpec.Builder createDslType(String dslName) {
