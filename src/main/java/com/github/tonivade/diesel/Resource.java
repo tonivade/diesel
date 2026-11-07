@@ -12,6 +12,7 @@ import static com.github.tonivade.diesel.Combine.ensuring;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.join;
+import static com.github.tonivade.diesel.Program.never;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
@@ -93,13 +94,39 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource containing the mapped value
    */
   public <B> Resource<S, E, B> map(Function<? super A, ? extends B> mapper) {
+    return evalMap(a -> supply(() -> mapper.apply(a)));
+  }
+
+  /**
+   * Runs a program with the acquired value, as part of the acquisition, while preserving its
+   * release action.
+   *
+   * <p>Like the rest of the acquisition, the program can't be cancelled. If it fails, or throws
+   * an exception, the original resource is released before the failure is propagated.
+   *
+   * @param mapper the function used to create a program from the acquired value
+   * @param <B> the type of the result of the program
+   * @return a resource containing the result of the program
+   */
+  public <B> Resource<S, E, B> evalMap(Function<? super A, ? extends Program<S, E, B>> mapper) {
     // keeps the same release instead of adding a new resource with an empty one, but the release
-    // isn't installed until the whole acquisition returns, so it must run here if the mapper throws
+    // isn't installed until the whole acquisition returns, so it must run here if the program fails
     return new Resource<>(poll -> pipe(
         acquire.apply(poll),
-        ta -> releaseOnException(
-            supply(() -> tuple(mapper.apply(ta.first()), ta.second())),
+        ta -> releaseOnFailure(
+            suspend(() -> mapper.apply(ta.first()).map(b -> tuple(b, ta.second()))),
             ta.second())));
+  }
+
+  /**
+   * Runs a program with the acquired value, as part of the acquisition, and keeps the acquired
+   * value, like {@link #evalMap(Function)} but discarding the result of the program.
+   *
+   * @param mapper the function used to create a program from the acquired value
+   * @return a resource containing the same value
+   */
+  public Resource<S, E, A> evalTap(Function<? super A, ? extends Program<S, E, ?>> mapper) {
+    return evalMap(a -> mapper.apply(a).map(_ -> a));
   }
 
   /**
@@ -170,6 +197,19 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
         acquire,
         ta -> use.apply(ta.first()),
         Tuple2::second);
+  }
+
+  /**
+   * Acquires the resource and keeps it until the program is cancelled, then releases it.
+   *
+   * <p>It's useful for resources that do their work by themselves, like a server or a
+   * {@link #background(Program) background} program, that must run until the application stops.
+   *
+   * @param <B> the type of the result, which is never produced
+   * @return a program that never completes successfully
+   */
+  public <B> Program<S, E, B> useForever() {
+    return use(_ -> never());
   }
 
   /**
@@ -554,16 +594,19 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
       Poll poll,
       Tuple2<T, Program<S, Void, Unit>> ta,
       Function<? super T, ? extends Resource<S, F, R>> mapper) {
-    return releaseOnException(suspend(() -> {
+    return releaseOnFailure(suspend(() -> {
           var next = mapper.apply(ta.first());
           return next.acquire.apply(poll);
         }),
         ta.second())
-        .foldMap(
-            error -> pipe(
-                widen(ta.second()),
-                _ -> failure(error)),
-            tb -> success(tuple(tb.first(), tb.second().ensuring(ta.second()))));
+        .map(tb -> tuple(tb.first(), tb.second().ensuring(ta.second())));
+  }
+
+  // like releaseOnException, but it also releases when the program fails with an error
+  private static <S, E, T> Program<S, E, T> releaseOnFailure(
+      Program<S, E, T> program, Program<S, Void, Unit> release) {
+    return releaseOnException(program, release)
+        .flatMapError(error -> pipe(widen(release), _ -> failure(error)));
   }
 
   // if the program throws, runs the release of the resource already acquired, and the exception
