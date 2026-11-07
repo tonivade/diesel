@@ -571,6 +571,63 @@ class ProgramTest {
     assertThatThrownBy(() -> program.eval()).isInstanceOf(NullPointerException.class);
   }
 
+  @Test
+  void tapRunsTheEffectAndKeepsTheValue() {
+    var calls = new AtomicInteger();
+
+    var result = Program.success(1)
+        .tap(_ -> task(calls::incrementAndGet))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success(1));
+    assertThat(calls).hasValue(1);
+  }
+
+  @Test
+  void tapDoesNotRunOnFailure() {
+    var calls = new AtomicInteger();
+
+    var result = Program.failure("boom")
+        .tap(_ -> task(calls::incrementAndGet))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(calls).hasValue(0);
+  }
+
+  @Test
+  void tapErrorRunsTheEffectAndKeepsTheError() {
+    var calls = new AtomicInteger();
+
+    var result = Program.failure("boom")
+        .tapError(_ -> task(calls::incrementAndGet))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(calls).hasValue(1);
+  }
+
+  @Test
+  void tapFailureReplacesTheResult() {
+    var result = Program.success(1)
+        .tap(_ -> failure("tap failed"))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("tap failed"));
+  }
+
+  @Test
+  void peekWithAProgramNeverRunsIt() {
+    // documents the trap: the program returned by the lambda is discarded
+    var calls = new AtomicInteger();
+
+    Program.success(1)
+        .peek(_ -> task(calls::incrementAndGet))
+        .eval();
+
+    assertThat(calls).hasValue(0);
+  }
+
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
   static Program<TestDsl.Service, TestDsl.TestError, Integer> newOperation() {

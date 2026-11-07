@@ -957,12 +957,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Inserts a program to be executed with the current value without modifying it.
+   * Runs a plain Java side effect with the successful value, without modifying it.
    *
-   * @param insert the function used to insert the program
-   * @return a new program representing the computation with the inserted program
+   * <p><b>The consumer is not a program</b>: if it returns a {@code Program}, for example
+   * {@code peek(v -> Logger.info("..."))}, that program is created and discarded, so its effects
+   * never run. Use {@link #tap(Function)} for effects described as programs.
+   *
+   * @param insert the side effect to run with the value
+   * @return a program that runs the side effect and keeps the value
    */
-  default Program<S, E, T> peek(Consumer<T> insert) {
+  default Program<S, E, T> peek(Consumer<? super T> insert) {
     return flatMap(value -> {
       insert.accept(value);
       return success(value);
@@ -970,18 +974,46 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Inserts a program to be executed with the current error without modifying it.
+   * Runs a plain Java side effect with the error, without modifying it.
    *
-   * @param insert the function used to insert the program
-   * @return a new program representing the computation with the inserted program
+   * <p>Like {@link #peek(Consumer)}, the consumer is not a program: use
+   * {@link #tapError(Function)} for effects described as programs.
+   *
+   * @param insert the side effect to run with the error
+   * @return a program that runs the side effect and keeps the error
    */
-  default Program<S, E, T> peekError(Consumer<E> insert) {
+  default Program<S, E, T> peekError(Consumer<? super E> insert) {
     return flatMapError(error -> {
       insert.accept(error);
       return failure(error);
     });
   }
 
+  /**
+   * Evaluates the program returned by {@code effect} with the successful value, discards its
+   * result and keeps the original value.
+   *
+   * <p>If the effect fails with an error, or throws, that failure replaces the result.
+   *
+   * @param effect the function that creates the program to run with the value
+   * @return a program that runs the effect and keeps the value
+   */
+  default Program<S, E, T> tap(Function<? super T, ? extends Program<S, E, ?>> effect) {
+    return flatMap(value -> effect.apply(value).andThen(success(value)));
+  }
+
+  /**
+   * Evaluates the program returned by {@code effect} with the error, discards its result and
+   * keeps the original error.
+   *
+   * <p>If the effect itself fails with an error, or throws, that failure replaces the original.
+   *
+   * @param effect the function that creates the program to run with the error
+   * @return a program that runs the effect and keeps the error
+   */
+  default Program<S, E, T> tapError(Function<? super E, ? extends Program<S, E, ?>> effect) {
+    return flatMapError(error -> effect.apply(error).andThen(failure(error)));
+  }
   /**
    * Maps the program to a new program using the provided function.
    *

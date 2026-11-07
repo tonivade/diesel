@@ -80,10 +80,10 @@ interface Weather {
 
   static Program<Context, Error, Unit> askAndFetchAndPrint() {
     return askCity()
-        .peekError(error -> warn(": " + error))
-        .peek(city -> info("getting city forecast: " + city))
+        .tapError(error -> warn("Error: " + error))
+        .tap(city -> info("getting city forecast: " + city))
         .flatMap(Weather::fetchForecast)
-        .peek(cityForecast -> info("forecast received: " + cityForecast))
+        .tap(cityForecast -> info("forecast received: " + cityForecast))
         .flatMap(Weather::printForecastAndPersist);
   }
 
