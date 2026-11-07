@@ -7,6 +7,7 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Fatal.sneakyThrow;
+import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Frame.Region;
@@ -608,7 +609,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
             // a fatal error too: the waiting program rethrows it, and the FutureTask would swallow it
             callback.completeExceptionally(error);
           } finally {
-            finished.complete(null);
+            finished.complete(Unit.unit());
           }
         }
       }, null);
@@ -1503,7 +1504,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         callback.completeExceptionally(error);
       } else {
         try {
-          callback.complete(adapter.apply(result));
+          callback.complete(requireNonNull(adapter.apply(result)));
         } catch (Throwable e) {
           Fatal.rethrowIfFatal(e);
           callback.completeExceptionally(e);
