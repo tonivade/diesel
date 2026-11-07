@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Result.success;
+import static com.github.tonivade.diesel.impl.Clock.currentTime;
 import static com.github.tonivade.diesel.impl.Clock.nanoTime;
 import static com.github.tonivade.diesel.impl.Clock.now;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,6 +19,15 @@ import org.mockito.junit.jupiter.MockitoSettings;
 
 @MockitoSettings
 class ClockTest {
+
+  @Test
+  void shouldReturnCurrentTime(@Mock Clock.Service service) {
+    when(service.currentTime()).thenReturn(123456789012345L);
+
+    var result = currentTime().eval(service);
+
+    assertThat(result).isEqualTo(success(123456789012345L));
+  }
 
   @Test
   void shouldReturnNanoTime(@Mock Clock.Service service) {
