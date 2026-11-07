@@ -188,6 +188,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
             .map(param -> ParameterSpec.builder(TypeName.get(param.asType()), param.getSimpleName().toString()).build())
             .toList())
         .addCode(createMethodBody(method))
+        .varargs(method.isVarArgs())
         .build();
   }
 
@@ -262,10 +263,11 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private boolean hasValidReturnType(ExecutableElement method) {
-    return valueTypeOf(method.getReturnType())
-        .map(value -> !processingEnv.getTypeUtils().isSameType(value, typeElement(Void.class).asType()))
-        // a raw type, or an unbounded wildcard like Result<E, ?>, can't be checked
-        .orElse(true);
+    return !processingEnv.getTypeUtils().isSameType(method.getReturnType(), typeElement(Void.class).asType())
+        && valueTypeOf(method.getReturnType())
+          .map(value -> !processingEnv.getTypeUtils().isSameType(value, typeElement(Void.class).asType()))
+          // a raw type, or an unbounded wildcard like Result<E, ?>, can't be checked
+          .orElse(true);
   }
 
   /**

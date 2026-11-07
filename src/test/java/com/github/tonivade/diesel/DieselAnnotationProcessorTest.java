@@ -61,6 +61,52 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
+  void shouldGenerateDslCodeWithVarArgs() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+
+      @Diesel
+      public interface Console {
+        String readLine();
+        void writeLine(String line, Object...params);
+      }""");
+
+    var expected = forSourceLines("test.ConsoleApi",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Unit;
+      import java.lang.Object;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface ConsoleDsl {
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Console, E> Program<S, E, String> readLine() {
+          return Program.access(state -> state.readLine());
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Console, E> Program<S, E, Unit> writeLine(String line, Object... params) {
+          return Program.inspect(state -> state.writeLine(line, params));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
   void shouldIgnorePrivateAndStaticMethods() {
     var file = forSourceLines("test.Console",
       """
@@ -293,6 +339,27 @@ class DieselAnnotationProcessorTest {
       .compilesWithoutError()
       .and()
       .generatesSources(expected);
+  }
+
+  @Test
+  void shouldFailWithVoid() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+
+      @Diesel(errorType = Exception.class)
+      public interface Console {
+        Result<Exception, String> readLine();
+        Void writeLine(String line);
+      }""");
+
+    assert_().about(javaSource()).that(file)
+        .processedWith(new DieselAnnotationProcessor())
+        .failsToCompile()
+        .withErrorContaining("the return type of method writeLine is not valid: cannot be Void, use Unit");
   }
 
   @Test
