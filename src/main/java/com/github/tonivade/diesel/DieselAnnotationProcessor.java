@@ -133,10 +133,12 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private JavaFile generateDsl(TypeElement element, String dslName, TypeName errorType, TypeMirror errorBound) {
-    String packageName = processingEnv.getElementUtils().getPackageOf(element).getQualifiedName().toString();
-    String interfaceName = element.getSimpleName().toString();
+    String packageName = processingEnv.getElementUtils()
+        .getPackageOf(element)
+        .getQualifiedName()
+        .toString();
 
-    TypeName service = createServiceType(element, packageName, interfaceName);
+    TypeName service = createServiceType(element);
 
     var dslTypeBuilder = createDslType(dslName, element.getTypeParameters());
 
@@ -165,8 +167,8 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     return JavaFile.builder(packageName, dslTypeBuilder.build()).build();
   }
 
-  private TypeName createServiceType(TypeElement element, String packageName, String interfaceName) {
-    var service = ClassName.get(packageName, interfaceName);
+  private TypeName createServiceType(TypeElement element) {
+    var service = ClassName.get(element);
     if (!element.getTypeParameters().isEmpty()) {
       return ParameterizedTypeName.get(
           service, element.getTypeParameters().stream().map(TypeVariableName::get).toArray(TypeName[]::new));
@@ -256,15 +258,21 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   }
 
   private CodeBlock createStatement(String format, ExecutableElement method) {
-    return CodeBlock.builder().addStatement(format, method.getSimpleName(), parameterNames(method)).build();
+    return CodeBlock.builder()
+        .addStatement(format, method.getSimpleName(), parameterNames(method))
+        .build();
   }
 
   private CodeBlock createStatement(String format, Class<?> cast, ExecutableElement method) {
-    return CodeBlock.builder().addStatement(format, cast, method.getSimpleName(), parameterNames(method)).build();
+    return CodeBlock.builder()
+        .addStatement(format, cast, method.getSimpleName(), parameterNames(method))
+        .build();
   }
 
   private String parameterNames(ExecutableElement method) {
-    return method.getParameters().stream().map(param -> param.getSimpleName().toString()).collect(joining(","));
+    return method.getParameters().stream()
+        .map(param -> param.getSimpleName().toString())
+        .collect(joining(","));
   }
 
   private TypeName getReturnTypeFor(TypeMirror returnType) {
