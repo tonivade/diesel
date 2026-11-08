@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -177,13 +178,14 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     return elements.getAllMembers(element).stream()
         .filter(member -> member.getKind() == ElementKind.METHOD)
         .filter(member -> !isPrivateOrStatic(member))
-        .filter(member -> !member.getEnclosingElement().equals(object))
+        .filter(member -> !Objects.equals(member.getEnclosingElement(), object))
         .map(ExecutableElement.class::cast)
         .toList();
   }
 
   private boolean isPrivateOrStatic(Element enclosedElement) {
-    return enclosedElement.getModifiers().contains(Modifier.STATIC) || enclosedElement.getModifiers().contains(Modifier.PRIVATE);
+    return enclosedElement.getModifiers().contains(Modifier.STATIC)
+        || enclosedElement.getModifiers().contains(Modifier.PRIVATE);
   }
 
   private TypeSpec.Builder createDslType(String dslName, List<? extends TypeParameterElement> list) {
