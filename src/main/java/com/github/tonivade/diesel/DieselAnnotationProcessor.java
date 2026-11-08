@@ -21,6 +21,7 @@ import com.palantir.javapoet.WildcardTypeName;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,6 +41,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.ExecutableType;
 import javax.lang.model.type.TypeKind;
@@ -203,6 +205,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var program = ClassName.get(Program.class);
     var returnType = ParameterizedTypeName.get(program,
         TypeVariableName.get(STATE_VARIABLE), TypeVariableName.get(ERROR_VARIABLE), getReturnTypeFor(resolved.getReturnType()));
+    var paramTypeMap = createParamTypeMap(method.getParameters(), resolved.getParameterTypes());
     return MethodSpec.methodBuilder(methodName)
         .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember(VALUE, UNCHECKED).addMember(VALUE, RAWTYPES).build())
         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
@@ -215,15 +218,23 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .addTypeVariables(resolved.getTypeVariables().stream().map(TypeVariableName::get).toList())
         .returns(returnType)
         .addParameters(method.getParameters().stream()
-            .map(param -> ParameterSpec.builder(TypeName.get(param.asType()), param.getSimpleName().toString()).build())
+            .map(param -> ParameterSpec.builder(TypeName.get(paramTypeMap.get(param)), param.getSimpleName().toString()).build())
             .toList())
-        .addCode(createMethodBody(method))
+        .addCode(createMethodBody(method, resolved.getReturnType()))
         .varargs(method.isVarArgs())
         .build();
   }
 
-  private CodeBlock createMethodBody(ExecutableElement method) {
-    var returnType = method.getReturnType();
+  private Map<VariableElement, TypeMirror> createParamTypeMap(
+      List<? extends VariableElement> parameters, List<? extends TypeMirror> parameterTypes) {
+    Map<VariableElement, TypeMirror> map = new IdentityHashMap<>();
+    for (int i = 0; i < parameters.size(); i++) {
+      map.put(parameters.get(i), parameterTypes.get(i));
+    }
+    return map;
+  }
+
+  private CodeBlock createMethodBody(ExecutableElement method, TypeMirror returnType) {
     var isFuture = asSupertype(returnType, CompletableFuture.class).isPresent();
     if (resultTypeOf(returnType).isPresent()) {
       return isFuture

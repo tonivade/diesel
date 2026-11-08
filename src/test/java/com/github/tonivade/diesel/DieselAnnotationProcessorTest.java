@@ -1082,6 +1082,54 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
+  void shouldGenerateDslCodeExtendsGenericClass() {
+    var file = forSourceLines("test.StringStore",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+
+      interface Store<T> {
+        T get(String key);
+        void put(String key, T value);
+      }
+
+      @Diesel
+      interface StringStore extends Store<String> {
+      }""");
+
+    var expected = forSourceLines("test.StringStoreDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Unit;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface StringStoreDsl {
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends StringStore, E> Program<S, E, String> get(String key) {
+          return Program.access(state -> state.get(key));
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends StringStore, E> Program<S, E, Unit> put(String key, String value) {
+          return Program.inspect(state -> state.put(key,value));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
   void shouldGenerateDslCodeWithBoundedGenericMethod() {
     var file = forSourceLines("test.Store",
       """
