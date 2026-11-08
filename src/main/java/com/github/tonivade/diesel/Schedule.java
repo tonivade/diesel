@@ -6,6 +6,7 @@ import com.github.tonivade.diesel.Schedule.Decision.Continue;
 import com.github.tonivade.diesel.Schedule.Decision.Done;
 
 import java.time.Duration;
+import java.util.concurrent.ThreadLocalRandom;
 
 @FunctionalInterface
 public interface Schedule<I> {
@@ -37,6 +38,20 @@ public interface Schedule<I> {
     return _ -> new Continue<>(delay, spaced(delay));
   }
 
+  static <I> Schedule<I> exponential(Duration base, double factor) {
+    return _ -> new Continue<>(base, exponential(scale(base, factor), factor));
+  }
+
+  default Schedule<I> jittered(double factor) {
+    return input -> switch (next(input)) {
+      case Done<I> done -> done;
+      case Continue<I>(var d, var n) -> {
+        var r = 1 + (ThreadLocalRandom.current().nextDouble() * 2 - 1) * factor;
+        yield new Continue<>(scale(d, r), n.jittered(factor));
+      }
+    };
+  }
+
   static <I> Schedule<I> recurs(int n) {
     if (n <= 0) {
       return stop();
@@ -54,5 +69,9 @@ public interface Schedule<I> {
             new Continue<>(d1.compareTo(d2) >= 0 ? d1 : d2, n1.and(n2));
       };
     };
+  }
+
+  private static Duration scale(Duration d, double f) {
+    return Duration.ofNanos(Math.round(d.toNanos() * f));
   }
 }
