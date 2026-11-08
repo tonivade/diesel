@@ -106,7 +106,7 @@ public final class Concurrent {
    * @param <E> the type of the error
    * @param <T> the type of the result of the first program
    * @param <U> the type of the result of the second program
-   * @return a new program representing an either of the two programs
+   * @return a new program representing a race of the two programs
    */
   public static <S, E, T, U> Program<S, E, Either<T, U>> either(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
@@ -126,7 +126,7 @@ public final class Concurrent {
    * @param <E> the type of the error
    * @param <T> the type of the result of the first program
    * @param <U> the type of the result of the second program
-   * @return a new program representing an either of the two programs
+   * @return a new program representing a race of the two programs
    */
   public static <S, E, T, U> Program<S, E, Either<T, U>> race(Program<S, E, T> p1, Program<S, E, U> p2) {
     return race(p1, p2, DEFAULT_EXECUTOR);

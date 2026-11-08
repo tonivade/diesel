@@ -10,7 +10,7 @@ import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Ref;
 
 /**
- * A sealed interface representing a counter that can be incremented or decremented.
+ * An interface representing a counter that can be incremented or decremented.
  *
  * @param <T> The type of number used by the counter, which must extend {@link Number}.
  * @deprecated use {@link Ref}

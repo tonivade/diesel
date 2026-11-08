@@ -407,11 +407,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Creates a new program thar represent a computation
+   * Creates a new program that represents a computation that can be executed in a specific context.
    *
    * @param <S> the type of the state
    * @param <E> the type of the error
-   * @param validation
+   * @param validation the Validation representing the computation
    * @return a new program representing the computation
    */
   static <S, E> Program<S, E, Unit> from(Validation<E> validation) {
@@ -932,7 +932,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return the result of the evaluation
    */
   default Result<E, T> eval(@Nullable S state) {
-    return Runtime.run(this, state, CancelToken.current());
+    return Interpreter.run(this, state, CancelToken.current());
   }
 
   /**

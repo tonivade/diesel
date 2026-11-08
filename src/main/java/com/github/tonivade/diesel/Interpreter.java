@@ -38,7 +38,7 @@ import java.util.function.BiConsumer;
 
 import org.jspecify.annotations.Nullable;
 
-final class Runtime {
+final class Interpreter {
 
   @SuppressWarnings({ "unchecked", "rawtypes" })
   static <S, E, T> Result<E, T> run(Program<S, E, T> self, @Nullable S state, CancelToken token) {

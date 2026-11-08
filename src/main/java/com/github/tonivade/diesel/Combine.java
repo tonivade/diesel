@@ -834,11 +834,11 @@ public final class Combine {
   /**
    * Sequences a collection of programs into a single program containing a collection of success values.
    *
-   * @param programs the programs to be forked
+   * @param programs the programs to be sequenced
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
-   * @return a collection of forked programs
+   * @return a collection of programs sequenced
    */
   @SafeVarargs
   public static <S, E, T> Program<S, E, Collection<T>> sequence(Program<S, E, T>... programs) {
@@ -848,11 +848,11 @@ public final class Combine {
   /**
    * Sequences a collection of programs into a single program containing a collection of success values.
    *
-   * @param programs the programs to be forked
+   * @param programs the programs to be sequenced
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
-   * @return a collection of forked programs
+   * @return a collection of programs sequenced
    */
   public static <S, E, T> Program<S, E, Collection<T>> sequence(Collection<Program<S, E, T>> programs) {
     return traverse(identity(), programs);
