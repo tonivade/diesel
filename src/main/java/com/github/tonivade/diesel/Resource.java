@@ -360,6 +360,26 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     return retry(Schedule.<S, E>recurs(maxRetries).and(Schedule.spaced(delay)));
   }
 
+  /**
+   * Retries resource acquisition according to the specified schedule whenever
+   * acquisition fails with a typed error.
+   *
+   * <p>After a failed acquisition, the schedule is evaluated with the error.
+   * If the schedule is done, the acquisition fails with the original error.
+   * If the schedule continues, its delay is applied before attempting to
+   * acquire the resource again.
+   *
+   * <p>Any resources acquired during a failed attempt are released before
+   * the next attempt begins. Exceptions thrown during acquisition are not
+   * retried.
+   *
+   * <p>Unlike the rest of the acquisition, the delays between attempts can
+   * be cancelled.
+   *
+   * @param schedule the policy that determines whether to retry and the delay
+   *        before the next acquisition attempt
+   * @return a resource that retries acquisition according to the specified schedule
+   */
   public Resource<S, E, A> retry(Schedule<S, E> schedule) {
     return new Resource<>(poll -> retryLoop(poll, schedule));
   }

@@ -14,6 +14,27 @@ import com.github.tonivade.diesel.impl.Random;
 
 import java.time.Duration;
 
+/**
+ * A policy that determines whether a computation should continue and how long
+ * it should wait before the next execution.
+ *
+ * <p>A schedule receives an input value and produces a {@link Decision}
+ * describing what should happen next. If the schedule continues, it provides
+ * the delay before the next execution and the next schedule to evaluate.
+ *
+ * <p>Schedules are effectful: evaluating a schedule returns a {@link Program}
+ * that can access the computation's state. The schedule itself cannot fail
+ * with a typed error.
+ *
+ * <p>Schedules can be composed to build more complex policies, for example
+ * combining exponential backoff with a maximum number of retries.
+ *
+ * @param <S> the type of the state used by the schedule
+ * @param <I> the type of the input received by the schedule
+ * @see Program#retry(Schedule)
+ * @see Program#repeat(Schedule)
+ * @see Resource#retry(Schedule)
+ */
 @FunctionalInterface
 public interface Schedule<S, I> {
 
