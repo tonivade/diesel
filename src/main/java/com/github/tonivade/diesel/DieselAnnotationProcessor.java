@@ -220,8 +220,7 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .addTypeVariables(classTypeParams.stream().map(TypeVariableName::get).toList())
         .addTypeVariables(List.of(
             TypeVariableName.get(STATE_VARIABLE, service),
-            errorType.equals(TypeName.VOID.box())
-                ? TypeVariableName.get(ERROR_VARIABLE) : TypeVariableName.get(ERROR_VARIABLE, errorType)))
+            getErrorType(method, errorType)))
         // the method's own type variables, with their bounds
         .addTypeVariables(resolved.getTypeVariables().stream().map(TypeVariableName::get).toList())
         .returns(returnType)
@@ -231,6 +230,16 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         .addCode(createMethodBody(method, resolved.getReturnType()))
         .varargs(method.isVarArgs())
         .build();
+  }
+
+  private TypeVariableName getErrorType(ExecutableElement method, TypeName errorType) {
+    if (!method.getThrownTypes().isEmpty()) {
+      return TypeVariableName.get(ERROR_VARIABLE, ClassName.get(Throwable.class));
+    }
+    if (errorType.equals(TypeName.VOID.box())) {
+      return TypeVariableName.get(ERROR_VARIABLE);
+    }
+    return TypeVariableName.get(ERROR_VARIABLE, errorType);
   }
 
   private Map<VariableElement, TypeMirror> createParamTypeMap(
@@ -246,27 +255,34 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var isFuture = asSupertype(returnType, CompletableFuture.class).isPresent();
     if (resultTypeOf(returnType).isPresent()) {
       return isFuture
-          ? createStatement("return Program.accessFutureResult(state -> ($T) state.$N($L))", CompletableFuture.class, method)
-          : createStatement("return Program.accessResult(state -> ($T) state.$N($L))", Result.class, method);
+          ? CodeBlock.builder()
+              .addStatement("return Program.accessFutureResult(state -> ($T) state.$N($L))",
+                  CompletableFuture.class, method.getSimpleName(), parameterNames(method))
+              .build()
+          : CodeBlock.builder()
+              .addStatement("return Program.accessResult(state -> ($T) state.$N($L))",
+                  Result.class, method.getSimpleName(), parameterNames(method))
+              .build();
     }
     if (isFuture) {
-      return createStatement("return Program.accessFuture(state -> state.$N($L))", method);
+      return CodeBlock.builder()
+        .addStatement("return Program.accessFuture(state -> state.$N($L))",
+            method.getSimpleName(), parameterNames(method))
+        .build();
+    }
+    if (!method.getThrownTypes().isEmpty()) {
+      return CodeBlock.builder()
+        .addStatement("return Program.accessResult(state -> ($T) $T.attempt(() -> state.$N($L)))",
+            Result.class, Result.class, method.getSimpleName(), parameterNames(method))
+        .build();
     }
     if (isVoid(returnType)) {
-      return createStatement("return Program.inspect(state -> state.$N($L))", method);
-    }
-    return createStatement("return Program.access(state -> state.$N($L))", method);
-  }
-
-  private CodeBlock createStatement(String format, ExecutableElement method) {
-    return CodeBlock.builder()
-        .addStatement(format, method.getSimpleName(), parameterNames(method))
+      return CodeBlock.builder()
+        .addStatement("return Program.inspect(state -> state.$N($L))", method.getSimpleName(), parameterNames(method))
         .build();
-  }
-
-  private CodeBlock createStatement(String format, Class<?> cast, ExecutableElement method) {
-    return CodeBlock.builder()
-        .addStatement(format, cast, method.getSimpleName(), parameterNames(method))
+    }
+      return CodeBlock.builder()
+        .addStatement("return Program.access(state -> state.$N($L))", method.getSimpleName(), parameterNames(method))
         .build();
   }
 

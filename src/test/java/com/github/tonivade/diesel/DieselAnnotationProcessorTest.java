@@ -61,6 +61,53 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
+  void shouldGenerateDslCodeWhenThrows() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+
+      @Diesel
+      public interface Console {
+        String readLine() throws Exception;
+        void writeLine(String line);
+      }""");
+
+    var expected = forSourceLines("test.ConsoleApi",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Result;
+      import com.github.tonivade.diesel.Unit;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import java.lang.Throwable;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface ConsoleDsl {
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Console, E extends Throwable> Program<S, E, String> readLine() {
+          return Program.accessResult(state -> (Result) Result.attempt(() -> state.readLine()));
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" } )
+        static <S extends Console, E> Program<S, E, Unit> writeLine(String line) {
+          return Program.inspect(state -> state.writeLine(line));
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
   void shouldGenerateDslCodeWithInheritedInterfaces() {
     var file = forSourceLines("test.Console",
       """
