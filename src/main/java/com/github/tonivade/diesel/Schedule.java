@@ -1,21 +1,27 @@
+/*
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Distributed under the terms of the MIT License
+ */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.chain;
+import static com.github.tonivade.diesel.Program.success;
 import static java.util.Objects.requireNonNull;
 
 import com.github.tonivade.diesel.Schedule.Decision.Continue;
 import com.github.tonivade.diesel.Schedule.Decision.Done;
+import com.github.tonivade.diesel.impl.Random;
 
 import java.time.Duration;
-import java.util.concurrent.ThreadLocalRandom;
 
 @FunctionalInterface
-public interface Schedule<I> {
+public interface Schedule<S, I> {
 
-  sealed interface Decision<I> {
+  sealed interface Decision<S, I> {
 
-    record Done<I>() implements Decision<I> {}
+    record Done<S, I>() implements Decision<S, I> {}
 
-    record Continue<I>(Duration delay, Schedule<I> next) implements Decision<I> {
+    record Continue<S, I>(Duration delay, Schedule<S, I> next) implements Decision<S, I> {
 
       public Continue {
         requireNonNull(delay);
@@ -24,51 +30,56 @@ public interface Schedule<I> {
     }
   }
 
-  Decision<I> next(I input);
+  Program<S, Void, Decision<S, I>> next(I input);
 
-  static <I> Schedule<I> stop() {
-    return _ -> new Done<>();
+  static <S, I> Schedule<S, I> stop() {
+    return _ -> success(new Done<>());
   }
 
-  static <I> Schedule<I> forever() {
+  static <S, I> Schedule<S, I> forever() {
     return spaced(Duration.ZERO);
   }
 
-  static <I> Schedule<I> spaced(Duration delay) {
-    return _ -> new Continue<>(delay, spaced(delay));
+  static <S, I> Schedule<S, I> spaced(Duration delay) {
+    return _ -> success(new Continue<>(delay, spaced(delay)));
   }
 
-  static <I> Schedule<I> exponential(Duration base, double factor) {
-    return _ -> new Continue<>(base, exponential(scale(base, factor), factor));
+  static <S, I> Schedule<S, I> exponential(Duration base, double factor) {
+    return _ -> success(new Continue<>(base, exponential(scale(base, factor), factor)));
   }
 
-  default Schedule<I> jittered(double factor) {
-    return input -> switch (next(input)) {
-      case Done<I> done -> done;
-      case Continue<I>(var d, var n) -> {
-        var r = 1 + (ThreadLocalRandom.current().nextDouble() * 2 - 1) * factor;
-        yield new Continue<>(scale(d, r), n.jittered(factor));
-      }
-    };
+  static <S extends Random.Service, I> Schedule<S, I> jittered(Schedule<S, I> schedule, double factor) {
+    return input -> schedule.next(input).flatMap(decision -> switch (decision) {
+      case Done<S, I> done -> success(done);
+      case Continue<S, I>(var delay, var next) ->
+        chain(
+            Random.nextDouble(),
+            random -> {
+              var multiplier = 1 + (random * 2 - 1) * factor;
+              return new Continue<>(
+                  scale(delay, multiplier),
+                  jittered(next, factor));
+            });
+    });
   }
 
-  static <I> Schedule<I> recurs(int n) {
+  static <S, I> Schedule<S, I> recurs(int n) {
     if (n <= 0) {
       return stop();
     }
-    return _ -> new Continue<>(Duration.ZERO, recurs(n - 1));
+    return _ -> success(new Continue<>(Duration.ZERO, recurs(n - 1)));
   }
 
-  /** Intersección: continúa solo si ambos continúan, con el mayor delay. */
-  default Schedule<I> and(Schedule<I> other) {
-    return input -> switch (next(input)) {
-      case Done<I> done -> done;
-      case Continue<I>(var d1, var n1) -> switch (other.next(input)) {
-        case Done<I> done -> done;
-        case Continue<I>(var d2, var n2) ->
-            new Continue<>(d1.compareTo(d2) >= 0 ? d1 : d2, n1.and(n2));
-      };
-    };
+  default Schedule<S, I> and(Schedule<S, I> other) {
+    return input -> next(input).flatMap(decision1 -> switch (decision1) {
+      case Done<S, I> done -> success(done);
+      case Continue<S, I>(var d1, var n1) ->
+        other.next(input).flatMap(decision2 -> switch (decision2) {
+          case Done<S, I> done -> success(done);
+          case Continue<S, I>(var d2, var n2) ->
+              success(new Continue<>(d1.compareTo(d2) >= 0 ? d1 : d2, n1.and(n2)));
+        });
+    });
   }
 
   private static Duration scale(Duration d, double f) {

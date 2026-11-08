@@ -357,10 +357,10 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource that retries acquisition up to the specified number of times
    */
   public Resource<S, E, A> retry(int maxRetries, Duration delay) {
-    return retry(Schedule.<E>recurs(maxRetries).and(Schedule.spaced(delay)));
+    return retry(Schedule.<S, E>recurs(maxRetries).and(Schedule.spaced(delay)));
   }
 
-  public Resource<S, E, A> retry(Schedule<E> schedule) {
+  public Resource<S, E, A> retry(Schedule<S, E> schedule) {
     return new Resource<>(poll -> retryLoop(poll, schedule));
   }
 
@@ -587,19 +587,23 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
         future -> tuple(Program.join(future), cancelAndWait(future))));
   }
 
-  private Program<S, E, Tuple2<A, Program<S, Void, Unit>>> retryLoop(Poll poll, Schedule<E> schedule) {
+  private Program<S, E, Tuple2<A, Program<S, Void, Unit>>> retryLoop(Poll poll, Schedule<S, E> schedule) {
     // only the wait between attempts is cancelable: a failed attempt has already released what
     // it acquired, so nothing is lost if it's cancelled
-    return suspend(() -> acquire.apply(poll).flatMapError(error ->
-        switch (schedule.next(error)) {
-          case Schedule.Decision.Done<E> _ -> failure(error);
-          case Schedule.Decision.Continue<E>(var delay, var next) ->
-              pipe(
-                  poll.apply(sleep(delay)),
-                  _ -> retryLoop(poll, next)
-              );
-        }
-    ));
+    return suspend(
+        () -> acquire.apply(poll).flatMapError(error ->
+          pipe(
+            widen(schedule.next(error)),
+            decision -> switch (decision) {
+                case Schedule.Decision.Done<S, E> _ -> failure(error);
+                case Schedule.Decision.Continue<S, E>(var delay, var next) ->
+                    pipe(
+                        poll.apply(sleep(delay)),
+                        _ -> retryLoop(poll, next)
+                    );
+              })
+        )
+      );
   }
 
   // acquires the next resource once the previous one is acquired: if it fails, throws or the

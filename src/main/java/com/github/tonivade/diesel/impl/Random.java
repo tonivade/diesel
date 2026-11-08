@@ -30,6 +30,10 @@ public interface Random {
     default int nextInt(int bound) {
       return ThreadLocalRandom.current().nextInt(bound);
     }
+
+    default double nextDouble() {
+      return ThreadLocalRandom.current().nextDouble();
+    }
   }
 
   /**
@@ -42,5 +46,9 @@ public interface Random {
    */
   static <S extends Service, E> Program<S, E, Integer> nextInt(int bound) {
     return access(state -> state.nextInt(bound));
+  }
+
+  static <S extends Service, E> Program<S, E, Double> nextDouble() {
+    return access(Service::nextDouble);
   }
 }
