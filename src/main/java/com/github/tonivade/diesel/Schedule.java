@@ -38,10 +38,30 @@ import java.time.Duration;
 @FunctionalInterface
 public interface Schedule<S, I> {
 
+  /**
+   * Describes whether a schedule is complete or should continue after a delay.
+   *
+   * @param <S> the type of the state used by the schedule
+   * @param <I> the type of the input received by the schedule
+   */
   sealed interface Decision<S, I> {
 
+    /**
+     * Indicates that the schedule is complete and no further execution should occur.
+     *
+     * @param <S> the type of the state used by the schedule
+     * @param <I> the type of the input received by the schedule
+     */
     record Done<S, I>() implements Decision<S, I> {}
 
+    /**
+     * Indicates that the computation should continue after a delay, using the next schedule.
+     *
+     * @param delay the duration to wait before the next execution
+     * @param next the schedule to evaluate after the next execution
+     * @param <S> the type of the state used by the schedule
+     * @param <I> the type of the input received by the schedule
+     */
     record Continue<S, I>(Duration delay, Schedule<S, I> next) implements Decision<S, I> {
 
       public Continue {
@@ -51,24 +71,79 @@ public interface Schedule<S, I> {
     }
   }
 
+  /**
+   * Evaluates this schedule for the given input.
+   *
+   * <p>The returned program may access the state but cannot fail through its typed error channel.
+   *
+   * @param input the result or error from the computation being scheduled
+   * @return a program that produces the next scheduling decision
+   */
   Program<S, Void, Decision<S, I>> next(I input);
 
+  /**
+   * Creates a schedule that completes without allowing another execution.
+   *
+   * @param <S> the type of the state used by the schedule
+   * @param <I> the type of the input received by the schedule
+   * @return a schedule that always returns {@link Decision.Done}
+   */
   static <S, I> Schedule<S, I> stop() {
     return _ -> success(new Done<>());
   }
 
+  /**
+   * Creates a schedule that continues indefinitely without delaying between executions.
+   *
+   * @param <S> the type of the state used by the schedule
+   * @param <I> the type of the input received by the schedule
+   * @return a schedule that continues forever with zero delay
+   */
   static <S, I> Schedule<S, I> forever() {
     return spaced(Duration.ZERO);
   }
 
+  /**
+   * Creates a schedule that continues indefinitely, waiting the same duration between executions.
+   *
+   * @param delay the duration to wait before each subsequent execution
+   * @param <S> the type of the state used by the schedule
+   * @param <I> the type of the input received by the schedule
+   * @return a schedule with a constant delay between executions
+   */
   static <S, I> Schedule<S, I> spaced(Duration delay) {
     return _ -> success(new Continue<>(delay, spaced(delay)));
   }
 
+  /**
+   * Creates a schedule with an exponentially increasing delay.
+   *
+   * <p>The first delay is {@code base}; each subsequent delay is the previous delay multiplied
+   * by {@code factor}.
+   *
+   * @param base the delay before the first subsequent execution
+   * @param factor the multiplier applied to each delay to obtain the next one
+   * @param <S> the type of the state used by the schedule
+   * @param <I> the type of the input received by the schedule
+   * @return a schedule with an exponentially increasing delay
+   */
   static <S, I> Schedule<S, I> exponential(Duration base, double factor) {
     return _ -> success(new Continue<>(base, exponential(scale(base, factor), factor)));
   }
 
+  /**
+   * Adds random jitter to the delays produced by the given schedule.
+   *
+   * <p>Each delay is multiplied by a random value in the range
+   * {@code [1 - factor, 1 + factor]}. Evaluating the resulting schedule requires the state to
+   * implement {@link Random.Service}.
+   *
+   * @param schedule the schedule whose delays are adjusted
+   * @param factor the maximum relative variation applied to each delay
+   * @param <S> the type of the state, which must implement {@link Random.Service}
+   * @param <I> the type of the input received by the schedule
+   * @return a schedule with randomized delays
+   */
   static <S extends Random.Service, I> Schedule<S, I> jittered(Schedule<S, I> schedule, double factor) {
     return input -> schedule.next(input).flatMap(decision -> switch (decision) {
       case Done<S, I> done -> success(done);
@@ -84,6 +159,16 @@ public interface Schedule<S, I> {
     });
   }
 
+  /**
+   * Creates a schedule that continues at most the given number of times, with no delay.
+   *
+   * <p>A non-positive number produces a schedule that is immediately complete.
+   *
+   * @param n the maximum number of subsequent executions
+   * @param <S> the type of the state used by the schedule
+   * @param <I> the type of the input received by the schedule
+   * @return a schedule that continues at most {@code n} times
+   */
   static <S, I> Schedule<S, I> recurs(int n) {
     if (n <= 0) {
       return stop();
@@ -91,6 +176,15 @@ public interface Schedule<S, I> {
     return _ -> success(new Continue<>(Duration.ZERO, recurs(n - 1)));
   }
 
+  /**
+   * Combines this schedule with another, continuing only while both schedules continue.
+   *
+   * <p>The resulting delay is the greater of the two delays. Both schedules receive the same
+   * input, and their next schedules are combined in the same way.
+   *
+   * @param other the schedule to combine with this one
+   * @return a schedule that completes as soon as either constituent schedule completes
+   */
   default Schedule<S, I> and(Schedule<S, I> other) {
     return input -> next(input).flatMap(decision1 -> switch (decision1) {
       case Done<S, I> done -> success(done);
