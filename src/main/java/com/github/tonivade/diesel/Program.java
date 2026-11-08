@@ -1180,7 +1180,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with retries
    */
   default Program<S, E, T> retry(int retries) {
-    return retry(retries, unit());
+    return retry(Schedule.recurs(retries));
   }
 
   /**
@@ -1191,22 +1191,19 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with retries and delay
    */
   default Program<S, E, T> retry(int retries, Duration delay) {
-    return retry(retries, sleep(delay));
+    return retry(Schedule.<E>spaced(delay).and(Schedule.recurs(retries)));
   }
 
   /**
-   * Retries the program a specified number of times with a delay program in case of failure.
+   * Retries the program a specified number of times depending on the schedule policy
    *
-   * @param retries the number of retries
-   * @param delay the delay program between retries
+   * @param schedule the schedule policy to apply
    * @return a new program representing the computation with retries and delay
    */
-  default Program<S, E, T> retry(int retries, Program<S, E, Unit> delay) {
-    return flatMapError(error -> {
-      if (retries > 0) {
-        return delay.andThen(retry(retries - 1, delay));
-      }
-      return failure(error);
+  default Program<S, E, T> retry(Schedule<E> schedule) {
+    return flatMapError(error -> switch (schedule.next(error)) {
+      case Schedule.Decision.Done<E> _ -> failure(error);
+      case Schedule.Decision.Continue<E>(var delay, var next) -> delayed(delay, retry(next));
     });
   }
 
@@ -1217,7 +1214,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation repeated
    */
   default Program<S, E, T> repeat(int times) {
-    return repeat(times, unit());
+    return repeat(Schedule.recurs(times));
   }
 
   /**
@@ -1228,22 +1225,19 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation repeated with delay
    */
   default Program<S, E, T> repeat(int times, Duration delay) {
-    return repeat(times, sleep(delay));
+    return repeat(Schedule.<T>spaced(delay).and(Schedule.recurs(times)));
   }
 
   /**
-   * Repeats the program a specified number of times with a delay program.
+   * Repeats the program a specified number of times depending on the schedule policy
    *
-   * @param times the number of times to repeat
-   * @param delay the delay program between repetitions
-   * @return a new program representing the computation repeated with delay
+   * @param schedule the schedule policy to apply
+   * @return a new program representing the computation repeated
    */
-  default Program<S, E, T> repeat(int times, Program<S, E, Unit> delay) {
-    return flatMap(value -> {
-      if (times > 0) {
-        return delay.andThen(repeat(times - 1, delay));
-      }
-      return success(value);
+  default Program<S, E, T> repeat(Schedule<T> schedule) {
+    return flatMap(value -> switch (schedule.next(value)) {
+      case Schedule.Decision.Done<T> _ -> success(value);
+      case Schedule.Decision.Continue<T>(var delay, var next) -> delayed(delay, repeat(next));
     });
   }
 
