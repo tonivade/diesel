@@ -2,14 +2,11 @@
  * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel.impl;
+package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.inspect;
-
-import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Unit;
 
 /**
  * Represents a console interface that can be used to write to the console or read from the console.

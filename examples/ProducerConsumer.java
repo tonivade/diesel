@@ -15,7 +15,7 @@ import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
 import static com.github.tonivade.diesel.Program.unit;
 import static com.github.tonivade.diesel.Tuple2.tuple;
-import static com.github.tonivade.diesel.impl.Console.writeLine;
+import static com.github.tonivade.diesel.Console.writeLine;
 
 import com.github.tonivade.diesel.Deferred;
 import com.github.tonivade.diesel.Program;

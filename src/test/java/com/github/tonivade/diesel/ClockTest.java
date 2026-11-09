@@ -2,14 +2,16 @@
  * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel.impl;
+package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Clock.currentTime;
+import static com.github.tonivade.diesel.Clock.nanoTime;
+import static com.github.tonivade.diesel.Clock.now;
 import static com.github.tonivade.diesel.Result.success;
-import static com.github.tonivade.diesel.impl.Clock.currentTime;
-import static com.github.tonivade.diesel.impl.Clock.nanoTime;
-import static com.github.tonivade.diesel.impl.Clock.now;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+
+import com.github.tonivade.diesel.Clock;
 
 import java.time.Instant;
 

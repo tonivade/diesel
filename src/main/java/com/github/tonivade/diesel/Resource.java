@@ -325,7 +325,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource that retries acquisition up to the specified number of times
    */
   public Resource<S, E, A> retry(int maxRetries) {
-    return new Resource<>(poll -> acquire.apply(poll).retry(maxRetries));
+    return retry(Schedule.recurs(maxRetries));
   }
 
   /**
@@ -357,9 +357,31 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource that retries acquisition up to the specified number of times
    */
   public Resource<S, E, A> retry(int maxRetries, Duration delay) {
-    // only the wait between attempts is cancelable: a failed attempt has already released what
-    // it acquired, so nothing is lost if it's cancelled
-    return new Resource<>(poll -> acquire.apply(poll).retry(maxRetries, poll.apply(sleep(delay))));
+    return retry(Schedule.<S, E>recurs(maxRetries).and(Schedule.spaced(delay)));
+  }
+
+  /**
+   * Retries resource acquisition according to the specified schedule whenever
+   * acquisition fails with a typed error.
+   *
+   * <p>After a failed acquisition, the schedule is evaluated with the error.
+   * If the schedule is done, the acquisition fails with the original error.
+   * If the schedule continues, its delay is applied before attempting to
+   * acquire the resource again.
+   *
+   * <p>Any resources acquired during a failed attempt are released before
+   * the next attempt begins. Exceptions thrown during acquisition are not
+   * retried.
+   *
+   * <p>Unlike the rest of the acquisition, the delays between attempts can
+   * be cancelled.
+   *
+   * @param schedule the policy that determines whether to retry and the delay
+   *        before the next acquisition attempt
+   * @return a resource that retries acquisition according to the specified schedule
+   */
+  public Resource<S, E, A> retry(Schedule<S, E> schedule) {
+    return new Resource<>(poll -> retryLoop(poll, schedule));
   }
 
   /**
@@ -583,6 +605,25 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     return new Resource<>(_ -> chain(
         program.fork(executor),
         future -> tuple(Program.join(future), cancelAndWait(future))));
+  }
+
+  private Program<S, E, Tuple2<A, Program<S, Void, Unit>>> retryLoop(Poll poll, Schedule<S, E> schedule) {
+    // only the wait between attempts is cancelable: a failed attempt has already released what
+    // it acquired, so nothing is lost if it's cancelled
+    return suspend(
+      () -> acquire.apply(poll).flatMapError(error ->
+        pipe(
+          widen(schedule.next(error)),
+          decision -> decision.fold(
+            () -> failure(error),
+            (delay, next) ->
+              pipe(
+                poll.apply(sleep(delay)),
+                _ -> retryLoop(poll, next))
+              )
+        )
+      )
+    );
   }
 
   // acquires the next resource once the previous one is acquired: if it fails, throws or the

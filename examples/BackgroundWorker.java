@@ -10,7 +10,7 @@ package examples;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Program.suspend;
-import static com.github.tonivade.diesel.impl.Console.writeLine;
+import static com.github.tonivade.diesel.Console.writeLine;
 
 import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Queue;

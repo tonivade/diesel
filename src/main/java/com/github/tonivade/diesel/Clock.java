@@ -2,13 +2,11 @@
  * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel.impl;
+package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.access;
 
-import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Program.ElapsedTime;
-import com.github.tonivade.diesel.Result;
 
 import java.time.Instant;
 

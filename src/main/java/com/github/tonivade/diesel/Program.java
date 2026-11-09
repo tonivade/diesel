@@ -34,6 +34,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
@@ -1180,7 +1181,40 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with retries
    */
   default Program<S, E, T> retry(int retries) {
-    return retry(retries, unit());
+    return retry(Schedule.recurs(retries));
+  }
+
+  /**
+   * Retries this program while the given predicate matches the error produced
+   * by its execution.
+   *
+   * <p>The predicate is evaluated only when the program fails with an error.
+   * If it returns {@code true}, the program is executed again. Otherwise, the
+   * error is propagated.
+   *
+   * @param condition the condition that determines whether the program should
+   *                  be retried
+   * @return a program that retries while the predicate matches the error
+   * @throws NullPointerException if condition is {@code null}
+   */
+  default Program<S, E, T> retryWhile(Predicate<? super E> condition) {
+    return retry(Schedule.<S, E>forever().whileInput(condition));
+  }
+
+  /**
+   * Retries this program until the given predicate matches the error produced
+   * by its execution.
+   *
+   * <p>The predicate is evaluated only when the program fails with an error.
+   * If it returns {@code true}, the error is propagated. Otherwise, the program
+   * is executed again.
+   *
+   * @param condition the condition that causes retries to stop
+   * @return a program that retries until the predicate matches the error
+   * @throws NullPointerException if condition is {@code null}
+   */
+  default Program<S, E, T> retryUntil(Predicate<? super E> condition) {
+    return retry(Schedule.<S, E>forever().untilInput(condition));
   }
 
   /**
@@ -1191,23 +1225,24 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with retries and delay
    */
   default Program<S, E, T> retry(int retries, Duration delay) {
-    return retry(retries, sleep(delay));
+    return retry(Schedule.<S, E>spaced(delay).and(Schedule.recurs(retries)));
   }
 
   /**
-   * Retries the program a specified number of times with a delay program in case of failure.
+   * Retries the program a specified number of times depending on the schedule policy
    *
-   * @param retries the number of retries
-   * @param delay the delay program between retries
+   * @param schedule the schedule policy to apply
    * @return a new program representing the computation with retries and delay
    */
-  default Program<S, E, T> retry(int retries, Program<S, E, Unit> delay) {
-    return flatMapError(error -> {
-      if (retries > 0) {
-        return delay.andThen(retry(retries - 1, delay));
-      }
-      return failure(error);
-    });
+  default Program<S, E, T> retry(Schedule<S, E> schedule) {
+    return flatMapError(error ->
+      pipe(
+        widen(schedule.next(error)),
+        decision -> decision.fold(
+          () -> failure(error),
+          (delay, next) -> delayed(delay, retry(next)))
+      )
+    );
   }
 
   /**
@@ -1217,7 +1252,40 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation repeated
    */
   default Program<S, E, T> repeat(int times) {
-    return repeat(times, unit());
+    return repeat(Schedule.recurs(times));
+  }
+
+  /**
+   * Repeats this program while the given predicate matches its successful
+   * result.
+   *
+   * <p>The predicate is evaluated only when the program completes successfully.
+   * If it returns {@code true}, the program is executed again. Otherwise, the
+   * result is returned.
+   *
+   * @param condition the condition that determines whether the program should
+   *                  be repeated
+   * @return a program that repeats while the predicate matches the result
+   * @throws NullPointerException if condition is {@code null}
+   */
+  default Program<S, E, T> repeatWhile(Predicate<? super T> condition) {
+    return repeat(Schedule.<S, T>forever().whileInput(condition));
+  }
+
+  /**
+   * Repeats this program until the given predicate matches its successful
+   * result.
+   *
+   * <p>The predicate is evaluated only when the program completes successfully.
+   * If it returns {@code true}, the result is returned. Otherwise, the program
+   * is executed again.
+   *
+   * @param condition the condition that causes repetitions to stop
+   * @return a program that repeats until the predicate matches the result
+   * @throws NullPointerException if condition is {@code null}
+   */
+  default Program<S, E, T> repeatUntil(Predicate<? super T> condition) {
+    return repeat(Schedule.<S, T>forever().untilInput(condition));
   }
 
   /**
@@ -1228,23 +1296,24 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation repeated with delay
    */
   default Program<S, E, T> repeat(int times, Duration delay) {
-    return repeat(times, sleep(delay));
+    return repeat(Schedule.<S, T>spaced(delay).and(Schedule.recurs(times)));
   }
 
   /**
-   * Repeats the program a specified number of times with a delay program.
+   * Repeats the program a specified number of times depending on the schedule policy
    *
-   * @param times the number of times to repeat
-   * @param delay the delay program between repetitions
-   * @return a new program representing the computation repeated with delay
+   * @param schedule the schedule policy to apply
+   * @return a new program representing the computation repeated
    */
-  default Program<S, E, T> repeat(int times, Program<S, E, Unit> delay) {
-    return flatMap(value -> {
-      if (times > 0) {
-        return delay.andThen(repeat(times - 1, delay));
-      }
-      return success(value);
-    });
+  default Program<S, E, T> repeat(Schedule<S, T> schedule) {
+    return flatMap(value ->
+      pipe(
+        widen(schedule.next(value)),
+        decision -> decision.fold(
+          () -> success(value),
+          (delay, next) -> delayed(delay, repeat(next)))
+      )
+    );
   }
 
   /**

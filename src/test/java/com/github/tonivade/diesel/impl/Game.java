@@ -9,11 +9,13 @@ import static com.github.tonivade.diesel.Combine.branch;
 import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.recover;
-import static com.github.tonivade.diesel.impl.Console.prompt;
-import static com.github.tonivade.diesel.impl.Console.writeLine;
-import static com.github.tonivade.diesel.impl.Random.nextInt;
+import static com.github.tonivade.diesel.Console.prompt;
+import static com.github.tonivade.diesel.Console.writeLine;
+import static com.github.tonivade.diesel.Random.nextInt;
 
+import com.github.tonivade.diesel.Console;
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Random;
 import com.github.tonivade.diesel.Ref;
 import com.github.tonivade.diesel.Unit;
 

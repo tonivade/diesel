@@ -2,9 +2,7 @@
  * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel.impl;
-
-import com.github.tonivade.diesel.Program;
+package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.access;
 
@@ -21,6 +19,7 @@ public interface Random {
    * It provides a method to generate a random integer within a specified range.
    */
   interface Service {
+
     /**
      * Generates a random integer within the range [0, bound).
      *
@@ -29,6 +28,15 @@ public interface Random {
      */
     default int nextInt(int bound) {
       return ThreadLocalRandom.current().nextInt(bound);
+    }
+
+    /**
+     * Generates a random double between 0 and 1
+     *
+     * @return a random double
+     */
+    default double nextDouble() {
+      return ThreadLocalRandom.current().nextDouble();
     }
   }
 
@@ -42,5 +50,16 @@ public interface Random {
    */
   static <S extends Service, E> Program<S, E, Integer> nextInt(int bound) {
     return access(state -> state.nextInt(bound));
+  }
+
+  /**
+   * Creates a program that generates a random double between 0 and 1.
+   *
+   * @param <S> the type of the state, which must provide the random service
+   * @param <E> the type of the error
+   * @return a program that generates a random double
+   */
+  static <S extends Service, E> Program<S, E, Double> nextDouble() {
+    return access(Service::nextDouble);
   }
 }
