@@ -2,7 +2,7 @@
  * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel.impl;
+package com.github.tonivade.diesel.examples;
 
 import static com.github.tonivade.diesel.Combine.attempt;
 import static com.github.tonivade.diesel.Combine.chainAll;
@@ -15,8 +15,8 @@ import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.inspect;
 import static com.github.tonivade.diesel.Program.success;
-import static com.github.tonivade.diesel.impl.Todo.State.COMPLETED;
-import static com.github.tonivade.diesel.impl.Todo.State.NOT_COMPLETED;
+import static com.github.tonivade.diesel.examples.Todo.State.COMPLETED;
+import static com.github.tonivade.diesel.examples.Todo.State.NOT_COMPLETED;
 import static java.util.stream.Collectors.joining;
 
 import com.github.tonivade.diesel.Console;
