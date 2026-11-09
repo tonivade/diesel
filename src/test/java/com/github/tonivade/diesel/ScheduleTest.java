@@ -13,7 +13,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.github.tonivade.diesel.Schedule.Decision.More;
+
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -216,6 +218,142 @@ class ScheduleTest {
 
     assertThat(schedule.next(42).evalOrElseThrow()).isEqualTo(done());
     assertThat(continueWith(schedule, 1).delay()).isEqualTo(Duration.ZERO);
+  }
+
+  @Test
+  void whileInputContinuesWhilePredicateMatches() {
+    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
+        .whileInput(input -> input < 3);
+
+    var first = continueWith(schedule, 1);
+    var second = continueWith(first.next(), 2);
+
+    assertThat(first.delay()).isEqualTo(Duration.ofMillis(100));
+    assertThat(second.delay()).isEqualTo(Duration.ofMillis(100));
+    assertThat(second.next().next(3).evalOrElseThrow())
+        .isEqualTo(done());
+  }
+
+  @Test
+  void whileInputStopsWhenPredicateDoesNotMatch() {
+    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
+        .whileInput(input -> input < 2);
+
+    var first = continueWith(schedule, 1);
+
+    assertThat(first.next().next(2).evalOrElseThrow())
+        .isEqualTo(done());
+  }
+
+  @Test
+  void whileInputDoesNotEvaluateUnderlyingScheduleWhenPredicateFails() {
+    var evaluations = new AtomicInteger();
+
+    Schedule<Void, Integer> underlying = _ -> {
+      evaluations.incrementAndGet();
+      return success(new More<>(Duration.ZERO, Schedule.stop()));
+    };
+
+    var schedule = underlying.whileInput(input -> input > 0);
+
+    assertThat(schedule.next(0).evalOrElseThrow())
+        .isEqualTo(done());
+
+    assertThat(evaluations.get()).isZero();
+  }
+
+  @Test
+  void untilInputStopsWhenPredicateMatches() {
+    var schedule = Schedule.<Void, Integer>forever()
+        .untilInput(input -> input == 3);
+
+    var first = continueWith(schedule, 1);
+    var second = continueWith(first.next(), 2);
+
+    assertThat(first.delay()).isEqualTo(Duration.ZERO);
+    assertThat(second.delay()).isEqualTo(Duration.ZERO);
+    assertThat(second.next().next(3).evalOrElseThrow())
+        .isEqualTo(done());
+  }
+
+  @Test
+  void whileInputRejectsNullPredicate() {
+    assertThatThrownBy(() -> Schedule.<Void, Integer>forever().whileInput(null))
+        .isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void untilInputRejectsNullPredicate() {
+    assertThatThrownBy(() -> Schedule.<Void, Integer>forever().untilInput(null))
+        .isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void cappedLimitsDelaysToTheMaximum() {
+    var max = Duration.ofMillis(200);
+    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(500))
+        .capped(max);
+
+    var first = continueWith(schedule, 1);
+    var second = continueWith(first.next(), 2);
+
+    assertThat(first.delay()).isEqualTo(max);
+    assertThat(second.delay()).isEqualTo(max);
+  }
+
+  @Test
+  void cappedPreservesDelaysBelowTheMaximum() {
+    var delay = Duration.ofMillis(100);
+    var schedule = Schedule.<Void, Integer>spaced(delay)
+        .capped(Duration.ofMillis(200));
+
+    var decision = continueWith(schedule, 1);
+
+    assertThat(decision.delay()).isEqualTo(delay);
+  }
+
+  @Test
+  void cappedPreservesDelaysEqualToTheMaximum() {
+    var max = Duration.ofMillis(200);
+    var schedule = Schedule.<Void, Integer>spaced(max)
+        .capped(max);
+
+    var decision = continueWith(schedule, 1);
+
+    assertThat(decision.delay()).isEqualTo(max);
+  }
+
+  @Test
+  void cappedAcceptsZeroAsMaximum() {
+    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
+        .capped(Duration.ZERO);
+
+    var decision = continueWith(schedule, 1);
+
+    assertThat(decision.delay()).isEqualTo(Duration.ZERO);
+  }
+
+  @Test
+  void cappedDoesNotChangeDoneDecision() {
+    var schedule = Schedule.<Void, Integer>stop()
+        .capped(Duration.ofMillis(100));
+
+    assertThat(schedule.next(1).evalOrElseThrow())
+        .isEqualTo(done());
+  }
+
+  @Test
+  void cappedRejectsNegativeMaximum() {
+    assertThatThrownBy(() ->
+        Schedule.<Void, Integer>forever().capped(Duration.ofMillis(-1)))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void cappedRejectsNullMaximum() {
+    assertThatThrownBy(() ->
+        Schedule.<Void, Integer>forever().capped(null))
+        .isInstanceOf(NullPointerException.class);
   }
 
   private static <I> More<Void, I> continueWith(Schedule<Void, I> schedule, I input) {

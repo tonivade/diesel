@@ -201,11 +201,13 @@ public interface Schedule<S, I> {
 
   default Schedule<S, I> whileInput(Predicate<? super I> predicate) {
     requireNonNull(predicate);
-    return input -> next(input).flatMap(decision ->
-      decision.fold(
-        Schedule::done,
-        (delay, next) -> more(delay, next.whileInput(predicate)))
-    );
+
+    return input -> predicate.test(input)
+        ? next(input).flatMap(decision ->
+            decision.fold(
+              Schedule::done,
+              (delay, next) -> more(delay, next.whileInput(predicate))))
+        : done();
   }
 
   default Schedule<S, I> untilInput(Predicate<? super I> predicate) {
@@ -304,7 +306,7 @@ public interface Schedule<S, I> {
 
   default Schedule<S, I> capped(Duration max) {
     if (max.isNegative()) {
-      throw new IllegalArgumentException("max must be a positive duration");
+      throw new IllegalArgumentException("max must be zero or a positive");
     }
     return input -> next(input).flatMap(decision ->
       decision.fold(
