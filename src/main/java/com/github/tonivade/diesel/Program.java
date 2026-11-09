@@ -1192,7 +1192,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * If it returns {@code true}, the program is executed again. Otherwise, the
    * error is propagated.
    *
-   * @param predicate the condition that determines whether the program should
+   * @param condition the condition that determines whether the program should
    *                  be retried
    * @return a program that retries while the predicate matches the error
    * @throws NullPointerException if predicate is {@code null}
@@ -1209,7 +1209,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * If it returns {@code true}, the error is propagated. Otherwise, the program
    * is executed again.
    *
-   * @param predicate the condition that causes retries to stop
+   * @param condition the condition that causes retries to stop
    * @return a program that retries until the predicate matches the error
    * @throws NullPointerException if predicate is {@code null}
    */
@@ -1263,7 +1263,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * If it returns {@code true}, the program is executed again. Otherwise, the
    * result is returned.
    *
-   * @param predicate the condition that determines whether the program should
+   * @param condition the condition that determines whether the program should
    *                  be repeated
    * @return a program that repeats while the predicate matches the result
    * @throws NullPointerException if predicate is {@code null}
@@ -1280,7 +1280,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * If it returns {@code true}, the result is returned. Otherwise, the program
    * is executed again.
    *
-   * @param predicate the condition that causes repetitions to stop
+   * @param condition the condition that causes repetitions to stop
    * @return a program that repeats until the predicate matches the result
    * @throws NullPointerException if predicate is {@code null}
    */
