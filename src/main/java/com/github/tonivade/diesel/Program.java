@@ -34,6 +34,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
@@ -1183,6 +1184,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return retry(Schedule.recurs(retries));
   }
 
+  default Program<S, E, T> retryWhile(Predicate<? super E> condition) {
+    return retry(Schedule.<S, E>forever().whileInput(condition));
+  }
+
+  default Program<S, E, T> retryUntil(Predicate<? super E> condition) {
+    return retry(Schedule.<S, E>forever().untilInput(condition));
+  }
+
   /**
    * Retries the program a specified number of times with a delay in case of failure.
    *
@@ -1204,11 +1213,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return flatMapError(error ->
       pipe(
         widen(schedule.next(error)),
-        decision -> switch (decision) {
-            case Schedule.Decision.Done<S, E> _ -> failure(error);
-            case Schedule.Decision.Continue<S, E>(var delay, var next) -> delayed(delay, retry(next));
-        })
-      );
+        decision -> decision.fold(
+          () -> failure(error),
+          (delay, next) -> delayed(delay, retry(next)))
+      )
+    );
   }
 
   /**
@@ -1219,6 +1228,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   default Program<S, E, T> repeat(int times) {
     return repeat(Schedule.recurs(times));
+  }
+
+  default Program<S, E, T> repeatWhile(Predicate<? super T> condition) {
+    return repeat(Schedule.<S, T>forever().whileInput(condition));
+  }
+
+  default Program<S, E, T> repeatUntil(Predicate<? super T> condition) {
+    return repeat(Schedule.<S, T>forever().untilInput(condition));
   }
 
   /**
@@ -1242,11 +1259,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return flatMap(value ->
       pipe(
         widen(schedule.next(value)),
-        decision -> switch (decision) {
-            case Schedule.Decision.Done<S, T> _ -> success(value);
-            case Schedule.Decision.Continue<S, T>(var delay, var next) -> delayed(delay, repeat(next));
-        })
-      );
+        decision -> decision.fold(
+          () -> success(value),
+          (delay, next) -> delayed(delay, repeat(next)))
+      )
+    );
   }
 
   /**

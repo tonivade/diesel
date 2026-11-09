@@ -611,19 +611,19 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     // only the wait between attempts is cancelable: a failed attempt has already released what
     // it acquired, so nothing is lost if it's cancelled
     return suspend(
-        () -> acquire.apply(poll).flatMapError(error ->
-          pipe(
-            widen(schedule.next(error)),
-            decision -> switch (decision) {
-                case Schedule.Decision.Done<S, E> _ -> failure(error);
-                case Schedule.Decision.Continue<S, E>(var delay, var next) ->
-                    pipe(
-                        poll.apply(sleep(delay)),
-                        _ -> retryLoop(poll, next)
-                    );
-              })
+      () -> acquire.apply(poll).flatMapError(error ->
+        pipe(
+          widen(schedule.next(error)),
+          decision -> decision.fold(
+            () -> failure(error),
+            (delay, next) ->
+              pipe(
+                poll.apply(sleep(delay)),
+                _ -> retryLoop(poll, next))
+              )
         )
-      );
+      )
+    );
   }
 
   // acquires the next resource once the previous one is acquired: if it fails, throws or the

@@ -12,6 +12,9 @@ import com.github.tonivade.diesel.Schedule.Decision.Continue;
 import com.github.tonivade.diesel.Schedule.Decision.Done;
 
 import java.time.Duration;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * A policy that determines whether a computation should continue and how long
@@ -46,8 +49,17 @@ public interface Schedule<S, I> {
   sealed interface Decision<S, I> {
 
     @SuppressWarnings("unchecked")
-    static <I, S> Decision<S, I> done() {
+    static <S, I> Decision<S, I> done() {
       return (Decision<S, I>) Done.DONE;
+    }
+
+    default <E, A> Program<S, E, A> fold(
+        Supplier<? extends Program<S, E, A>> onDone,
+        BiFunction<? super Duration, ? super Schedule<S, I>, ? extends Program<S, E, A>> onContinue) {
+      return switch (this) {
+        case Done<S, I> _ -> onDone.get();
+        case Continue<S, I>(var delay, var next) -> onContinue.apply(delay, next);
+      };
     }
 
     /**
@@ -126,6 +138,9 @@ public interface Schedule<S, I> {
    * @return a schedule with a constant delay between executions
    */
   static <S, I> Schedule<S, I> spaced(Duration delay) {
+    if (delay.isNegative()) {
+      throw new IllegalArgumentException("delay must be a positive duration");
+    }
     return _ -> success(new Continue<>(delay, spaced(delay)));
   }
 
@@ -176,6 +191,14 @@ public interface Schedule<S, I> {
       return stop();
     }
     return _ -> success(new Continue<>(Duration.ZERO, recurs(n - 1)));
+  }
+
+  default Schedule<S, I> whileInput(Predicate<? super I> predicate) {
+    return input -> predicate.test(input) ? next(input) : success(Decision.done());
+  }
+
+  default Schedule<S, I> untilInput(Predicate<? super I> predicate) {
+    return whileInput(predicate.negate());
   }
 
   /**
@@ -260,6 +283,14 @@ public interface Schedule<S, I> {
               var multiplier = 1 + (r * 2 - 1) * factor;
               return new Continue<>(scale(delay, multiplier), next.jittered(factor, random));
             });
+    });
+  }
+
+  default Schedule<S, I> capped(Duration max) {
+    return input -> next(input).map(decision -> switch (decision) {
+      case Done<S, I> done -> done;
+      case Continue<S, I>(var delay, var next) ->
+          new Continue<>(delay.compareTo(max) > 0 ? max : delay, next.capped(max));
     });
   }
 
