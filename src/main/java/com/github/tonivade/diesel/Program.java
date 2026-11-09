@@ -1195,7 +1195,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param condition the condition that determines whether the program should
    *                  be retried
    * @return a program that retries while the predicate matches the error
-   * @throws NullPointerException if predicate is {@code null}
+   * @throws NullPointerException if condition is {@code null}
    */
   default Program<S, E, T> retryWhile(Predicate<? super E> condition) {
     return retry(Schedule.<S, E>forever().whileInput(condition));
@@ -1211,7 +1211,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * @param condition the condition that causes retries to stop
    * @return a program that retries until the predicate matches the error
-   * @throws NullPointerException if predicate is {@code null}
+   * @throws NullPointerException if condition is {@code null}
    */
   default Program<S, E, T> retryUntil(Predicate<? super E> condition) {
     return retry(Schedule.<S, E>forever().untilInput(condition));
@@ -1266,7 +1266,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param condition the condition that determines whether the program should
    *                  be repeated
    * @return a program that repeats while the predicate matches the result
-   * @throws NullPointerException if predicate is {@code null}
+   * @throws NullPointerException if condition is {@code null}
    */
   default Program<S, E, T> repeatWhile(Predicate<? super T> condition) {
     return repeat(Schedule.<S, T>forever().whileInput(condition));
@@ -1282,7 +1282,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * @param condition the condition that causes repetitions to stop
    * @return a program that repeats until the predicate matches the result
-   * @throws NullPointerException if predicate is {@code null}
+   * @throws NullPointerException if condition is {@code null}
    */
   default Program<S, E, T> repeatUntil(Predicate<? super T> condition) {
     return repeat(Schedule.<S, T>forever().untilInput(condition));
