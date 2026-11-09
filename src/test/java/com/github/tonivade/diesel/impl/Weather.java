@@ -5,15 +5,15 @@
 package com.github.tonivade.diesel.impl;
 
 import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Console.prompt;
+import static com.github.tonivade.diesel.Console.writeLine;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.inspect;
 import static com.github.tonivade.diesel.Program.success;
-import static com.github.tonivade.diesel.impl.Console.prompt;
-import static com.github.tonivade.diesel.impl.Console.writeLine;
+import static com.github.tonivade.diesel.Random.nextInt;
 import static com.github.tonivade.diesel.impl.Logger.info;
 import static com.github.tonivade.diesel.impl.Logger.warn;
-import static com.github.tonivade.diesel.impl.Random.nextInt;
 import static java.lang.System.getLogger;
 import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
@@ -24,7 +24,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import com.github.tonivade.diesel.Console;
 import com.github.tonivade.diesel.Program;
+import com.github.tonivade.diesel.Random;
 import com.github.tonivade.diesel.Unit;
 
 interface Weather {

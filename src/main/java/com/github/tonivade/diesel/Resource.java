@@ -325,7 +325,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource that retries acquisition up to the specified number of times
    */
   public Resource<S, E, A> retry(int maxRetries) {
-    return new Resource<>(poll -> acquire.apply(poll).retry(maxRetries));
+    return retry(Schedule.recurs(maxRetries));
   }
 
   /**
@@ -339,7 +339,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource that retries acquisition once after the specified delay
    */
   public Resource<S, E, A> retry(Duration delay) {
-    return retry(1, delay);
+    return retry(Schedule.spaced(delay));
   }
 
   /**

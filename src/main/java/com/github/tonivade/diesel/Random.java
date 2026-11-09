@@ -2,9 +2,7 @@
  * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel.impl;
-
-import com.github.tonivade.diesel.Program;
+package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.access;
 

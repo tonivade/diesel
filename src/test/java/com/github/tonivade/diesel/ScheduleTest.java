@@ -5,15 +5,13 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Schedule.Decision.done;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.github.tonivade.diesel.Schedule.Decision.Continue;
-import com.github.tonivade.diesel.Schedule.Decision.Done;
-import com.github.tonivade.diesel.impl.Random;
-
 import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
@@ -27,7 +25,7 @@ class ScheduleTest {
   @Test
   void stopCompletesImmediately() {
     assertThat(Schedule.<Void, Integer>stop().next(1).evalOrElseThrow())
-        .isEqualTo(new Done<Void, Integer>());
+        .isEqualTo(done());
   }
 
   @Test
@@ -79,15 +77,15 @@ class ScheduleTest {
     assertThat(first.delay()).isEqualTo(Duration.ZERO);
     assertThat(second.delay()).isEqualTo(Duration.ZERO);
     assertThat(second.next().next(3).evalOrElseThrow())
-        .isEqualTo(new Done<Void, Integer>());
+        .isEqualTo(done());
   }
 
   @Test
   void recursWithZeroOrNegativeCountStopsImmediately() {
     assertThat(Schedule.<Void, Integer>recurs(0).next(1).evalOrElseThrow())
-        .isEqualTo(new Done<Void, Integer>());
+        .isEqualTo(done());
     assertThat(Schedule.<Void, Integer>recurs(-1).next(1).evalOrElseThrow())
-        .isEqualTo(new Done<Void, Integer>());
+        .isEqualTo(done());
   }
 
   @Test
@@ -106,7 +104,7 @@ class ScheduleTest {
     var schedule = Schedule.<Void, Integer>stop()
         .and(Schedule.spaced(Duration.ofMillis(100)));
 
-    assertThat(schedule.next(1).evalOrElseThrow()).isEqualTo(new Done<Void, Integer>());
+    assertThat(schedule.next(1).evalOrElseThrow()).isEqualTo(done());
   }
 
   @Test
@@ -114,7 +112,7 @@ class ScheduleTest {
     var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
         .and(Schedule.stop());
 
-    assertThat(schedule.next(1).evalOrElseThrow()).isEqualTo(new Done<Void, Integer>());
+    assertThat(schedule.next(1).evalOrElseThrow()).isEqualTo(done());
   }
 
   @Test
@@ -136,7 +134,7 @@ class ScheduleTest {
     var schedule = Schedule.jittered(Schedule.<Random.Service, Integer>stop(), 0.2);
 
     assertThat(schedule.next(1).eval(random).getOrElseThrow())
-        .isEqualTo(new Done<Random.Service, Integer>());
+        .isEqualTo(done());
 
     verifyNoInteractions(random);
   }
@@ -145,10 +143,10 @@ class ScheduleTest {
   void nextReceivesTheInput() {
     Schedule<Void, Integer> schedule = input -> success(
         input == 42
-            ? new Done<Void, Integer>()
+            ? done()
             : new Continue<>(Duration.ZERO, Schedule.stop()));
 
-    assertThat(schedule.next(42).evalOrElseThrow()).isEqualTo(new Done<Void, Integer>());
+    assertThat(schedule.next(42).evalOrElseThrow()).isEqualTo(done());
     assertThat(continueWith(schedule, 1).delay()).isEqualTo(Duration.ZERO);
   }
 

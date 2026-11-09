@@ -13,7 +13,7 @@ import static com.github.tonivade.diesel.Program.suspend;
 
 import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Schedule;
-import com.github.tonivade.diesel.impl.Random;
+import com.github.tonivade.diesel.Random;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,11 +33,9 @@ public class ScheduleRetry {
   }
 
   private static Schedule<Random.Service, String> schedule() {
-    return Schedule.jittered(
-        Schedule.<Random.Service, String>exponential(
-            Duration.ofMillis(200), 2.0),
-        0.2
-    ).and(Schedule.recurs(3));
+    return  Schedule.<Random.Service, String>exponential(Duration.ofMillis(200), 2.0)
+        .jittered(0.2, Random.nextDouble())
+        .and(Schedule.recurs(3));
   }
 
   private static Program<Random.Service, String, String> request() {

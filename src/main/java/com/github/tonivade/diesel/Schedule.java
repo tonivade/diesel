@@ -5,13 +5,11 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.chain;
-import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.success;
 import static java.util.Objects.requireNonNull;
 
 import com.github.tonivade.diesel.Schedule.Decision.Continue;
 import com.github.tonivade.diesel.Schedule.Decision.Done;
-import com.github.tonivade.diesel.impl.Random;
 
 import java.time.Duration;
 
@@ -47,13 +45,25 @@ public interface Schedule<S, I> {
    */
   sealed interface Decision<S, I> {
 
+    @SuppressWarnings("unchecked")
+    static <I, S> Decision<S, I> done() {
+      return (Decision<S, I>) Done.DONE;
+    }
+
     /**
      * Indicates that the schedule is complete and no further execution should occur.
      *
      * @param <S> the type of the state used by the schedule
      * @param <I> the type of the input received by the schedule
      */
-    record Done<S, I>() implements Decision<S, I> {}
+    final class Done<S, I> implements Decision<S, I> {
+
+      private static final Decision<?, ?> DONE = new Done<>();
+
+      private Done() {
+        // nothing to do
+      }
+    }
 
     /**
      * Indicates that the computation should continue after a delay, using the next schedule.
@@ -68,6 +78,9 @@ public interface Schedule<S, I> {
       public Continue {
         requireNonNull(delay);
         requireNonNull(next);
+        if (delay.isNegative()) {
+          throw new IllegalArgumentException("delay cannot be negative");
+        }
       }
     }
   }
@@ -90,7 +103,7 @@ public interface Schedule<S, I> {
    * @return a schedule that always returns {@link Decision.Done}
    */
   static <S, I> Schedule<S, I> stop() {
-    return _ -> success(new Done<>());
+    return _ -> success(Decision.done());
   }
 
   /**
@@ -122,6 +135,13 @@ public interface Schedule<S, I> {
    * <p>The first delay is {@code base}; each subsequent delay is the previous delay multiplied
    * by {@code factor}.
    *
+   * <p>The value of factor must be greater than 0.
+   * <ul>
+   * <li>with a factor &gt; 0 and  &lt; 1, the delay will decrese with retries
+   * <li>with a factor equals to 1, the delay will always the same
+   * <li>with a factor &gt; 1, the delay will increase with retries
+   * </ul>
+   *
    * @param base the delay before the first subsequent execution
    * @param factor the multiplier applied to each delay to obtain the next one
    * @param <S> the type of the state used by the schedule
@@ -129,6 +149,12 @@ public interface Schedule<S, I> {
    * @return a schedule with an exponentially increasing delay
    */
   static <S, I> Schedule<S, I> exponential(Duration base, double factor) {
+    if (base.isNegative()) {
+      throw new IllegalArgumentException("delay cannot be negative");
+    }
+    if (factor <= 0) {
+      throw new IllegalArgumentException("factor must be a positive value");
+    }
     return _ -> success(new Continue<>(base, exponential(scale(base, factor), factor)));
   }
 
@@ -139,6 +165,8 @@ public interface Schedule<S, I> {
    * {@code [1 - factor, 1 + factor]}. Evaluating the resulting schedule requires the state to
    * implement {@link Random.Service}.
    *
+   * <p>The value factor must be between 0 and 1.
+   *
    * @param schedule the schedule whose delays are adjusted
    * @param factor the maximum relative variation applied to each delay
    * @param <S> the type of the state, which must implement {@link Random.Service}
@@ -146,18 +174,7 @@ public interface Schedule<S, I> {
    * @return a schedule with randomized delays
    */
   static <S extends Random.Service, I> Schedule<S, I> jittered(Schedule<S, I> schedule, double factor) {
-    return input -> schedule.next(input).flatMap(decision -> switch (decision) {
-      case Done<S, I> done -> success(done);
-      case Continue<S, I>(var delay, var next) ->
-        chain(
-            Random.nextDouble(),
-            random -> {
-              var multiplier = 1 + (random * 2 - 1) * factor;
-              return new Continue<>(
-                  scale(delay, multiplier),
-                  jittered(next, factor));
-            });
-    });
+    return schedule.jittered(factor, Random.nextDouble());
   }
 
   /**
@@ -187,18 +204,42 @@ public interface Schedule<S, I> {
    * @return a schedule that completes as soon as either constituent schedule completes
    */
   default Schedule<S, I> and(Schedule<S, I> other) {
-    return input ->
-      zip(
-        this.next(input),
-        other.next(input),
-        (decision1, decision2) -> switch (decision1) {
-          case Done<S, I> done -> done;
-          case Continue<S, I>(var d1, var n1) -> switch (decision2) {
-            case Done<S, I> done -> done;
-            case Continue<S, I>(var d2, var n2) -> new Continue<>(d1.compareTo(d2) >= 0 ? d1 : d2, n1.and(n2));
-          };
-        }
-      );
+    return input -> next(input).flatMap(decision1 -> switch (decision1) {
+      case Done<S, I> done -> success(done);
+      case Continue<S, I>(var d1, var n1) ->
+        other.next(input).flatMap(decision2 -> switch (decision2) {
+          case Done<S, I> done -> success(done);
+          case Continue<S, I>(var d2, var n2) ->
+              success(new Continue<>(d1.compareTo(d2) >= 0 ? d1 : d2, n1.and(n2)));
+        });
+    });
+  }
+
+  /**
+   * Adds random jitter to the delays produced by the given schedule.
+   *
+   * <p>Each delay is multiplied by a random value in the range
+   * {@code [1 - factor, 1 + factor]}.
+   *
+   * <p>The value factor must be between 0 and 1.
+   *
+   * @param factor the maximum relative variation applied to each delay
+   * @return a schedule with randomized delays
+   */
+  default Schedule<S, I> jittered(double factor, Program<S, Void, Double> random) {
+    if (factor < 0 || factor > 1) {
+      throw new IllegalArgumentException("factor must be a value between 0 or 1");
+    }
+    return input -> next(input).flatMap(decision -> switch (decision) {
+      case Done<S, I> done -> success(done);
+      case Continue<S, I>(var delay, var next) ->
+        chain(
+            random,
+            r -> {
+              var multiplier = 1 + (r * 2 - 1) * factor;
+              return new Continue<>(scale(delay, multiplier), next.jittered(factor, random));
+            });
+    });
   }
 
   private static Duration scale(Duration d, double f) {
