@@ -277,12 +277,14 @@ class ScheduleTest {
   }
 
   @Test
+  @SuppressWarnings("NullAway")
   void whileInputRejectsNullPredicate() {
     assertThatThrownBy(() -> Schedule.<Void, Integer>forever().whileInput(null))
         .isInstanceOf(NullPointerException.class);
   }
 
   @Test
+  @SuppressWarnings("NullAway")
   void untilInputRejectsNullPredicate() {
     assertThatThrownBy(() -> Schedule.<Void, Integer>forever().untilInput(null))
         .isInstanceOf(NullPointerException.class);
@@ -350,6 +352,7 @@ class ScheduleTest {
   }
 
   @Test
+  @SuppressWarnings("NullAway")
   void cappedRejectsNullMaximum() {
     assertThatThrownBy(() ->
         Schedule.<Void, Integer>forever().capped(null))
