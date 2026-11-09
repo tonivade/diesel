@@ -21,6 +21,7 @@ public interface Random {
    * It provides a method to generate a random integer within a specified range.
    */
   interface Service {
+
     /**
      * Generates a random integer within the range [0, bound).
      *
@@ -31,6 +32,11 @@ public interface Random {
       return ThreadLocalRandom.current().nextInt(bound);
     }
 
+    /**
+     * Generates a random double.
+     *
+     * @return a random double
+     */
     default double nextDouble() {
       return ThreadLocalRandom.current().nextDouble();
     }
@@ -48,6 +54,13 @@ public interface Random {
     return access(state -> state.nextInt(bound));
   }
 
+  /**
+   * Creates a program that generates a random double.
+   *
+   * @param <S> the type of the state, which must provide the random service
+   * @param <E> the type of the error
+   * @return a program that generates a random double
+   */
   static <S extends Service, E> Program<S, E, Double> nextDouble() {
     return access(Service::nextDouble);
   }
