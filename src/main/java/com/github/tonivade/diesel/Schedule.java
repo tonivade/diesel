@@ -206,13 +206,14 @@ public interface Schedule<S, I> {
   }
 
   /**
-   * Combines this schedule with another, if the first one finish, it will continue with the second one.
+   * Combines this schedule with another, continuing while at least one of the schedules continues.
    *
-   * <p>The resulting delay is the lower of the two delays. Both schedules receive the same
-   * input, and their next schedules are combined in the same way.
+   * <p>If both schedules continue, the resulting delay is the shorter
+   * of the two delays. Both schedules receive the same input and advance
+   * on every evaluation, regardless of which delay is selected.
    *
    * @param other the schedule to combine with this one
-   * @return a schedule that completes when both schedules finish
+   * @return a schedule that completes only when both schedules complete
    */
   default Schedule<S, I> or(Schedule<S, I> other) {
     return input -> next(input).flatMap(first ->

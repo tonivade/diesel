@@ -142,7 +142,7 @@ class ScheduleTest {
   }
 
   @Test
-  void orContinueWhenTheFirstScheduleIsDone() {
+  void orContinuesWhenTheFirstScheduleIsDone() {
     var schedule = Schedule.<Void, Integer>stop()
         .or(Schedule.spaced(Duration.ofMillis(100)));
 
@@ -152,7 +152,7 @@ class ScheduleTest {
   }
 
   @Test
-  void orContinueWhenTheSecondScheduleIsDone() {
+  void orContinuesWhenTheSecondScheduleIsDone() {
     var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
         .or(Schedule.stop());
 
@@ -164,7 +164,7 @@ class ScheduleTest {
   @Test
   void orStopsWhenBothAreDone() {
     var schedule = Schedule.<Void, Integer>stop()
-        .and(Schedule.stop());
+        .or(Schedule.stop());
 
     assertThat(schedule.next(1).evalOrElseThrow()).isEqualTo(done());
   }
