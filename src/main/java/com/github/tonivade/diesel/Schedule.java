@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.chain;
+import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.success;
 import static java.util.Objects.requireNonNull;
 
@@ -186,15 +187,18 @@ public interface Schedule<S, I> {
    * @return a schedule that completes as soon as either constituent schedule completes
    */
   default Schedule<S, I> and(Schedule<S, I> other) {
-    return input -> next(input).flatMap(decision1 -> switch (decision1) {
-      case Done<S, I> done -> success(done);
-      case Continue<S, I>(var d1, var n1) ->
-        other.next(input).flatMap(decision2 -> switch (decision2) {
-          case Done<S, I> done -> success(done);
-          case Continue<S, I>(var d2, var n2) ->
-              success(new Continue<>(d1.compareTo(d2) >= 0 ? d1 : d2, n1.and(n2)));
-        });
-    });
+    return input ->
+      zip(
+        this.next(input),
+        other.next(input),
+        (decision1, decision2) -> switch (decision1) {
+          case Done<S, I> done -> done;
+          case Continue<S, I>(var d1, var n1) -> switch (decision2) {
+            case Done<S, I> done -> done;
+            case Continue<S, I>(var d2, var n2) -> new Continue<>(d1.compareTo(d2) >= 0 ? d1 : d2, n1.and(n2));
+          };
+        }
+      );
   }
 
   private static Duration scale(Duration d, double f) {
