@@ -16,7 +16,7 @@ import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Queue;
 import com.github.tonivade.diesel.Ref;
 import com.github.tonivade.diesel.Resource;
-import com.github.tonivade.diesel.impl.Console;
+import com.github.tonivade.diesel.Console;
 
 import java.util.List;
 import java.util.Optional;
