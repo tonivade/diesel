@@ -31,7 +31,7 @@ public interface Random {
     }
 
     /**
-     * Generates a random double.
+     * Generates a random double between 0 and 1
      *
      * @return a random double
      */
@@ -53,7 +53,7 @@ public interface Random {
   }
 
   /**
-   * Creates a program that generates a random double.
+   * Creates a program that generates a random double between 0 and 1.
    *
    * @param <S> the type of the state, which must provide the random service
    * @param <E> the type of the error
