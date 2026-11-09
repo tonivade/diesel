@@ -200,10 +200,16 @@ public interface Schedule<S, I> {
   }
 
   default Schedule<S, I> whileInput(Predicate<? super I> predicate) {
-    return input -> predicate.test(input) ? next(input) : done();
+    requireNonNull(predicate);
+    return input -> next(input).flatMap(decision ->
+      decision.fold(
+        Schedule::done,
+        (delay, next) -> more(delay, next.whileInput(predicate)))
+    );
   }
 
   default Schedule<S, I> untilInput(Predicate<? super I> predicate) {
+    requireNonNull(predicate);
     return whileInput(predicate.negate());
   }
 
@@ -217,6 +223,7 @@ public interface Schedule<S, I> {
    * @return a schedule that completes as soon as either constituent schedule completes
    */
   default Schedule<S, I> and(Schedule<S, I> other) {
+    requireNonNull(other);
     return input -> next(input).flatMap(first ->
       first.fold(
         Schedule::done,
@@ -245,6 +252,7 @@ public interface Schedule<S, I> {
    * @return a schedule that completes only when both schedules complete
    */
   default Schedule<S, I> or(Schedule<S, I> other) {
+    requireNonNull(other);
     return input -> next(input).flatMap(first ->
       first.fold(
         () -> other.next(input),
@@ -273,6 +281,7 @@ public interface Schedule<S, I> {
    * @return a schedule with randomized delays
    */
   default Schedule<S, I> jittered(double factor, Program<S, Void, Double> random) {
+    requireNonNull(random);
     if (!Double.isFinite(factor)) {
       throw new IllegalArgumentException("factor must be a value between 0 to 1");
     }
@@ -294,6 +303,9 @@ public interface Schedule<S, I> {
   }
 
   default Schedule<S, I> capped(Duration max) {
+    if (max.isNegative()) {
+      throw new IllegalArgumentException("max must be a positive duration");
+    }
     return input -> next(input).flatMap(decision ->
       decision.fold(
         Schedule::done,
