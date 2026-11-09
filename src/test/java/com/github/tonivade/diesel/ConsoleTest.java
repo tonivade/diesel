@@ -9,14 +9,11 @@ import static com.github.tonivade.diesel.Console.writeLine;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
+import com.github.tonivade.diesel.Console.Service;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoSettings;
-
-import com.github.tonivade.diesel.Console;
-import com.github.tonivade.diesel.Program;
-import com.github.tonivade.diesel.Unit;
-import com.github.tonivade.diesel.Console.Service;
 
 @MockitoSettings
 class ConsoleTest {

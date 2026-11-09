@@ -56,16 +56,17 @@ interface Todo {
     }
   }
 
-  static Ref<Integer> reference = Ref.of(0);
-
   static void main(String... args) {
     program().eval(new Context() {});
   }
 
   static Program<Context, Error, Unit> program() {
     return pipe(
-        printMenuAndGetOption(),
-        Todo::executeAction
+        Ref.make(0),
+        reference -> pipe(
+          printMenuAndGetOption(),
+          action -> executeAction(reference, action)
+        )
       );
   }
 
@@ -79,9 +80,9 @@ interface Todo {
       );
   }
 
-  static Program<Context, Error, Unit> executeAction(int action) {
+  static Program<Context, Error, Unit> executeAction(Ref<Integer> reference, int action) {
     return switch (action) {
-      case 1 -> createTodo();
+      case 1 -> createTodo(reference);
       case 2 -> findAllTodos();
       case 3 -> findTodo();
       case 4 -> deleteTodo();
@@ -152,7 +153,7 @@ interface Todo {
         _ -> program());
   }
 
-  static Program<Context, Error, Unit> createTodo() {
+  static Program<Context, Error, Unit> createTodo(Ref<Integer> reference) {
     return pipe(
         zip(
             reference.updateAndGet(x -> x + 1),

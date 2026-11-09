@@ -11,8 +11,6 @@ import static com.github.tonivade.diesel.Result.success;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.github.tonivade.diesel.Clock;
-
 import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
