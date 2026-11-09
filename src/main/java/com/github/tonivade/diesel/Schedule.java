@@ -4,13 +4,11 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Combine.chain;
+import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.success;
 import static java.util.Objects.requireNonNull;
 
-import com.github.tonivade.diesel.Schedule.Decision.Continue;
-import com.github.tonivade.diesel.Schedule.Decision.Done;
-
+import com.github.tonivade.diesel.Schedule.Decision.More;
 import java.time.Duration;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -53,12 +51,12 @@ public interface Schedule<S, I> {
       return (Decision<S, I>) Done.DONE;
     }
 
-    default <E, A> Program<S, E, A> fold(
-        Supplier<? extends Program<S, E, A>> onDone,
-        BiFunction<? super Duration, ? super Schedule<S, I>, ? extends Program<S, E, A>> onContinue) {
+    default <A> A fold(
+        Supplier<? extends A> onDone,
+        BiFunction<? super Duration, ? super Schedule<S, I>, ? extends A> onMore) {
       return switch (this) {
         case Done<S, I> _ -> onDone.get();
-        case Continue<S, I>(var delay, var next) -> onContinue.apply(delay, next);
+        case More<S, I>(var delay, var next) -> onMore.apply(delay, next);
       };
     }
 
@@ -85,9 +83,9 @@ public interface Schedule<S, I> {
      * @param <S> the type of the state used by the schedule
      * @param <I> the type of the input received by the schedule
      */
-    record Continue<S, I>(Duration delay, Schedule<S, I> next) implements Decision<S, I> {
+    record More<S, I>(Duration delay, Schedule<S, I> next) implements Decision<S, I> {
 
-      public Continue {
+      public More {
         requireNonNull(delay);
         requireNonNull(next);
         if (delay.isNegative()) {
@@ -107,6 +105,14 @@ public interface Schedule<S, I> {
    */
   Program<S, Void, Decision<S, I>> next(I input);
 
+  static <S, I> Program<S, Void, Decision<S, I>> done() {
+    return success(Decision.done());
+  }
+
+  static <S, I> Program<S, Void, Decision<S, I>> more(Duration delay, Schedule<S, I> next) {
+    return success(new More<>(delay, next));
+  }
+
   /**
    * Creates a schedule that completes without allowing another execution.
    *
@@ -115,7 +121,7 @@ public interface Schedule<S, I> {
    * @return a schedule that always returns {@link Decision.Done}
    */
   static <S, I> Schedule<S, I> stop() {
-    return _ -> success(Decision.done());
+    return _ -> done();
   }
 
   /**
@@ -141,7 +147,7 @@ public interface Schedule<S, I> {
     if (delay.isNegative()) {
       throw new IllegalArgumentException("delay must be a positive duration");
     }
-    return _ -> success(new Continue<>(delay, spaced(delay)));
+    return _ -> more(delay, spaced(delay));
   }
 
   /**
@@ -173,7 +179,7 @@ public interface Schedule<S, I> {
     if (factor <= 0) {
       throw new IllegalArgumentException("factor must be a positive value");
     }
-    return _ -> success(new Continue<>(base, exponential(scale(base, factor), factor)));
+    return _ -> more(base, exponential(scale(base, factor), factor));
   }
 
   /**
@@ -190,11 +196,11 @@ public interface Schedule<S, I> {
     if (n <= 0) {
       return stop();
     }
-    return _ -> success(new Continue<>(Duration.ZERO, recurs(n - 1)));
+    return _ -> more(Duration.ZERO, recurs(n - 1));
   }
 
   default Schedule<S, I> whileInput(Predicate<? super I> predicate) {
-    return input -> predicate.test(input) ? next(input) : success(Decision.done());
+    return input -> predicate.test(input) ? next(input) : done();
   }
 
   default Schedule<S, I> untilInput(Predicate<? super I> predicate) {
@@ -212,19 +218,19 @@ public interface Schedule<S, I> {
    */
   default Schedule<S, I> and(Schedule<S, I> other) {
     return input -> next(input).flatMap(first ->
-      switch (first) {
-        case Done<S, I> done -> success(done);
-        case Continue<S, I>(var firstDelay, var firstNext) ->
-          other.next(input).map(second ->
-            switch (second) {
-              case Done<S, I> done -> done;
-              case Continue<S, I>(var secondDelay, var secondNext) ->
+      first.fold(
+        Schedule::done,
+        (firstDelay, firstNext) ->
+          other.next(input).flatMap(second ->
+            second.fold(
+              Schedule::done,
+              (var secondDelay, var secondNext) ->
                 firstDelay.compareTo(secondDelay) >= 0
-                  ? new Continue<>(firstDelay, firstNext.and(secondNext))
-                  : new Continue<>(secondDelay, firstNext.and(secondNext));
-            }
-          );
-      }
+                  ? more(firstDelay, firstNext.and(secondNext))
+                  : more(secondDelay, firstNext.and(secondNext))
+            )
+          )
+      )
     );
   }
 
@@ -240,19 +246,18 @@ public interface Schedule<S, I> {
    */
   default Schedule<S, I> or(Schedule<S, I> other) {
     return input -> next(input).flatMap(first ->
-      switch (first) {
-        case Done<S, I> _ -> other.next(input);
-        case Continue<S, I>(var firstDelay, var firstNext) ->
-          other.next(input).map(second ->
-            switch (second) {
-              case Done<S, I> _ -> new Continue<>(firstDelay, firstNext);
-              case Continue<S, I>(var secondDelay, var secondNext) ->
+      first.fold(
+        () -> other.next(input),
+        (firstDelay, firstNext) ->
+          other.next(input).flatMap(second ->
+            second.fold(
+              () -> more(firstDelay, firstNext),
+              (secondDelay, secondNext) ->
                 firstDelay.compareTo(secondDelay) <= 0
-                  ? new Continue<>(firstDelay, firstNext.or(secondNext))
-                  : new Continue<>(secondDelay, firstNext.or(secondNext));
-            }
-          );
-      }
+                  ? more(firstDelay, firstNext.or(secondNext))
+                  : more(secondDelay, firstNext.or(secondNext)))
+        )
+      )
     );
   }
 
@@ -274,24 +279,26 @@ public interface Schedule<S, I> {
     if (factor < 0 || factor > 1) {
       throw new IllegalArgumentException("factor must be a value between 0 to 1");
     }
-    return input -> next(input).flatMap(decision -> switch (decision) {
-      case Done<S, I> done -> success(done);
-      case Continue<S, I>(var delay, var next) ->
-        chain(
-            random,
-            r -> {
-              var multiplier = 1 + (r * 2 - 1) * factor;
-              return new Continue<>(scale(delay, multiplier), next.jittered(factor, random));
-            });
-    });
+    return input -> next(input).flatMap(decision ->
+      decision.fold(
+        Schedule::done,
+        (var delay, var next) ->
+          pipe(
+              random,
+              r -> {
+                var multiplier = 1 + (r * 2 - 1) * factor;
+                return more(scale(delay, multiplier), next.jittered(factor, random));
+              })
+      )
+    );
   }
 
   default Schedule<S, I> capped(Duration max) {
-    return input -> next(input).map(decision -> switch (decision) {
-      case Done<S, I> done -> done;
-      case Continue<S, I>(var delay, var next) ->
-          new Continue<>(delay.compareTo(max) > 0 ? max : delay, next.capped(max));
-    });
+    return input -> next(input).flatMap(decision ->
+      decision.fold(
+        Schedule::done,
+        (delay, next) -> more(delay.compareTo(max) > 0 ? max : delay, next.capped(max)))
+    );
   }
 
   private static Duration scale(Duration duration, double factor) {

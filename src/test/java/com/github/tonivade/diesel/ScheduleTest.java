@@ -12,7 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.github.tonivade.diesel.Schedule.Decision.Continue;
+import com.github.tonivade.diesel.Schedule.Decision.More;
 import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
@@ -212,18 +212,18 @@ class ScheduleTest {
     Schedule<Void, Integer> schedule = input -> success(
         input == 42
             ? done()
-            : new Continue<>(Duration.ZERO, Schedule.stop()));
+            : new More<>(Duration.ZERO, Schedule.stop()));
 
     assertThat(schedule.next(42).evalOrElseThrow()).isEqualTo(done());
     assertThat(continueWith(schedule, 1).delay()).isEqualTo(Duration.ZERO);
   }
 
-  private static <I> Continue<Void, I> continueWith(Schedule<Void, I> schedule, I input) {
-    return (Continue<Void, I>) schedule.next(input).evalOrElseThrow();
+  private static <I> More<Void, I> continueWith(Schedule<Void, I> schedule, I input) {
+    return (More<Void, I>) schedule.next(input).evalOrElseThrow();
   }
 
-  private static <I> Continue<Random.Service, I> continueWith(
+  private static <I> More<Random.Service, I> continueWith(
       Schedule<Random.Service, I> schedule, I input, Random.Service random) {
-    return (Continue<Random.Service, I>) schedule.next(input).eval(random).getOrElseThrow();
+    return (More<Random.Service, I>) schedule.next(input).eval(random).getOrElseThrow();
   }
 }
