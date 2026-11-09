@@ -29,32 +29,33 @@ interface Game {
     game().eval(new Context() {});
   }
 
-  static Ref<Integer> reference = Ref.of(0);
-
   static Program<Context, Error, Unit> game() {
     return pipe(
-        prompt("Do you want to play a game? (Y/y)"),
-        branch(answer -> answer.equalsIgnoreCase("y"),
-            _ -> randomNumber().andThen(loop()),
-            _ -> writeLine("Bye!")
-          )
-      );
+        Ref.make(0),
+        reference -> pipe(
+            prompt("Do you want to play a game? (Y/y)"),
+            branch(answer -> answer.equalsIgnoreCase("y"),
+                _ -> randomNumber(reference).andThen(loop(reference)),
+                _ -> writeLine("Bye!")
+                )
+            )
+        );
   }
 
-  static Program<Context, Error, Unit> randomNumber() {
+  static Program<Context, Error, Unit> randomNumber(Ref<Integer> reference) {
     return pipe(
         nextInt(10),
         reference::set
       );
   }
 
-  static Program<Context, Error, Unit> loop() {
+  static Program<Context, Error, Unit> loop(Ref<Integer> reference) {
     return pipe(
         readNumber(),
-        Game::checkNumber,
+        n -> checkNumber(reference, n),
         branch(
             () -> writeLine("YOU WIN!!"),
-            Game::loop
+            () -> loop(reference)
           )
       );
   }
@@ -69,7 +70,7 @@ interface Game {
       );
   }
 
-  static Program<Context, Error, Boolean> checkNumber(int number) {
+  static Program<Context, Error, Boolean> checkNumber(Ref<Integer> reference, int number) {
     return chain(
         reference.get(),
         value -> value == number
