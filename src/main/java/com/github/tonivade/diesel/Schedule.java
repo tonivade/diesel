@@ -199,9 +199,22 @@ public interface Schedule<S, I> {
     return _ -> more(Duration.ZERO, recurs(n - 1));
   }
 
+  /**
+   * Decorates this schedule so that it continues only while the given predicate
+   * matches the input.
+   *
+   * <p>The predicate is evaluated before the underlying schedule. If it returns
+   * {@code false}, the schedule completes immediately without evaluating the
+   * underlying schedule.
+   *
+   * <p>The predicate is evaluated again for every subsequent input.
+   *
+   * @param predicate the condition that must match for the schedule to continue
+   * @return a schedule that continues while the predicate matches the input
+   * @throws NullPointerException if predicate is {@code null}
+   */
   default Schedule<S, I> whileInput(Predicate<? super I> predicate) {
     requireNonNull(predicate);
-
     return input -> predicate.test(input)
         ? next(input).flatMap(decision ->
             decision.fold(
@@ -210,6 +223,20 @@ public interface Schedule<S, I> {
         : done();
   }
 
+  /**
+   * Decorates this schedule so that it completes when the given predicate
+   * matches the input.
+   *
+   * <p>The predicate is evaluated before the underlying schedule. If it returns
+   * {@code true}, the schedule completes immediately without evaluating the
+   * underlying schedule.
+   *
+   * <p>The predicate is evaluated again for every subsequent input.
+   *
+   * @param predicate the condition that causes the schedule to complete
+   * @return a schedule that continues until the predicate matches the input
+   * @throws NullPointerException if predicate is {@code null}
+   */
   default Schedule<S, I> untilInput(Predicate<? super I> predicate) {
     requireNonNull(predicate);
     return whileInput(predicate.negate());
@@ -304,9 +331,26 @@ public interface Schedule<S, I> {
     );
   }
 
+  /**
+   * Decorates this schedule by limiting the maximum delay between executions.
+   *
+   * <p>If the underlying schedule produces a delay greater than {@code max},
+   * the resulting schedule uses {@code max} instead. Delays less than or equal
+   * to {@code max} remain unchanged.
+   *
+   * <p>This operation does not limit the number of executions. It only limits
+   * the delay produced by the schedule.
+   *
+   * <p>A zero maximum is valid and causes all delays to be zero.
+   *
+   * @param max the maximum delay allowed between executions
+   * @return a schedule whose delays never exceed {@code max}
+   * @throws NullPointerException if max is {@code null}
+   * @throws IllegalArgumentException if max is negative
+   */
   default Schedule<S, I> capped(Duration max) {
     if (max.isNegative()) {
-      throw new IllegalArgumentException("max must be zero or a positive");
+      throw new IllegalArgumentException("max cannot be negative");
     }
     return input -> next(input).flatMap(decision ->
       decision.fold(

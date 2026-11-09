@@ -1184,10 +1184,35 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return retry(Schedule.recurs(retries));
   }
 
+  /**
+   * Retries this program while the given predicate matches the error produced
+   * by its execution.
+   *
+   * <p>The predicate is evaluated only when the program fails with an error.
+   * If it returns {@code true}, the program is executed again. Otherwise, the
+   * error is propagated.
+   *
+   * @param predicate the condition that determines whether the program should
+   *                  be retried
+   * @return a program that retries while the predicate matches the error
+   * @throws NullPointerException if predicate is {@code null}
+   */
   default Program<S, E, T> retryWhile(Predicate<? super E> condition) {
     return retry(Schedule.<S, E>forever().whileInput(condition));
   }
 
+  /**
+   * Retries this program until the given predicate matches the error produced
+   * by its execution.
+   *
+   * <p>The predicate is evaluated only when the program fails with an error.
+   * If it returns {@code true}, the error is propagated. Otherwise, the program
+   * is executed again.
+   *
+   * @param predicate the condition that causes retries to stop
+   * @return a program that retries until the predicate matches the error
+   * @throws NullPointerException if predicate is {@code null}
+   */
   default Program<S, E, T> retryUntil(Predicate<? super E> condition) {
     return retry(Schedule.<S, E>forever().untilInput(condition));
   }
@@ -1230,10 +1255,35 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     return repeat(Schedule.recurs(times));
   }
 
+  /**
+   * Repeats this program while the given predicate matches its successful
+   * result.
+   *
+   * <p>The predicate is evaluated only when the program completes successfully.
+   * If it returns {@code true}, the program is executed again. Otherwise, the
+   * result is returned.
+   *
+   * @param predicate the condition that determines whether the program should
+   *                  be repeated
+   * @return a program that repeats while the predicate matches the result
+   * @throws NullPointerException if predicate is {@code null}
+   */
   default Program<S, E, T> repeatWhile(Predicate<? super T> condition) {
     return repeat(Schedule.<S, T>forever().whileInput(condition));
   }
 
+  /**
+   * Repeats this program until the given predicate matches its successful
+   * result.
+   *
+   * <p>The predicate is evaluated only when the program completes successfully.
+   * If it returns {@code true}, the result is returned. Otherwise, the program
+   * is executed again.
+   *
+   * @param predicate the condition that causes repetitions to stop
+   * @return a program that repeats until the predicate matches the result
+   * @throws NullPointerException if predicate is {@code null}
+   */
   default Program<S, E, T> repeatUntil(Predicate<? super T> condition) {
     return repeat(Schedule.<S, T>forever().untilInput(condition));
   }
