@@ -17,7 +17,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 class GameTest {
 
   @Test
-  void testWin(@Mock Game.Context context) {
+  void testWin(@Mock Game.GameContext context) {
     when(context.nextInt(10)).thenReturn(3);
     when(context.readLine()).thenReturn("y", "1", "2", "3");
 
@@ -30,7 +30,7 @@ class GameTest {
   }
 
   @Test
-  void testInvalidValue(@Mock Game.Context context) {
+  void testInvalidValue(@Mock Game.GameContext context) {
     when(context.nextInt(10)).thenReturn(3);
     when(context.readLine()).thenReturn("y", "c", "?", "3");
 
@@ -45,7 +45,7 @@ class GameTest {
   }
 
   @Test
-  void testQuit(@Mock Game.Context context) {
+  void testQuit(@Mock Game.GameContext context) {
     when(context.readLine()).thenReturn("n");
 
     game().eval(context);

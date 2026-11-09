@@ -21,15 +21,15 @@ import com.github.tonivade.diesel.Unit;
 
 interface Game {
 
-  sealed interface Error {}
+  sealed interface GameError {}
 
-  record NumberFormatError(String input) implements Error {}
+  record NumberFormatError(String input) implements GameError {}
 
   static void main(String... args) {
-    game().eval(new Context() {});
+    game().eval(new GameContext() {});
   }
 
-  static Program<Context, Error, Unit> game() {
+  static Program<GameContext, GameError, Unit> game() {
     return pipe(
         Ref.make(0),
         reference -> pipe(
@@ -42,14 +42,14 @@ interface Game {
         );
   }
 
-  static Program<Context, Error, Unit> randomNumber(Ref<Integer> reference) {
+  static Program<GameContext, GameError, Unit> randomNumber(Ref<Integer> reference) {
     return pipe(
         nextInt(10),
         reference::set
       );
   }
 
-  static Program<Context, Error, Unit> loop(Ref<Integer> reference) {
+  static Program<GameContext, GameError, Unit> loop(Ref<Integer> reference) {
     return pipe(
         readNumber(),
         n -> checkNumber(reference, n),
@@ -60,7 +60,7 @@ interface Game {
       );
   }
 
-  static Program<Context, Error, Integer> readNumber() {
+  static Program<GameContext, GameError, Integer> readNumber() {
     return recover(
         pipe(
           prompt("Enter a number"),
@@ -70,12 +70,12 @@ interface Game {
       );
   }
 
-  static Program<Context, Error, Boolean> checkNumber(Ref<Integer> reference, int number) {
+  static Program<GameContext, GameError, Boolean> checkNumber(Ref<Integer> reference, int number) {
     return chain(
         reference.get(),
         value -> value == number
       );
   }
 
-  abstract class Context implements Random.Service, Console.Service {}
+  abstract class GameContext implements Random.Service, Console.Service {}
 }

@@ -19,7 +19,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 class TodoTest {
 
   @Test
-  void shouldCreateTodo(@Mock Todo.Context context) {
+  void shouldCreateTodo(@Mock Todo.TodoContext context) {
     when(context.readLine()).thenReturn("1", "buy milk", "7");
 
     program().eval(context);

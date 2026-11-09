@@ -32,10 +32,10 @@ import java.util.function.UnaryOperator;
 
 interface Todo {
 
-  sealed interface Error {}
+  sealed interface TodoError {}
 
-  record NumberFormatError(String input) implements Error {}
-  record InvalidOption(int action) implements Error {}
+  record NumberFormatError(String input) implements TodoError {}
+  record InvalidOption(int action) implements TodoError {}
 
   interface Repository {
     void create(TodoEntity todo);
@@ -57,10 +57,10 @@ interface Todo {
   }
 
   static void main(String... args) {
-    program().eval(new Context() {});
+    program().eval(new TodoContext() {});
   }
 
-  static Program<Context, Error, Unit> program() {
+  static Program<TodoContext, TodoError, Unit> program() {
     return pipe(
         Ref.make(0),
         reference -> pipe(
@@ -70,7 +70,7 @@ interface Todo {
       );
   }
 
-  static Program<Context, Error, Integer> printMenuAndGetOption() {
+  static Program<TodoContext, TodoError, Integer> printMenuAndGetOption() {
     return recover(
         pipe(
           printMenu(),
@@ -80,7 +80,7 @@ interface Todo {
       );
   }
 
-  static Program<Context, Error, Unit> executeAction(Ref<Integer> reference, int action) {
+  static Program<TodoContext, TodoError, Unit> executeAction(Ref<Integer> reference, int action) {
     return switch (action) {
       case 1 -> createTodo(reference);
       case 2 -> findAllTodos();
@@ -93,14 +93,14 @@ interface Todo {
     };
   }
 
-  static Program<Context, Error, Integer> readOption() {
+  static Program<TodoContext, TodoError, Integer> readOption() {
     return pipe(
         prompt("Select an option:"),
         Todo::parseInt
       );
   }
 
-  static Program<Context, Error, Unit> printMenu() {
+  static Program<TodoContext, TodoError, Unit> printMenu() {
     return chainAll(
         writeLine("Menu"),
         writeLine("1. Create"),
@@ -113,31 +113,31 @@ interface Todo {
       );
   }
 
-  static <S extends Repository, E extends Error> Program<S, E, Unit> create(TodoEntity todo) {
+  static <S extends Repository, E extends TodoError> Program<S, E, Unit> create(TodoEntity todo) {
     return inspect(repository -> repository.create(todo));
   }
 
-  static <S extends Repository, E extends Error> Program<S, E, Unit> update(int id, UnaryOperator<TodoEntity> update) {
+  static <S extends Repository, E extends TodoError> Program<S, E, Unit> update(int id, UnaryOperator<TodoEntity> update) {
     return inspect(repository -> repository.update(id, update));
   }
 
-  static <S extends Repository, E extends Error> Program<S, E, Optional<TodoEntity>> findOne(int id) {
+  static <S extends Repository, E extends TodoError> Program<S, E, Optional<TodoEntity>> findOne(int id) {
     return access(repository -> repository.find(id));
   }
 
-  static <S extends Repository, E extends Error> Program<S, E, List<TodoEntity>> findAll() {
+  static <S extends Repository, E extends TodoError> Program<S, E, List<TodoEntity>> findAll() {
     return access(Repository::findAll);
   }
 
-  static <S extends Repository, E extends Error> Program<S, E, Unit> deleteOne(int id) {
+  static <S extends Repository, E extends TodoError> Program<S, E, Unit> deleteOne(int id) {
     return inspect(repository -> repository.delete(id));
   }
 
-  static <S extends Repository, E extends Error> Program<S, E, Unit> deleteAll() {
+  static <S extends Repository, E extends TodoError> Program<S, E, Unit> deleteAll() {
     return inspect(repository -> repository.deleteAll());
   }
 
-  static Program<Context, Error, Unit> findAllTodos() {
+  static Program<TodoContext, TodoError, Unit> findAllTodos() {
     return pipe(
         findAll(),
         success(list -> list.stream().map(Object::toString).collect(joining("\n"))),
@@ -146,14 +146,14 @@ interface Todo {
       );
   }
 
-  static Program<Context, Error, Unit> deleteAllTodos() {
+  static Program<TodoContext, TodoError, Unit> deleteAllTodos() {
     return pipe(
         deleteAll(),
         _ -> writeLine("all todo removed"),
         _ -> program());
   }
 
-  static Program<Context, Error, Unit> createTodo(Ref<Integer> reference) {
+  static Program<TodoContext, TodoError, Unit> createTodo(Ref<Integer> reference) {
     return pipe(
         zip(
             reference.updateAndGet(x -> x + 1),
@@ -164,7 +164,7 @@ interface Todo {
         _ -> program());
   }
 
-  static Program<Context, Error, Unit> deleteTodo() {
+  static Program<TodoContext, TodoError, Unit> deleteTodo() {
     return pipe(
         promptId(),
         Todo::deleteOne,
@@ -172,7 +172,7 @@ interface Todo {
         _ -> program());
   }
 
-  static Program<Context, Error, Unit> findTodo() {
+  static Program<TodoContext, TodoError, Unit> findTodo() {
     return pipe(
         promptId(),
         Todo::findOne,
@@ -181,7 +181,7 @@ interface Todo {
         _ -> program());
   }
 
-  static Program<Context, Error, Unit> markCompleted() {
+  static Program<TodoContext, TodoError, Unit> markCompleted() {
     return pipe(
         promptId(),
         id -> update(id, entity -> entity.withState(COMPLETED)),
@@ -189,7 +189,7 @@ interface Todo {
         _ -> program());
   }
 
-  static Program<Context, Error, Integer> promptId() {
+  static Program<TodoContext, TodoError, Integer> promptId() {
     return recover(
         pipe(
             prompt("Enter id"),
@@ -199,11 +199,11 @@ interface Todo {
       );
   }
 
-  static Program<Context, Error, Integer> parseInt(String value) {
+  static Program<TodoContext, TodoError, Integer> parseInt(String value) {
     return attempt(() -> Integer.parseInt(value), _ -> new NumberFormatError(value));
   }
 
-  abstract class Context implements Todo.Repository, Console.Service {
+  abstract class TodoContext implements Todo.Repository, Console.Service {
 
     private final Map<Integer, TodoEntity> repository = new HashMap<>();
 

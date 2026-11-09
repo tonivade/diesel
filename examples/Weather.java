@@ -1,8 +1,11 @@
+///usr/bin/env jbang "$0" "$@" ; exit $?
+//DEPS com.github.tonivade:diesel:0.14-SNAPSHOT
+
 /*
  * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
-package com.github.tonivade.diesel.impl;
+package examples;
 
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Console.prompt;
@@ -39,9 +42,9 @@ interface Weather {
     Optional<City> hottestCity();
   }
 
-  sealed interface Error {}
+  sealed interface WeatherError {}
 
-  record UnknownCity(String name) implements Error {}
+  record UnknownCity(String name) implements WeatherError {}
 
   record Forecast(int temperature) {}
   record City(String name) {}
@@ -49,39 +52,39 @@ interface Weather {
 
   record Config(String host, int port) {}
 
-  static <S extends Service, E extends Error> Program<S, E, Config> readConfig() {
+  static <S extends Service, E extends WeatherError> Program<S, E, Config> readConfig() {
     return access(Service::readConfig);
   }
 
-  static <S extends Service, E extends Error> Program<S, E, Optional<Forecast>> getForecast(City city) {
+  static <S extends Service, E extends WeatherError> Program<S, E, Optional<Forecast>> getForecast(City city) {
     return access(service -> service.getForecast(city));
   }
 
-  static <S extends Service, E extends Error> Program<S, E, Unit> setForecast(City city, Forecast forecast) {
+  static <S extends Service, E extends WeatherError> Program<S, E, Unit> setForecast(City city, Forecast forecast) {
     return inspect(service -> service.setForecast(city, forecast));
   }
 
-  static <S extends Service, E extends Error> Program<S, E, Optional<City>> hottestCity() {
+  static <S extends Service, E extends WeatherError> Program<S, E, Optional<City>> hottestCity() {
     return access(Service::hottestCity);
   }
 
   public static void main(String[] args) {
-    program().eval(new Context());
+    program().eval(new WeatherContext());
   }
 
-  static Program<Context, Error, Unit> program() {
+  static Program<WeatherContext, WeatherError, Unit> program() {
     return pipe(
         hostAndPort(),
         _ -> loop()
       );
   }
 
-  static Program<Context, Error, Unit> loop() {
+  static Program<WeatherContext, WeatherError, Unit> loop() {
     return pipe(askAndFetchAndPrint(), _ -> printHottestCity())
         .foldMap(Weather::printError, _ -> loop());
   }
 
-  static Program<Context, Error, Unit> askAndFetchAndPrint() {
+  static Program<WeatherContext, WeatherError, Unit> askAndFetchAndPrint() {
     return askCity()
         .tapError(error -> warn("Error: " + error))
         .tap(city -> info("getting city forecast: " + city))
@@ -90,64 +93,64 @@ interface Weather {
         .flatMap(Weather::printForecastAndPersist);
   }
 
-  static Program<Context, Error, Unit> printHottestCity() {
+  static Program<WeatherContext, WeatherError, Unit> printHottestCity() {
     return pipe(
         hottestCity(),
         city -> writeLine("Hottest city so far: " + city.map(City::name).orElse("None"))
       );
   }
 
-  static Program<Context, Error, Unit> printError(Error error) {
+  static Program<WeatherContext, WeatherError, Unit> printError(WeatherError error) {
     return pipe(
         writeLine("Error: " + error),
         _ -> loop()
       );
   }
 
-  static Program<Context, Error, City> askCity() {
+  static Program<WeatherContext, WeatherError, City> askCity() {
     return pipe(
         prompt("What city?"),
         Weather::cityByName
       );
   }
 
-  static Program<Context, Error, CityForecast> fetchForecast(City city) {
+  static Program<WeatherContext, WeatherError, CityForecast> fetchForecast(City city) {
     return pipe(
         getForecast(city),
-        forecast -> forecast.map(Program::<Context, Error, Forecast>success).orElseGet(Weather::forecast),
+        forecast -> forecast.map(Program::<WeatherContext, WeatherError, Forecast>success).orElseGet(Weather::forecast),
         success(forecast -> new CityForecast(city, forecast))
       );
   }
 
-  static Program<Context, Error, Unit> printForecastAndPersist(CityForecast cityForecast) {
+  static Program<WeatherContext, WeatherError, Unit> printForecastAndPersist(CityForecast cityForecast) {
     return pipe(
         writeLine("Forecast for city " + cityForecast.city() + " is " + cityForecast.forecast()),
         _ -> setForecast(cityForecast.city(), cityForecast.forecast())
       );
   }
 
-  static Program<Context, Error, Forecast> forecast() {
+  static Program<WeatherContext, WeatherError, Forecast> forecast() {
     return pipe(
         nextInt(30),
         success(Forecast::new)
       );
   }
 
-  static Program<Context, Error, City> cityByName(String name) {
+  static Program<WeatherContext, WeatherError, City> cityByName(String name) {
     return switch (name) {
       case "Madrid", "Getafe", "Elche" -> Program.success(new City(name));
       default -> failure(new UnknownCity(name));
     };
   }
 
-  static Program<Context, Error, Unit> hostAndPort() {
+  static Program<WeatherContext, WeatherError, Unit> hostAndPort() {
     return pipe(
         readConfig(),
         config -> writeLine("conecting to " + config)
       );
   }
 
-  final class Context implements Service, Console.Service, Random.Service, Logger.Service {
+  final class WeatherContext implements Service, Console.Service, Random.Service, Logger.Service {
 
     private final Map<City, Forecast> map = new HashMap<>();
 
