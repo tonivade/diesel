@@ -7,6 +7,7 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Schedule.Decision.done;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -45,6 +46,20 @@ class ScheduleTest {
 
     assertThat(first.delay()).isEqualTo(delay);
     assertThat(second.delay()).isEqualTo(delay);
+  }
+
+  @Test
+  void exponentialContract() {
+    assertThatThrownBy(() -> Schedule.exponential(Duration.ofMillis(-1), 1))
+      .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Schedule.exponential(Duration.ofMillis(1), Double.NaN))
+      .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Schedule.exponential(Duration.ofMillis(1), Double.POSITIVE_INFINITY))
+      .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Schedule.exponential(Duration.ofMillis(1), Double.NEGATIVE_INFINITY))
+      .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Schedule.exponential(Duration.ofMillis(1), -1))
+      .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
@@ -116,9 +131,62 @@ class ScheduleTest {
   }
 
   @Test
+  void orUsesTheShortestDelayWhenBothSchedulesContinue() {
+    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
+        .or(Schedule.spaced(Duration.ofMillis(250)));
+
+    var decision = continueWith(schedule, 1);
+
+    assertThat(decision.delay()).isEqualTo(Duration.ofMillis(100));
+    assertThat(continueWith(decision.next(), 2).delay()).isEqualTo(Duration.ofMillis(100));
+  }
+
+  @Test
+  void orContinueWhenTheFirstScheduleIsDone() {
+    var schedule = Schedule.<Void, Integer>stop()
+        .or(Schedule.spaced(Duration.ofMillis(100)));
+
+    var decision = continueWith(schedule, 1);
+
+    assertThat(decision.delay()).isEqualTo(Duration.ofMillis(100));
+  }
+
+  @Test
+  void orContinueWhenTheSecondScheduleIsDone() {
+    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
+        .or(Schedule.stop());
+
+    var decision = continueWith(schedule, 1);
+
+    assertThat(decision.delay()).isEqualTo(Duration.ofMillis(100));
+  }
+
+  @Test
+  void orStopsWhenBothAreDone() {
+    var schedule = Schedule.<Void, Integer>stop()
+        .and(Schedule.stop());
+
+    assertThat(schedule.next(1).evalOrElseThrow()).isEqualTo(done());
+  }
+
+  @Test
+  void jitteredContract() {
+    assertThatThrownBy(() -> Schedule.<Random.Service, Integer>stop().jittered(-0.2, Random.nextDouble()))
+      .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Schedule.<Random.Service, Integer>stop().jittered(1.2, Random.nextDouble()))
+      .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Schedule.<Random.Service, Integer>stop().jittered(Double.NaN, Random.nextDouble()))
+      .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Schedule.<Random.Service, Integer>stop().jittered(Double.POSITIVE_INFINITY, Random.nextDouble()))
+      .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Schedule.<Random.Service, Integer>stop().jittered(Double.NEGATIVE_INFINITY, Random.nextDouble()))
+      .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
   void jitteredScalesDelayWithinTheConfiguredRange(@Mock Random.Service random) {
-    var schedule = Schedule.jittered(
-        Schedule.<Random.Service, Integer>spaced(Duration.ofMillis(100)), 0.2);
+    var schedule = Schedule.<Random.Service, Integer>spaced(Duration.ofMillis(100))
+        .jittered(0.2, Random.nextDouble());
     when(random.nextDouble()).thenReturn(0.0, 1.0);
 
     var first = continueWith(schedule, 1, random);
@@ -131,7 +199,7 @@ class ScheduleTest {
 
   @Test
   void jitteredDoesNotRequestRandomnessWhenScheduleIsDone(@Mock Random.Service random) {
-    var schedule = Schedule.jittered(Schedule.<Random.Service, Integer>stop(), 0.2);
+    var schedule = Schedule.<Random.Service, Integer>stop().jittered(0.2, Random.nextDouble());
 
     assertThat(schedule.next(1).eval(random).getOrElseThrow())
         .isEqualTo(done());

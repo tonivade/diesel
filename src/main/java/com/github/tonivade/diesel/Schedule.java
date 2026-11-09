@@ -152,29 +152,13 @@ public interface Schedule<S, I> {
     if (base.isNegative()) {
       throw new IllegalArgumentException("delay cannot be negative");
     }
+    if (!Double.isFinite(factor)) {
+      throw new IllegalArgumentException("factor must be a positive value");
+    }
     if (factor <= 0) {
       throw new IllegalArgumentException("factor must be a positive value");
     }
     return _ -> success(new Continue<>(base, exponential(scale(base, factor), factor)));
-  }
-
-  /**
-   * Adds random jitter to the delays produced by the given schedule.
-   *
-   * <p>Each delay is multiplied by a random value in the range
-   * {@code [1 - factor, 1 + factor]}. Evaluating the resulting schedule requires the state to
-   * implement {@link Random.Service}.
-   *
-   * <p>The value factor must be between 0 and 1.
-   *
-   * @param schedule the schedule whose delays are adjusted
-   * @param factor the maximum relative variation applied to each delay
-   * @param <S> the type of the state, which must implement {@link Random.Service}
-   * @param <I> the type of the input received by the schedule
-   * @return a schedule with randomized delays
-   */
-  static <S extends Random.Service, I> Schedule<S, I> jittered(Schedule<S, I> schedule, double factor) {
-    return schedule.jittered(factor, Random.nextDouble());
   }
 
   /**
@@ -204,15 +188,48 @@ public interface Schedule<S, I> {
    * @return a schedule that completes as soon as either constituent schedule completes
    */
   default Schedule<S, I> and(Schedule<S, I> other) {
-    return input -> next(input).flatMap(decision1 -> switch (decision1) {
-      case Done<S, I> done -> success(done);
-      case Continue<S, I>(var d1, var n1) ->
-        other.next(input).flatMap(decision2 -> switch (decision2) {
-          case Done<S, I> done -> success(done);
-          case Continue<S, I>(var d2, var n2) ->
-              success(new Continue<>(d1.compareTo(d2) >= 0 ? d1 : d2, n1.and(n2)));
-        });
-    });
+    return input -> next(input).flatMap(first ->
+      switch (first) {
+        case Done<S, I> done -> success(done);
+        case Continue<S, I>(var firstDelay, var firstNext) ->
+          other.next(input).map(second ->
+            switch (second) {
+              case Done<S, I> done -> done;
+              case Continue<S, I>(var secondDelay, var secondNext) ->
+                firstDelay.compareTo(secondDelay) >= 0
+                  ? new Continue<>(firstDelay, firstNext.and(secondNext))
+                  : new Continue<>(secondDelay, firstNext.and(secondNext));
+            }
+          );
+      }
+    );
+  }
+
+  /**
+   * Combines this schedule with another, if the first one finish, it will continue with the second one.
+   *
+   * <p>The resulting delay is the lower of the two delays. Both schedules receive the same
+   * input, and their next schedules are combined in the same way.
+   *
+   * @param other the schedule to combine with this one
+   * @return a schedule that completes when both schedules finish
+   */
+  default Schedule<S, I> or(Schedule<S, I> other) {
+    return input -> next(input).flatMap(first ->
+      switch (first) {
+        case Done<S, I> _ -> other.next(input);
+        case Continue<S, I>(var firstDelay, var firstNext) ->
+          other.next(input).map(second ->
+            switch (second) {
+              case Done<S, I> _ -> new Continue<>(firstDelay, firstNext);
+              case Continue<S, I>(var secondDelay, var secondNext) ->
+                firstDelay.compareTo(secondDelay) <= 0
+                  ? new Continue<>(firstDelay, firstNext.or(secondNext))
+                  : new Continue<>(secondDelay, firstNext.or(secondNext));
+            }
+          );
+      }
+    );
   }
 
   /**
@@ -227,8 +244,11 @@ public interface Schedule<S, I> {
    * @return a schedule with randomized delays
    */
   default Schedule<S, I> jittered(double factor, Program<S, Void, Double> random) {
+    if (!Double.isFinite(factor)) {
+      throw new IllegalArgumentException("factor must be a value between 0 to 1");
+    }
     if (factor < 0 || factor > 1) {
-      throw new IllegalArgumentException("factor must be a value between 0 or 1");
+      throw new IllegalArgumentException("factor must be a value between 0 to 1");
     }
     return input -> next(input).flatMap(decision -> switch (decision) {
       case Done<S, I> done -> success(done);
@@ -242,7 +262,10 @@ public interface Schedule<S, I> {
     });
   }
 
-  private static Duration scale(Duration d, double f) {
-    return Duration.ofNanos(Math.round(d.toNanos() * f));
+  private static Duration scale(Duration duration, double factor) {
+    if (duration.compareTo(DelayScheduler.FOREVER) >= 0) {
+      return DelayScheduler.FOREVER;
+    }
+    return Duration.ofNanos(Math.round(duration.toNanos() * factor));
   }
 }

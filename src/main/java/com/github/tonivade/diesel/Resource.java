@@ -339,7 +339,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource that retries acquisition once after the specified delay
    */
   public Resource<S, E, A> retry(Duration delay) {
-    return retry(Schedule.spaced(delay));
+    return retry(1, delay);
   }
 
   /**
