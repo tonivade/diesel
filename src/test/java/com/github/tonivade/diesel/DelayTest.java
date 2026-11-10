@@ -80,6 +80,7 @@ class DelayTest {
       assertSame(Delay.MAX, Delay.from(Duration.ofNanos(Delay.MAX_NANOS)));
       assertSame(Delay.MAX, Delay.from(Duration.ofNanos(Delay.MAX_NANOS + 1)));
       assertSame(Delay.MAX, Delay.from(Duration.ofNanos(Long.MAX_VALUE)));
+      assertSame(Delay.MAX, Delay.from(Duration.ofSeconds(Long.MAX_VALUE)));
       assertThrows(IllegalArgumentException.class, () -> Delay.from(Duration.ofNanos(-1)));
       assertThrows(IllegalArgumentException.class, () -> Delay.from(Duration.ofNanos(Long.MIN_VALUE)));
       assertEquals(new Delay(1), Delay.from(Duration.ofNanos(1)));
