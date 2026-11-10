@@ -22,7 +22,6 @@ import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -1198,11 +1197,11 @@ public final class Concurrent {
   }
 
   static <S, E, T> Program<S, E, T> timeout(
-      Program<S, E, T> program, Duration duration, Executor executor) {
+      Program<S, E, T> program, Delay delay, Executor executor) {
     // the timer is forked first, like in race: with a single thread executor it expires before
     // the program starts, which then is cancelled before it runs
     return zip(
-        Program.<S, E>sleep(duration).fork(executor),
+        Program.<S, E>sleep(delay).fork(executor),
         program.fork(executor),
         Concurrent::<E, T>timeoutFuture)
         .flatMap(Program::join);

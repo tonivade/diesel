@@ -18,7 +18,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -508,7 +507,7 @@ class ResourceTest {
       return failure("boom");
     }));
     var program = resource("a").flatMap(_ -> failing)
-        .retry(1, Duration.ofHours(1))
+        .retry(1, Delay.ofHours(1))
         .use(this::use);
 
     var future = program.fork().evalOrElseThrow();
@@ -761,7 +760,7 @@ class ResourceTest {
           attempted.complete(null);
           return failure("boom");
         }))
-        .retry(1, Duration.ofHours(1))
+        .retry(1, Delay.ofHours(1))
         .use(this::use);
 
     var future = program.fork().evalOrElseThrow();
@@ -807,7 +806,7 @@ class ResourceTest {
             task(() -> started.complete(null)),
             _ -> Program.<Void, String, Unit>never())
         .ensuring(pipe(
-            Program.<Void, Void>sleep(Duration.ofMillis(100)),
+            Program.<Void, Void>sleep(Delay.ofMillis(100)),
             _ -> task(() -> log.add("worker stopped"))));
 
     var program = resource("a")

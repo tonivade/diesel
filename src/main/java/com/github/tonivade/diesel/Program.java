@@ -755,7 +755,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *   <li>A {@code poll} used outside of the region it comes from, or in a program that isn't in
    *   any uncancelable region, does nothing.</li>
    *   <li>As with {@link #uncancelable()}, the concurrent combinators, like {@code parZip} or
-   *   {@link #timeout(Duration)}, wait for the closed part to finish before they complete. If the
+   *   {@link #timeout(Delay)}, wait for the closed part to finish before they complete. If the
    *   body finishes successfully, {@code timeout} returns its result even when it expired
    *   meanwhile.</li>
    * </ul>
@@ -1232,7 +1232,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param delay the delay between retries
    * @return a new program representing the computation with retries and delay
    */
-  default Program<S, E, T> retry(int retries, Duration delay) {
+  default Program<S, E, T> retry(int retries, Delay delay) {
     return retry(Schedule.<S, E>spaced(delay).and(Schedule.recurs(retries)));
   }
 
@@ -1303,7 +1303,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param delay the delay between repetitions
    * @return a new program representing the computation repeated with delay
    */
-  default Program<S, E, T> repeat(int times, Duration delay) {
+  default Program<S, E, T> repeat(int times, Delay delay) {
     return repeat(Schedule.<S, T>spaced(delay).and(Schedule.recurs(times)));
   }
 
@@ -1391,7 +1391,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param duration the duration of the timeout
    * @return a new program representing the computation with timeout
    */
-  default Program<S, E, T> timeout(Duration duration) {
+  default Program<S, E, T> timeout(Delay duration) {
     return timeout(duration, Concurrent.DEFAULT_EXECUTOR);
   }
 
@@ -1409,7 +1409,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param executor the executor used to run the program and its timeout in parallel
    * @return a new program representing the computation with timeout
    */
-  default Program<S, E, T> timeout(Duration duration, Executor executor) {
+  default Program<S, E, T> timeout(Delay duration, Executor executor) {
     return Concurrent.timeout(this, duration, executor);
   }
 
@@ -1424,9 +1424,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <p>Keep in mind that:
    * <ul>
    *   <li>The concurrent combinators, like {@code parZip}, {@code either}, {@code race} or
-   *   {@link #timeout(Duration)}, complete only once their cancelled programs have stopped, so they
+   *   {@link #timeout(Delay)}, complete only once their cancelled programs have stopped, so they
    *   wait for an uncancelable program to finish.</li>
-   *   <li>{@link #timeout(Duration)} returns the result of an uncancelable program that finishes
+   *   <li>{@link #timeout(Delay)} returns the result of an uncancelable program that finishes
    *   successfully, even if the timeout expired meanwhile: the work was done, so it is not reported
    *   as a failure. For example, {@code commit.uncancelable().timeout(d)} returns the result of the
    *   commit, only once it is done, however long it takes. It fails with a {@link TimeoutException}
@@ -1593,7 +1593,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing the delayed computation
    */
-  static <S, E, T> Program<S, E, T> delayed(Duration duration, Supplier<T> supplier) {
+  static <S, E, T> Program<S, E, T> delayed(Delay duration, Supplier<T> supplier) {
     return delayed(duration, supply(supplier));
   }
 
@@ -1607,7 +1607,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing the delayed computation
    */
-  static <S, E, T> Program<S, E, T> delayed(Duration duration, Program<S, E, T> program) {
+  static <S, E, T> Program<S, E, T> delayed(Delay duration, Program<S, E, T> program) {
     return pipe(
         sleep(duration),
         _ -> program
@@ -1618,7 +1618,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * Creates a new program that represents a sleep for the given duration.
    *
    * <p>Cancelling the sleep cancels its delay too, so a cancelled sleep, like the one of a
-   * {@link #timeout(Duration)} that didn't expire, doesn't stay scheduled until the delay expires.
+   * {@link #timeout(Delay)} that didn't expire, doesn't stay scheduled until the delay expires.
    *
    * <p>If duration is 0 or less, it will return {@link #unit()}.
    * <p>If duration in nanoseconds is greater than or equal to {@link Long#MAX_VALUE}, it will return {@link #never()}.
@@ -1628,11 +1628,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing a sleep
    */
-  static <S, E> Program<S, E, Unit> sleep(Duration duration) {
-    if (duration.isNegative() || duration.isZero()) {
+  static <S, E> Program<S, E, Unit> sleep(Delay duration) {
+    if (duration.isZero()) {
       return unit();
     }
-    if (duration.compareTo(DelayScheduler.FOREVER) >= 0) {
+    if (duration.isMax()) {
       return never();
     }
     return asyncCancelable((_, callback) -> {
