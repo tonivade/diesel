@@ -196,7 +196,7 @@ class ProgramTest {
 
   @Test
   void sleepTooLongForNanosecondsNeverExpires() {
-    var program = sleep(Delay.MAX).timeout(Delay.ofMillis(100));
+    var program = sleep(Delay.FOREVER).timeout(Delay.ofMillis(100));
 
     assertThatThrownBy(program::eval).isInstanceOf(TimeoutException.class);
   }

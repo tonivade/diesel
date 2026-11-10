@@ -1632,7 +1632,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     if (duration.isZero()) {
       return unit();
     }
-    if (duration.isMax()) {
+    if (duration.isForever()) {
       return never();
     }
     return asyncCancelable((_, callback) -> {
