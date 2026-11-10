@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tonivade.diesel.Queue.QueueClosedException;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -41,7 +40,7 @@ import org.junit.jupiter.api.Timeout;
 @Timeout(value = 10, unit = TimeUnit.SECONDS)
 class QueueTest {
 
-  private static final Duration PAUSE = Duration.ofMillis(50);
+  private static final Delay PAUSE = Delay.ofMillis(50);
 
   @Test
   void canBeUsedInMoreSpecificProgramContext() {
@@ -77,7 +76,7 @@ class QueueTest {
 
     var program = parZip(
         queue.take(),
-        delayed(Duration.ofMillis(50), queue.offer("hello")),
+        delayed(Delay.ofMillis(50), queue.offer("hello")),
         (value, _) -> value);
 
     assertThat(program.evalOrElseThrow()).isEqualTo("hello");
@@ -89,7 +88,7 @@ class QueueTest {
 
     var program = parZip(
         queue.offer(1).andThen(queue.offer(2)),
-        delayed(Duration.ofMillis(50), queue.take()),
+        delayed(Delay.ofMillis(50), queue.take()),
         (_, taken) -> taken);
 
     assertThat(program.evalOrElseThrow()).isEqualTo(1);
@@ -103,7 +102,7 @@ class QueueTest {
     var queue = Queue.<Integer>unbounded();
 
     var timedOut = queue.take()
-        .timeout(Duration.ofMillis(50))
+        .timeout(Delay.ofMillis(50))
         .catchAll(_ -> success(-1));
     var program = timedOut
         .andThen(queue.offer(7))
@@ -117,7 +116,7 @@ class QueueTest {
     var queue = Queue.<Integer>bounded(1);
 
     var program = queue.offer(1)
-        .andThen(queue.offer(2).timeout(Duration.ofMillis(50))
+        .andThen(queue.offer(2).timeout(Delay.ofMillis(50))
             .catchAll(_ -> unit()))
         .andThen(sequence(queue.take(), queue.tryTake().map(o -> o.orElse(-1))));
 
@@ -702,7 +701,7 @@ class QueueTest {
   @Test
   void manyCancelledTakesDoNotBlockTheClose() {
     var queue = Queue.<Integer>unbounded();
-    var cancelled = queue.take().timeout(Duration.ofMillis(1)).catchAll(_ -> success(-1));
+    var cancelled = queue.take().timeout(Delay.ofMillis(1)).catchAll(_ -> success(-1));
 
     for (int i = 0; i < 50; i++) {
       assertThat(cancelled.evalOrElseThrow()).isEqualTo(-1);
@@ -719,7 +718,7 @@ class QueueTest {
     // close is uncancelable: it has already woken up the waiters when the cancellation arrives
     var program = parZip(
         queue.takeOrClosed(),
-        closeLater(queue).andThen(blocked.timeout(Duration.ofMillis(10)).catchAll(_ -> success(Optional.empty()))),
+        closeLater(queue).andThen(blocked.timeout(Delay.ofMillis(10)).catchAll(_ -> success(Optional.empty()))),
         (value, _) -> value);
 
     assertThat(program.evalOrElseThrow()).isEmpty();
@@ -786,7 +785,7 @@ class QueueTest {
         produceUntilClosed(queue, range(0, 500), accepted),
         produceUntilClosed(queue, range(500, 1_000), accepted),
         produceUntilClosed(queue, range(1_000, 1_500), accepted),
-        delayed(Duration.ofMillis(1), queue.close()),
+        delayed(Delay.ofMillis(1), queue.close()),
         consume(queue, consumed),
         consume(queue, consumed));
 
@@ -897,7 +896,7 @@ class QueueTest {
     // short timeouts so some offers are cancelled just when a take makes room for them
     Program<Void, Void, Unit> producer = IntStream.range(0, 3_000).boxed()
         .map(i -> queue.<Void, Void>offer(i)
-            .timeout(Duration.ofNanos(20_000))
+            .timeout(Delay.ofNanos(20_000))
             .catchAll(error -> {
               if (error instanceof TimeoutException) {
                 timedOut.add(i);
@@ -993,7 +992,7 @@ class QueueTest {
    */
   private static Program<Void, Void, Optional<Integer>> takeWithTimeout(Queue<Integer> queue) {
     return queue.<Void, Void>takeOrClosed()
-        .timeout(Duration.ofMillis(1))
+        .timeout(Delay.ofMillis(1))
         .catchAll(e -> e instanceof TimeoutException
             ? success(Optional.of(-1))
             : raise(() -> e));

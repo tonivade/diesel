@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -119,7 +118,7 @@ class CancellationTest {
 
   @Test
   void timeoutCancelsTheProgram() {
-    var program = blocked().timeout(Duration.ofMillis(50));
+    var program = blocked().timeout(Delay.ofMillis(50));
 
     assertThatThrownBy(program::eval).isInstanceOf(TimeoutException.class);
     // the timeout may expire before the program starts, but a started program is always released
@@ -165,7 +164,7 @@ class CancellationTest {
 
   @Test
   void finalizerCannotBeCancelled() {
-    var finalizer = delayed(Duration.ofMillis(50), finalizer(released::incrementAndGet));
+    var finalizer = delayed(Delay.ofMillis(50), finalizer(released::incrementAndGet));
     var program = start().andThen(never()).ensuring(finalizer);
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
@@ -177,8 +176,8 @@ class CancellationTest {
   @Test
   void finalizerThatForksCannotBeCancelled() {
     // timeout forks the program and a sleep
-    var finalizer = Program.<Void, Void>sleep(Duration.ofMillis(50))
-        .timeout(Duration.ofSeconds(5))
+    var finalizer = Program.<Void, Void>sleep(Delay.ofMillis(50))
+        .timeout(Delay.ofSeconds(5))
         .andThen(finalizer(released::incrementAndGet));
     var program = start().andThen(never()).ensuring(finalizer);
 
@@ -454,7 +453,7 @@ class CancellationTest {
 
   @Test
   void onCancelFinalizerCannotBeCancelled() {
-    var finalizer = delayed(Duration.ofMillis(50), finalizer(released::incrementAndGet));
+    var finalizer = delayed(Delay.ofMillis(50), finalizer(released::incrementAndGet));
     var program = start().andThen(never()).onCancel(finalizer);
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
@@ -528,7 +527,7 @@ class CancellationTest {
 
   @Test
   void asyncCancelableCancelerCannotBeCancelled() {
-    var canceler = delayed(Duration.ofMillis(50), finalizer(released::incrementAndGet));
+    var canceler = delayed(Delay.ofMillis(50), finalizer(released::incrementAndGet));
     var operation = Program.<Void, String, String>asyncCancelable((_, _) -> {
       signalStarted();
       return canceler;
@@ -615,7 +614,7 @@ class CancellationTest {
 
   @Test
   void cancellingASleepRemovesItsDelay() throws Exception {
-    var future = sleep(Duration.ofHours(1)).fork().evalOrElseThrow();
+    var future = sleep(Delay.ofHours(1)).fork().evalOrElseThrow();
     awaitLongDelays(1);
     future.cancel(true);
 
@@ -626,7 +625,7 @@ class CancellationTest {
   @Test
   void sleepingForeverCanBeCancelled() throws Exception {
     // as long as Long.MAX_VALUE nanoseconds or longer, the sleep never expires: it waits until it's cancelled
-    var future = sleep(ChronoUnit.FOREVER.getDuration()).fork().evalOrElseThrow();
+    var future = sleep(Delay.MAX).fork().evalOrElseThrow();
     future.cancel(true);
 
     assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
@@ -634,7 +633,7 @@ class CancellationTest {
 
   @Test
   void timeoutRemovesItsDelayWhenTheProgramFinishesFirst() {
-    var result = success("done").timeout(Duration.ofHours(1)).eval();
+    var result = success("done").timeout(Delay.ofHours(1)).eval();
 
     // the sleep of the timeout has been cancelled, it doesn't wait an hour to expire
     assertThat(result).isEqualTo(Result.success("done"));

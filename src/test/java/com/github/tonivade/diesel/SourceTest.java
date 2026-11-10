@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -838,7 +837,7 @@ class SourceTest {
     void timeoutStopsTheTraversalOfAnInfiniteSource() {
       var program = Source.<Void, Void, Long>iterate(0L, x -> x + 1)
           .foldLeft(0L, Long::sum)
-          .timeout(Duration.ofMillis(100));
+          .timeout(Delay.ofMillis(100));
 
       assertThatThrownBy(program::eval).isInstanceOf(TimeoutException.class);
     }

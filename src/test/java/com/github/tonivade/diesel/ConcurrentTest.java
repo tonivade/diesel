@@ -45,8 +45,8 @@ class ConcurrentTest {
 
   @Test
   void shouldParallelize() {
-    var p1 = delayed(Duration.ofSeconds(2), () -> 10);
-    var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
+    var p1 = delayed(Delay.ofSeconds(2), () -> 10);
+    var p2 = delayed(Delay.ofSeconds(2), () -> "hello");
 
     var result = parZip(p1, p2, Tuple::new).timed().evalOrElseThrow();
 
@@ -58,8 +58,8 @@ class ConcurrentTest {
 
   @Test
   void shouldParallelizeWithSingleThreadExcecutor() {
-    var p1 = delayed(Duration.ofSeconds(2), () -> 10);
-    var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
+    var p1 = delayed(Delay.ofSeconds(2), () -> 10);
+    var p2 = delayed(Delay.ofSeconds(2), () -> "hello");
 
     var result = parZip(p1, p2, Tuple::new, singleThreadExecutor).timed().evalOrElseThrow();
 
@@ -71,23 +71,21 @@ class ConcurrentTest {
 
   @Test
   void shouldFailFast() throws Exception {
-    var p1 = delayed(Duration.ofSeconds(5), () -> 10);
-    var p2 = sleep(Duration.ofSeconds(2)).andThen(failure("error"));
+    var p1 = delayed(Delay.ofSeconds(5), () -> 10);
+    var p2 = sleep(Delay.ofSeconds(2)).andThen(failure("error"));
 
-    var start = System.nanoTime();
-    var result = parZip(p1, p2, Tuple::new).eval();
-    var duration = Duration.ofNanos(System.nanoTime() - start);
+    var result = parZip(p1, p2, Tuple::new).timedResult().evalOrElseThrow();
 
-    assertThat(duration)
+    assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(2), Duration.ofMillis(100));
-    assertThat(result)
+    assertThat(result.value())
       .isEqualTo(Result.failure("error"));
   }
 
   @Test
   void shouldRace() {
     var p1 = never();
-    var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
+    var p2 = delayed(Delay.ofSeconds(2), () -> "hello");
 
     var result = either(p1, p2).timed().evalOrElseThrow();
 
@@ -99,23 +97,21 @@ class ConcurrentTest {
 
   @Test
   void shouldBothFail() {
-    var p1 = sleep(Duration.ofSeconds(3)).andThen(failure("error 1"));
-    var p2 = sleep(Duration.ofSeconds(2)).andThen(raise(UnsupportedOperationException::new));
+    var p1 = sleep(Delay.ofSeconds(3)).andThen(failure("error 1"));
+    var p2 = sleep(Delay.ofSeconds(2)).andThen(raise(UnsupportedOperationException::new));
 
-    var start = System.nanoTime();
-    var result = either(p1, p2).eval();
-    var duration = Duration.ofNanos(System.nanoTime() - start);
+    var result = either(p1, p2).timedResult().evalOrElseThrow();
 
-    assertThat(duration)
+    assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
-    assertThat(result)
+    assertThat(result.value())
       .isEqualTo(Result.failure("error 1"));
   }
 
   @Test
   void shouldRaceWhenOneReturnFailure() {
-    var p1 = delayed(Duration.ofSeconds(3), () -> 10);
-    var p2 = sleep(Duration.ofSeconds(1)).andThen(failure("error"));
+    var p1 = delayed(Delay.ofSeconds(3), () -> 10);
+    var p2 = sleep(Delay.ofSeconds(1)).andThen(failure("error"));
 
     var result = either(p1, p2).timed().evalOrElseThrow();
 
@@ -127,8 +123,8 @@ class ConcurrentTest {
 
   @Test
   void shouldRaceWhenOneThrowsException() {
-    var p1 = delayed(Duration.ofSeconds(3), () -> 10);
-    var p2 = sleep(Duration.ofSeconds(1)).andThen(raise(UnsupportedOperationException::new));
+    var p1 = delayed(Delay.ofSeconds(3), () -> 10);
+    var p2 = sleep(Delay.ofSeconds(1)).andThen(raise(UnsupportedOperationException::new));
 
     var result = either(p1, p2).timed().evalOrElseThrow();
 
@@ -140,10 +136,10 @@ class ConcurrentTest {
 
   @Test
   void shouldReturnFirstSuccess() {
-    var p1 = delayed(Duration.ofSeconds(3), () -> 10);
-    var p2 = delayed(Duration.ofSeconds(2), () -> 20);
-    var p3 = sleep(Duration.ofSeconds(1)).<Integer>andThen(failure("error"));
-    var p4 = sleep(Duration.ofSeconds(1)).<Integer>andThen(raise(UnsupportedOperationException::new));
+    var p1 = delayed(Delay.ofSeconds(3), () -> 10);
+    var p2 = delayed(Delay.ofSeconds(2), () -> 20);
+    var p3 = sleep(Delay.ofSeconds(1)).<Integer>andThen(failure("error"));
+    var p4 = sleep(Delay.ofSeconds(1)).<Integer>andThen(raise(UnsupportedOperationException::new));
 
     var result = parAny(p1, p2, p3, p4).timed().evalOrElseThrow();
 
@@ -155,8 +151,8 @@ class ConcurrentTest {
 
   @Test
   void shouldFailWhenAllFail() {
-    var p1 = sleep(Duration.ofSeconds(1)).<Integer>andThen(failure("error1"));
-    var p2 = sleep(Duration.ofSeconds(2)).<Integer>andThen(failure("error2"));
+    var p1 = sleep(Delay.ofSeconds(1)).<Integer>andThen(failure("error1"));
+    var p2 = sleep(Delay.ofSeconds(2)).<Integer>andThen(failure("error2"));
 
     var start = System.nanoTime();
     var result = parAny(p1, p2).eval();
@@ -173,9 +169,9 @@ class ConcurrentTest {
     when(supplier.get()).thenReturn("hi!");
 
     var result = parAll(
-        delayed(Duration.ofSeconds(1), supplier),
-        delayed(Duration.ofSeconds(2), supplier),
-        delayed(Duration.ofSeconds(3), supplier)).timed().evalOrElseThrow();
+        delayed(Delay.ofSeconds(1), supplier),
+        delayed(Delay.ofSeconds(2), supplier),
+        delayed(Delay.ofSeconds(3), supplier)).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
@@ -187,9 +183,9 @@ class ConcurrentTest {
     when(supplier.get()).thenReturn("hi!");
 
     var result = parAll(singleThreadExecutor,
-        delayed(Duration.ofSeconds(1), supplier),
-        delayed(Duration.ofSeconds(2), supplier),
-        delayed(Duration.ofSeconds(3), supplier)).timed().evalOrElseThrow();
+        delayed(Delay.ofSeconds(1), supplier),
+        delayed(Delay.ofSeconds(2), supplier),
+        delayed(Delay.ofSeconds(3), supplier)).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(6), Duration.ofMillis(100));
@@ -201,9 +197,9 @@ class ConcurrentTest {
     when(supplier.get()).thenReturn("1", "2", "3");
 
     var result = parSequence(
-        delayed(Duration.ofSeconds(1), supplier),
-        delayed(Duration.ofSeconds(2), supplier),
-        delayed(Duration.ofSeconds(3), supplier)).timed().evalOrElseThrow();
+        delayed(Delay.ofSeconds(1), supplier),
+        delayed(Delay.ofSeconds(2), supplier),
+        delayed(Delay.ofSeconds(3), supplier)).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(3), Duration.ofMillis(100));
@@ -216,9 +212,9 @@ class ConcurrentTest {
     when(supplier.get()).thenReturn("1", "2", "3");
 
     var result = parSequence(singleThreadExecutor,
-        delayed(Duration.ofSeconds(1), supplier),
-        delayed(Duration.ofSeconds(2), supplier),
-        delayed(Duration.ofSeconds(3), supplier)).timed().evalOrElseThrow();
+        delayed(Delay.ofSeconds(1), supplier),
+        delayed(Delay.ofSeconds(2), supplier),
+        delayed(Delay.ofSeconds(3), supplier)).timed().evalOrElseThrow();
 
     assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(6), Duration.ofMillis(100));
@@ -277,7 +273,7 @@ class ConcurrentTest {
 
   @Test
   void timeoutThrowsTheOriginalException() {
-    var program = boom().timeout(Duration.ofSeconds(10));
+    var program = boom().timeout(Delay.ofSeconds(10));
 
     assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
   }
@@ -316,8 +312,8 @@ class ConcurrentTest {
   void parZipFinisherRunsInTheThreadThatEvaluatesTheParent() {
     var finisherThread = new AtomicReference<Thread>();
     var program = parZip(
-        delayed(Duration.ofMillis(50), () -> 1),
-        delayed(Duration.ofMillis(100), () -> 2),
+        delayed(Delay.ofMillis(50), () -> 1),
+        delayed(Delay.ofMillis(100), () -> 2),
         (a, b) -> {
           finisherThread.set(Thread.currentThread());
           return a + b;

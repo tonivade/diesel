@@ -31,8 +31,8 @@ class CombineTest {
 
   @Test
   void shouldSerialize() {
-    var p1 = delayed(Duration.ofSeconds(2), () -> 10);
-    var p2 = delayed(Duration.ofSeconds(2), () -> "hello");
+    var p1 = delayed(Delay.ofSeconds(2), () -> 10);
+    var p2 = delayed(Delay.ofSeconds(2), () -> "hello");
 
     var result = zip(p1, p2, Tuple::new).timed().evalOrElseThrow();
 

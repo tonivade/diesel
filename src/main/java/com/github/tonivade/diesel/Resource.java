@@ -7,8 +7,8 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Combine.bracketFull;
 import static com.github.tonivade.diesel.Combine.catchAll;
 import static com.github.tonivade.diesel.Combine.chain;
-import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.ensuring;
+import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.join;
@@ -27,7 +27,6 @@ import static java.util.Objects.requireNonNull;
 import com.github.tonivade.diesel.Program.Poll;
 import com.github.tonivade.purefun.Kind;
 
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -50,7 +49,7 @@ import java.util.function.Function;
  * <p>Acquisition can't be cancelled: once {@link #use(Function)} starts acquiring, the
  * acquisition runs to the end, so that whatever is acquired is also released. The only exceptions
  * are the waits that a resource made with {@link #makeFull(Function, Function)} wraps with its
- * {@link Poll}, and the delays of {@link #retry(int, Duration)}: a cancellation during them stops
+ * {@link Poll}, and the delays of {@link #retry(int, Delay)}: a cancellation during them stops
  * the acquisition, and the resources already acquired are released.
  *
  * <p>A release action cannot fail through the program's error channel, but it may throw an
@@ -338,7 +337,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @param delay the duration to wait before retrying
    * @return a resource that retries acquisition once after the specified delay
    */
-  public Resource<S, E, A> retry(Duration delay) {
+  public Resource<S, E, A> retry(Delay delay) {
     return retry(1, delay);
   }
 
@@ -356,7 +355,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @param delay the duration to wait between attempts
    * @return a resource that retries acquisition up to the specified number of times
    */
-  public Resource<S, E, A> retry(int maxRetries, Duration delay) {
+  public Resource<S, E, A> retry(int maxRetries, Delay delay) {
     return retry(Schedule.<S, E>recurs(maxRetries).and(Schedule.spaced(delay)));
   }
 

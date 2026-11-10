@@ -14,7 +14,6 @@ import static com.github.tonivade.diesel.Tuple2.tuple;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -56,7 +55,7 @@ class DeferredTest {
   void getWaitsUntilItIsCompleted() {
     var program = parZip(
         deferred.get(),
-        delayed(Duration.ofMillis(50), deferred.complete("hello")),
+        delayed(Delay.ofMillis(50), deferred.complete("hello")),
         (value, _) -> value);
 
     assertThat(program.evalOrElseThrow()).isEqualTo("hello");
@@ -97,7 +96,7 @@ class DeferredTest {
 
     var program = parZip(
         parSequence(waiters),
-        delayed(Duration.ofMillis(50), deferred.complete("hello")),
+        delayed(Delay.ofMillis(50), deferred.complete("hello")),
         (values, _) -> values);
 
     assertThat(program.evalOrElseThrow()).hasSize(100).containsOnly("hello");
@@ -106,9 +105,9 @@ class DeferredTest {
   @Test
   void aCancelledWaiterDoesNotAffectTheOthers() {
     var cancelled = deferred.get()
-        .timeout(Duration.ofMillis(50))
+        .timeout(Delay.ofMillis(50))
         .catchAll(_ -> success("timeout"));
-    var other = sleep(Duration.ofMillis(200))
+    var other = sleep(Delay.ofMillis(200))
         .andThen(deferred.complete("hello"))
         .andThen(deferred.get());
 
@@ -140,7 +139,7 @@ class DeferredTest {
   @Test
   void cancelledWaitersAreNotKept() {
     var waitWithTimeout = deferred.get()
-        .timeout(Duration.ofMillis(1))
+        .timeout(Delay.ofMillis(1))
         .catchAll(_ -> success("timeout"));
 
     for (int i = 0; i < 100; i++) {
@@ -154,7 +153,7 @@ class DeferredTest {
   void wokenUpWaitersAreNotKept() {
     var program = parZip(
         deferred.get(),
-        delayed(Duration.ofMillis(50), deferred.complete("hello")),
+        delayed(Delay.ofMillis(50), deferred.complete("hello")),
         (value, _) -> value);
 
     assertThat(program.evalOrElseThrow()).isEqualTo("hello");

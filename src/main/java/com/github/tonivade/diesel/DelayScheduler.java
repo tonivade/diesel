@@ -21,12 +21,10 @@ final class DelayScheduler {
 
   private static final ScheduledThreadPoolExecutor SCHEDULER = create();
 
-  static final Duration FOREVER = Duration.ofNanos(Long.MAX_VALUE);
-
   private DelayScheduler() {}
 
-  static ScheduledFuture<?> schedule(Duration delay, Runnable action) {
-    return SCHEDULER.schedule(action, delay.toNanos(), TimeUnit.NANOSECONDS);
+  static ScheduledFuture<?> schedule(Delay delay, Runnable action) {
+    return SCHEDULER.schedule(action, delay.nanos(), TimeUnit.NANOSECONDS);
   }
 
   /**

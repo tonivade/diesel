@@ -8,10 +8,8 @@ import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.success;
 import static java.util.Objects.requireNonNull;
 
-import com.github.tonivade.diesel.Schedule.Decision;
 import com.github.tonivade.diesel.Schedule.Decision.More;
 
-import java.time.Duration;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -71,7 +69,7 @@ public interface Schedule<S, I> {
      */
     default <A> A fold(
         Supplier<? extends A> onDone,
-        BiFunction<? super Duration, ? super Schedule<S, I>, ? extends A> onMore) {
+        BiFunction<? super Delay, ? super Schedule<S, I>, ? extends A> onMore) {
       return switch (this) {
         case Done<S, I> _ -> onDone.get();
         case More<S, I>(var delay, var next) -> onMore.apply(delay, next);
@@ -101,7 +99,7 @@ public interface Schedule<S, I> {
      * @param <S> the type of the state used by the schedule
      * @param <I> the type of the input received by the schedule
      */
-    record More<S, I>(Duration delay, Schedule<S, I> next) implements Decision<S, I> {
+    record More<S, I>(Delay delay, Schedule<S, I> next) implements Decision<S, I> {
 
       /**
        * Creates a decision to continue after the given delay.
@@ -114,9 +112,6 @@ public interface Schedule<S, I> {
       public More {
         requireNonNull(delay);
         requireNonNull(next);
-        if (delay.isNegative()) {
-          throw new IllegalArgumentException("delay cannot be negative");
-        }
       }
     }
   }
@@ -155,7 +150,7 @@ public interface Schedule<S, I> {
    * @throws NullPointerException if delay or next is {@code null}
    * @throws IllegalArgumentException if delay is negative
    */
-  static <S, I> Program<S, Void, Decision<S, I>> more(Duration delay, Schedule<S, I> next) {
+  static <S, I> Program<S, Void, Decision<S, I>> more(Delay delay, Schedule<S, I> next) {
     return success(new More<>(delay, next));
   }
 
@@ -178,7 +173,7 @@ public interface Schedule<S, I> {
    * @return a schedule that continues forever with zero delay
    */
   static <S, I> Schedule<S, I> forever() {
-    return spaced(Duration.ZERO);
+    return spaced(Delay.ZERO);
   }
 
   /**
@@ -189,10 +184,7 @@ public interface Schedule<S, I> {
    * @param <I> the type of the input received by the schedule
    * @return a schedule with a constant delay between executions
    */
-  static <S, I> Schedule<S, I> spaced(Duration delay) {
-    if (delay.isNegative()) {
-      throw new IllegalArgumentException("delay cannot be negative");
-    }
+  static <S, I> Schedule<S, I> spaced(Delay delay) {
     return _ -> more(delay, spaced(delay));
   }
 
@@ -215,14 +207,11 @@ public interface Schedule<S, I> {
    * @param <I> the type of the input received by the schedule
    * @return a schedule with an exponentially increasing delay
    */
-  static <S, I> Schedule<S, I> exponential(Duration base, double factor) {
-    if (base.isNegative()) {
-      throw new IllegalArgumentException("delay cannot be negative");
-    }
+  static <S, I> Schedule<S, I> exponential(Delay base, double factor) {
     if (!Double.isFinite(factor) || factor <= 0) {
       throw new IllegalArgumentException("factor must be a positive value");
     }
-    return _ -> more(base, exponential(scale(base, factor), factor));
+    return _ -> more(base, exponential(base.scale(factor), factor));
   }
 
   /**
@@ -239,7 +228,7 @@ public interface Schedule<S, I> {
     if (n <= 0) {
       return stop();
     }
-    return _ -> more(Duration.ZERO, recurs(n - 1));
+    return _ -> more(Delay.ZERO, recurs(n - 1));
   }
 
   /**
@@ -378,7 +367,7 @@ public interface Schedule<S, I> {
                       "the random value must be between 0 and 1, but it was " + r);
                 }
                 var multiplier = 1 + (r * 2 - 1) * factor;
-                return more(scale(delay, multiplier), next.jittered(factor, random));
+                return more(delay.scale(multiplier), next.jittered(factor, random));
               })
       )
     );
@@ -401,21 +390,12 @@ public interface Schedule<S, I> {
    * @throws NullPointerException if max is {@code null}
    * @throws IllegalArgumentException if max is negative
    */
-  default Schedule<S, I> capped(Duration max) {
-    if (max.isNegative()) {
-      throw new IllegalArgumentException("max cannot be negative");
-    }
+  default Schedule<S, I> capped(Delay max) {
+    requireNonNull(max);
     return input -> next(input).flatMap(decision ->
       decision.fold(
         Schedule::done,
         (delay, next) -> more(delay.compareTo(max) > 0 ? max : delay, next.capped(max)))
     );
-  }
-
-  private static Duration scale(Duration duration, double factor) {
-    if (duration.compareTo(DelayScheduler.FOREVER) >= 0) {
-      return DelayScheduler.FOREVER;
-    }
-    return Duration.ofNanos(Math.round(duration.toNanos() * factor));
   }
 }

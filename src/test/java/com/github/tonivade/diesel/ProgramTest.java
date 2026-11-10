@@ -34,7 +34,6 @@ import com.github.tonivade.diesel.ProgramTest.TestDsl.UnknownError;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -182,38 +181,34 @@ class ProgramTest {
 
   @Test
   void shouldSleep() {
-    var duration = Duration.ofSeconds(2);
+    var duration = Delay.ofSeconds(2);
 
     var result = sleep(duration).timed().evalOrElseThrow();
 
     assertThat(result.duration())
-      .isCloseTo(duration, Duration.ofMillis(100));
+      .isCloseTo(duration.toDuration(), Duration.ofMillis(100));
   }
 
   @Test
-  void sleepWithAZeroOrNegativeDurationDoesNotWait() {
-    assertThat(sleep(Duration.ZERO).eval()).isEqualTo(Result.unit());
-    assertThat(sleep(Duration.ofSeconds(-1)).eval()).isEqualTo(Result.unit());
-    // too negative to fit in nanoseconds
-    assertThat(sleep(ChronoUnit.FOREVER.getDuration().negated()).eval()).isEqualTo(Result.unit());
+  void sleepWithAZeroDoesNotWait() {
+    assertThat(sleep(Delay.ZERO).eval()).isEqualTo(Result.unit());
   }
 
   @Test
   void sleepTooLongForNanosecondsNeverExpires() {
-    // about 300 years: longer than Long.MAX_VALUE nanoseconds, but not ChronoUnit.FOREVER
-    var program = sleep(Duration.ofDays(365L * 300)).timeout(Duration.ofMillis(100));
+    var program = sleep(Delay.MAX).timeout(Delay.ofMillis(100));
 
     assertThatThrownBy(program::eval).isInstanceOf(TimeoutException.class);
   }
 
   @Test
   void shouldDelay() {
-    var duration = Duration.ofSeconds(2);
+    var duration = Delay.ofSeconds(2);
 
     var result = delayed(duration, () -> 10).timed().evalOrElseThrow();
 
     assertThat(result.duration())
-      .isCloseTo(duration, Duration.ofMillis(100));
+      .isCloseTo(duration.toDuration(), Duration.ofMillis(100));
     assertThat(result.value())
       .isEqualTo(10);
   }
@@ -224,7 +219,7 @@ class ProgramTest {
     // waits for it
     var executor = Executors.newSingleThreadExecutor();
     try {
-      var program = never().timeout(Duration.ofMillis(100), executor);
+      var program = never().timeout(Delay.ofMillis(100), executor);
 
       var future = program.fork().evalOrElseThrow();
 
@@ -239,8 +234,8 @@ class ProgramTest {
 
   @Test
   void shouldTimeout() {
-    var p1 = delayed(Duration.ofSeconds(20), () -> 10);
-    var p2 = p1.timeout(Duration.ofSeconds(1));
+    var p1 = delayed(Delay.ofSeconds(20), () -> 10);
+    var p2 = p1.timeout(Delay.ofSeconds(1));
 
     assertThatThrownBy(() -> p2.evalOrElseThrow())
       .isInstanceOf(TimeoutException.class);
@@ -248,9 +243,9 @@ class ProgramTest {
 
   @Test
   void timeoutReturnsTheResultOfAProgramThatFinishesWhileBeingCancelled() {
-    var program = delayed(Duration.ofMillis(300), () -> "done")
+    var program = delayed(Delay.ofMillis(300), () -> "done")
         .uncancelable()
-        .timeout(Duration.ofMillis(50));
+        .timeout(Delay.ofMillis(50));
 
     // the cancellation arrives while it runs and has no step left to stop it: its result is not lost
     assertThat(program.evalOrElseThrow()).isEqualTo("done");
@@ -258,8 +253,8 @@ class ProgramTest {
 
   @Test
   void shouldNotTimeout() {
-    var p1 = delayed(Duration.ofSeconds(2), () -> 10);
-    var p2 = p1.timeout(Duration.ofSeconds(10));
+    var p1 = delayed(Delay.ofSeconds(2), () -> 10);
+    var p2 = p1.timeout(Delay.ofSeconds(10));
 
     var result = p2.evalOrElseThrow();
 
@@ -268,16 +263,14 @@ class ProgramTest {
 
   @Test
   void shouldFailBeforeTimeout() {
-    var p1 = sleep(Duration.ofSeconds(1)).andThen(failure("error"));
-    var p2 = p1.timeout(Duration.ofSeconds(10));
+    var p1 = sleep(Delay.ofSeconds(1)).andThen(failure("error"));
+    var p2 = p1.timeout(Delay.ofSeconds(10));
 
-    var start = System.nanoTime();
-    var result = p2.eval();
-    var duration = Duration.ofNanos(System.nanoTime() - start);
+    var result = p2.timedResult().evalOrElseThrow();
 
-    assertThat(duration)
+    assertThat(result.duration())
       .isCloseTo(Duration.ofSeconds(1), Duration.ofMillis(100));
-    assertThat(result)
+    assertThat(result.value())
       .isEqualTo(Result.failure("error"));
   }
 
@@ -632,7 +625,7 @@ class ProgramTest {
   void concurrentEvaluationsRunTheEffectOnce() {
     var calls = new AtomicInteger();
     var program =
-        Program.delayed(Duration.ofMillis(100), supply(calls::incrementAndGet))
+        Program.delayed(Delay.ofMillis(100), supply(calls::incrementAndGet))
             .memoized();
     var evaluations =
         IntStream.range(0, 50).mapToObj(_ -> program).toList();
@@ -660,7 +653,7 @@ class ProgramTest {
   @Test
   void anExceptionIsNotCachedAndAWaiterRunsItAgain() {
     var attempts = new AtomicInteger();
-    var flaky = Program.delayed(Duration.ofMillis(50), suspend(() ->
+    var flaky = Program.delayed(Delay.ofMillis(50), suspend(() ->
             attempts.incrementAndGet() == 1
                 ? raise(IllegalStateException::new)
                 : success(42)))

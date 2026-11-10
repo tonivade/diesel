@@ -14,7 +14,6 @@ import static org.mockito.Mockito.when;
 
 import com.github.tonivade.diesel.Schedule.Decision.More;
 
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
@@ -36,13 +35,13 @@ class ScheduleTest {
     var first = continueWith(Schedule.<Void, Integer>forever(), 1);
     var second = continueWith(first.next(), 2);
 
-    assertThat(first.delay()).isEqualTo(Duration.ZERO);
-    assertThat(second.delay()).isEqualTo(Duration.ZERO);
+    assertThat(first.delay()).isEqualTo(Delay.ZERO);
+    assertThat(second.delay()).isEqualTo(Delay.ZERO);
   }
 
   @Test
   void spacedUsesTheSameDelayForEveryExecution() {
-    var delay = Duration.ofMillis(250);
+    var delay = Delay.ofMillis(250);
     var first = continueWith(Schedule.<Void, Integer>spaced(delay), 1);
     var second = continueWith(first.next(), 2);
 
@@ -52,38 +51,38 @@ class ScheduleTest {
 
   @Test
   void exponentialContract() {
-    assertThatThrownBy(() -> Schedule.exponential(Duration.ofMillis(-1), 1))
+    assertThatThrownBy(() -> Schedule.exponential(Delay.ofMillis(-1), 1))
       .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> Schedule.exponential(Duration.ofMillis(1), Double.NaN))
+    assertThatThrownBy(() -> Schedule.exponential(Delay.ofMillis(1), Double.NaN))
       .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> Schedule.exponential(Duration.ofMillis(1), Double.POSITIVE_INFINITY))
+    assertThatThrownBy(() -> Schedule.exponential(Delay.ofMillis(1), Double.POSITIVE_INFINITY))
       .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> Schedule.exponential(Duration.ofMillis(1), Double.NEGATIVE_INFINITY))
+    assertThatThrownBy(() -> Schedule.exponential(Delay.ofMillis(1), Double.NEGATIVE_INFINITY))
       .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> Schedule.exponential(Duration.ofMillis(1), -1))
+    assertThatThrownBy(() -> Schedule.exponential(Delay.ofMillis(1), -1))
       .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   void exponentialDoublesTheDelayAfterEveryExecution() {
-    var first = continueWith(Schedule.<Void, Integer>exponential(Duration.ofMillis(100), 2), 1);
+    var first = continueWith(Schedule.<Void, Integer>exponential(Delay.ofMillis(100), 2), 1);
     var second = continueWith(first.next(), 2);
     var third = continueWith(second.next(), 3);
 
-    assertThat(first.delay()).isEqualTo(Duration.ofMillis(100));
-    assertThat(second.delay()).isEqualTo(Duration.ofMillis(200));
-    assertThat(third.delay()).isEqualTo(Duration.ofMillis(400));
+    assertThat(first.delay()).isEqualTo(Delay.ofMillis(100));
+    assertThat(second.delay()).isEqualTo(Delay.ofMillis(200));
+    assertThat(third.delay()).isEqualTo(Delay.ofMillis(400));
   }
 
   @Test
   void exponentialSupportsFractionalFactors() {
-    var first = continueWith(Schedule.<Void, Integer>exponential(Duration.ofMillis(100), 1.5), 1);
+    var first = continueWith(Schedule.<Void, Integer>exponential(Delay.ofMillis(100), 1.5), 1);
     var second = continueWith(first.next(), 2);
     var third = continueWith(second.next(), 3);
 
-    assertThat(first.delay()).isEqualTo(Duration.ofMillis(100));
-    assertThat(second.delay()).isEqualTo(Duration.ofMillis(150));
-    assertThat(third.delay()).isEqualTo(Duration.ofMillis(225));
+    assertThat(first.delay()).isEqualTo(Delay.ofMillis(100));
+    assertThat(second.delay()).isEqualTo(Delay.ofMillis(150));
+    assertThat(third.delay()).isEqualTo(Delay.ofMillis(225));
   }
 
   @Test
@@ -91,8 +90,8 @@ class ScheduleTest {
     var first = continueWith(Schedule.<Void, Integer>recurs(2), 1);
     var second = continueWith(first.next(), 2);
 
-    assertThat(first.delay()).isEqualTo(Duration.ZERO);
-    assertThat(second.delay()).isEqualTo(Duration.ZERO);
+    assertThat(first.delay()).isEqualTo(Delay.ZERO);
+    assertThat(second.delay()).isEqualTo(Delay.ZERO);
     assertThat(second.next().next(3).evalOrElseThrow())
         .isEqualTo(done());
   }
@@ -107,26 +106,26 @@ class ScheduleTest {
 
   @Test
   void andUsesTheLongestDelayWhenBothSchedulesContinue() {
-    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
-        .and(Schedule.spaced(Duration.ofMillis(250)));
+    var schedule = Schedule.<Void, Integer>spaced(Delay.ofMillis(100))
+        .and(Schedule.spaced(Delay.ofMillis(250)));
 
     var decision = continueWith(schedule, 1);
 
-    assertThat(decision.delay()).isEqualTo(Duration.ofMillis(250));
-    assertThat(continueWith(decision.next(), 2).delay()).isEqualTo(Duration.ofMillis(250));
+    assertThat(decision.delay()).isEqualTo(Delay.ofMillis(250));
+    assertThat(continueWith(decision.next(), 2).delay()).isEqualTo(Delay.ofMillis(250));
   }
 
   @Test
   void andStopsWhenTheFirstScheduleIsDone() {
     var schedule = Schedule.<Void, Integer>stop()
-        .and(Schedule.spaced(Duration.ofMillis(100)));
+        .and(Schedule.spaced(Delay.ofMillis(100)));
 
     assertThat(schedule.next(1).evalOrElseThrow()).isEqualTo(done());
   }
 
   @Test
   void andStopsWhenTheSecondScheduleIsDone() {
-    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
+    var schedule = Schedule.<Void, Integer>spaced(Delay.ofMillis(100))
         .and(Schedule.stop());
 
     assertThat(schedule.next(1).evalOrElseThrow()).isEqualTo(done());
@@ -134,33 +133,33 @@ class ScheduleTest {
 
   @Test
   void orUsesTheShortestDelayWhenBothSchedulesContinue() {
-    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
-        .or(Schedule.spaced(Duration.ofMillis(250)));
+    var schedule = Schedule.<Void, Integer>spaced(Delay.ofMillis(100))
+        .or(Schedule.spaced(Delay.ofMillis(250)));
 
     var decision = continueWith(schedule, 1);
 
-    assertThat(decision.delay()).isEqualTo(Duration.ofMillis(100));
-    assertThat(continueWith(decision.next(), 2).delay()).isEqualTo(Duration.ofMillis(100));
+    assertThat(decision.delay()).isEqualTo(Delay.ofMillis(100));
+    assertThat(continueWith(decision.next(), 2).delay()).isEqualTo(Delay.ofMillis(100));
   }
 
   @Test
   void orContinuesWhenTheFirstScheduleIsDone() {
     var schedule = Schedule.<Void, Integer>stop()
-        .or(Schedule.spaced(Duration.ofMillis(100)));
+        .or(Schedule.spaced(Delay.ofMillis(100)));
 
     var decision = continueWith(schedule, 1);
 
-    assertThat(decision.delay()).isEqualTo(Duration.ofMillis(100));
+    assertThat(decision.delay()).isEqualTo(Delay.ofMillis(100));
   }
 
   @Test
   void orContinuesWhenTheSecondScheduleIsDone() {
-    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
+    var schedule = Schedule.<Void, Integer>spaced(Delay.ofMillis(100))
         .or(Schedule.stop());
 
     var decision = continueWith(schedule, 1);
 
-    assertThat(decision.delay()).isEqualTo(Duration.ofMillis(100));
+    assertThat(decision.delay()).isEqualTo(Delay.ofMillis(100));
   }
 
   @Test
@@ -187,21 +186,21 @@ class ScheduleTest {
 
   @Test
   void jitteredScalesDelayWithinTheConfiguredRange(@Mock Random.Service random) {
-    var schedule = Schedule.<Random.Service, Integer>spaced(Duration.ofMillis(100))
+    var schedule = Schedule.<Random.Service, Integer>spaced(Delay.ofMillis(100))
         .jittered(0.2, Random.nextDouble());
     when(random.nextDouble()).thenReturn(0.0, 1.0);
 
     var first = continueWith(schedule, 1, random);
     var second = continueWith(first.next(), 2, random);
 
-    assertThat(first.delay()).isEqualTo(Duration.ofMillis(80));
-    assertThat(second.delay()).isEqualTo(Duration.ofMillis(120));
+    assertThat(first.delay()).isEqualTo(Delay.ofMillis(80));
+    assertThat(second.delay()).isEqualTo(Delay.ofMillis(120));
     verify(random, Mockito.times(2)).nextDouble();
   }
 
   @Test
   void jitteredRejectsARandomValueOutOfRange(@Mock Random.Service random) {
-    var schedule = Schedule.<Random.Service, Integer>spaced(Duration.ofMillis(100))
+    var schedule = Schedule.<Random.Service, Integer>spaced(Delay.ofMillis(100))
         .jittered(1.0, Random.nextDouble());
     when(random.nextDouble()).thenReturn(
         -0.5, 1.5, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
@@ -228,29 +227,29 @@ class ScheduleTest {
     Schedule<Void, Integer> schedule = input -> success(
         input == 42
             ? done()
-            : new More<>(Duration.ZERO, Schedule.stop()));
+            : new More<>(Delay.ZERO, Schedule.stop()));
 
     assertThat(schedule.next(42).evalOrElseThrow()).isEqualTo(done());
-    assertThat(continueWith(schedule, 1).delay()).isEqualTo(Duration.ZERO);
+    assertThat(continueWith(schedule, 1).delay()).isEqualTo(Delay.ZERO);
   }
 
   @Test
   void whileInputContinuesWhilePredicateMatches() {
-    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
+    var schedule = Schedule.<Void, Integer>spaced(Delay.ofMillis(100))
         .whileInput(input -> input < 3);
 
     var first = continueWith(schedule, 1);
     var second = continueWith(first.next(), 2);
 
-    assertThat(first.delay()).isEqualTo(Duration.ofMillis(100));
-    assertThat(second.delay()).isEqualTo(Duration.ofMillis(100));
+    assertThat(first.delay()).isEqualTo(Delay.ofMillis(100));
+    assertThat(second.delay()).isEqualTo(Delay.ofMillis(100));
     assertThat(second.next().next(3).evalOrElseThrow())
         .isEqualTo(done());
   }
 
   @Test
   void whileInputStopsWhenPredicateDoesNotMatch() {
-    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
+    var schedule = Schedule.<Void, Integer>spaced(Delay.ofMillis(100))
         .whileInput(input -> input < 2);
 
     var first = continueWith(schedule, 1);
@@ -265,7 +264,7 @@ class ScheduleTest {
 
     Schedule<Void, Integer> underlying = _ -> {
       evaluations.incrementAndGet();
-      return success(new More<>(Duration.ZERO, Schedule.stop()));
+      return success(new More<>(Delay.ZERO, Schedule.stop()));
     };
 
     var schedule = underlying.whileInput(input -> input > 0);
@@ -284,8 +283,8 @@ class ScheduleTest {
     var first = continueWith(schedule, 1);
     var second = continueWith(first.next(), 2);
 
-    assertThat(first.delay()).isEqualTo(Duration.ZERO);
-    assertThat(second.delay()).isEqualTo(Duration.ZERO);
+    assertThat(first.delay()).isEqualTo(Delay.ZERO);
+    assertThat(second.delay()).isEqualTo(Delay.ZERO);
     assertThat(second.next().next(3).evalOrElseThrow())
         .isEqualTo(done());
   }
@@ -306,8 +305,8 @@ class ScheduleTest {
 
   @Test
   void cappedLimitsDelaysToTheMaximum() {
-    var max = Duration.ofMillis(200);
-    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(500))
+    var max = Delay.ofMillis(200);
+    var schedule = Schedule.<Void, Integer>spaced(Delay.ofMillis(500))
         .capped(max);
 
     var first = continueWith(schedule, 1);
@@ -319,9 +318,9 @@ class ScheduleTest {
 
   @Test
   void cappedPreservesDelaysBelowTheMaximum() {
-    var delay = Duration.ofMillis(100);
+    var delay = Delay.ofMillis(100);
     var schedule = Schedule.<Void, Integer>spaced(delay)
-        .capped(Duration.ofMillis(200));
+        .capped(Delay.ofMillis(200));
 
     var decision = continueWith(schedule, 1);
 
@@ -330,7 +329,7 @@ class ScheduleTest {
 
   @Test
   void cappedPreservesDelaysEqualToTheMaximum() {
-    var max = Duration.ofMillis(200);
+    var max = Delay.ofMillis(200);
     var schedule = Schedule.<Void, Integer>spaced(max)
         .capped(max);
 
@@ -341,18 +340,18 @@ class ScheduleTest {
 
   @Test
   void cappedAcceptsZeroAsMaximum() {
-    var schedule = Schedule.<Void, Integer>spaced(Duration.ofMillis(100))
-        .capped(Duration.ZERO);
+    var schedule = Schedule.<Void, Integer>spaced(Delay.ofMillis(100))
+        .capped(Delay.ZERO);
 
     var decision = continueWith(schedule, 1);
 
-    assertThat(decision.delay()).isEqualTo(Duration.ZERO);
+    assertThat(decision.delay()).isEqualTo(Delay.ZERO);
   }
 
   @Test
   void cappedDoesNotChangeDoneDecision() {
     var schedule = Schedule.<Void, Integer>stop()
-        .capped(Duration.ofMillis(100));
+        .capped(Delay.ofMillis(100));
 
     assertThat(schedule.next(1).evalOrElseThrow())
         .isEqualTo(done());
@@ -361,7 +360,7 @@ class ScheduleTest {
   @Test
   void cappedRejectsNegativeMaximum() {
     assertThatThrownBy(() ->
-        Schedule.<Void, Integer>forever().capped(Duration.ofMillis(-1)))
+        Schedule.<Void, Integer>forever().capped(Delay.ofMillis(-1)))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
