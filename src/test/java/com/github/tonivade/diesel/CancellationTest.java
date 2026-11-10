@@ -625,7 +625,7 @@ class CancellationTest {
   @Test
   void sleepingForeverCanBeCancelled() throws Exception {
     // as long as Long.MAX_VALUE nanoseconds or longer, the sleep never expires: it waits until it's cancelled
-    var future = sleep(Delay.FOREVER).fork().evalOrElseThrow();
+    var future = sleep(Delay.MAX).fork().evalOrElseThrow();
     future.cancel(true);
 
     assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);

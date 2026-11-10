@@ -13,7 +13,7 @@ import java.time.Duration;
  * methods for creating delays from different time units, comparison
  * operations, conversion to {@link Duration}, and scaling.
  *
- * <p>The maximum representable delay is {@link #FOREVER}, corresponding to
+ * <p>The maximum representable delay is {@link #MAX}, corresponding to
  * {@link Long#MAX_VALUE} nanoseconds.
  *
  * @param nanos the delay in nanoseconds; must be non-negative
@@ -30,7 +30,7 @@ public record Delay(long nanos) implements Comparable<Delay> {
   /**
    * Represents the maximum possible delay.
    */
-  public static final Delay FOREVER = new Delay(MAX_NANOS);
+  public static final Delay MAX = new Delay(MAX_NANOS);
 
   /**
    * Creates a delay.
@@ -53,7 +53,13 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @return the resulting delay
    */
   public static Delay ofHours(long hours) {
-    return ofMinutes(Math.multiplyExact(hours, 60));
+    if (hours == 0) {
+      return ZERO;
+    }
+    if (hours >= MAX_NANOS / 3_600_000_000_000L) {
+      return MAX;
+    }
+    return new Delay(hours * 3_600_000_000_000L);
   }
 
   /**
@@ -63,7 +69,13 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @return the resulting delay
    */
   public static Delay ofMinutes(long minutes) {
-    return ofSeconds(Math.multiplyExact(minutes, 60));
+    if (minutes == 0) {
+      return ZERO;
+    }
+    if (minutes >= MAX_NANOS / 60_000_000_000L) {
+      return MAX;
+    }
+    return new Delay(minutes * 60_000_000_000L);
   }
 
   /**
@@ -73,7 +85,13 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @return the resulting delay
    */
   public static Delay ofSeconds(long seconds) {
-    return ofMillis(Math.multiplyExact(seconds, 1000));
+    if (seconds == 0) {
+      return ZERO;
+    }
+    if (seconds >= MAX_NANOS / 1_000_000_000L) {
+      return MAX;
+    }
+    return new Delay(seconds * 1_000_000_000L);
   }
 
   /**
@@ -83,7 +101,13 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @return the resulting delay
    */
   public static Delay ofMillis(long millis) {
-    return ofMicros(Math.multiplyExact(millis, 1000));
+    if (millis == 0) {
+      return ZERO;
+    }
+    if (millis >= MAX_NANOS / 1_000_000L) {
+      return MAX;
+    }
+    return new Delay(millis * 1_000_000L);
   }
 
   /**
@@ -93,7 +117,13 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @return the resulting delay
    */
   public static Delay ofMicros(long micros) {
-    return ofNanos(Math.multiplyExact(micros, 1000));
+    if (micros == 0) {
+      return ZERO;
+    }
+    if (micros >= MAX_NANOS / 1_000L) {
+      return MAX;
+    }
+    return new Delay(micros * 1_000L);
   }
 
   /**
@@ -104,6 +134,12 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @throws IllegalArgumentException if {@code nanos} is negative
    */
   public static Delay ofNanos(long nanos) {
+    if (nanos == 0) {
+      return ZERO;
+    }
+    if (nanos >= MAX_NANOS) {
+      return MAX;
+    }
     return new Delay(nanos);
   }
 
@@ -119,10 +155,10 @@ public record Delay(long nanos) implements Comparable<Delay> {
   /**
    * Checks whether this delay represents the maximum possible value.
    *
-   * @return {@code true} if the delay equals {@link #FOREVER};
+   * @return {@code true} if the delay equals {@link #MAX};
    *         {@code false} otherwise
    */
-  public boolean isForever() {
+  public boolean isMax() {
     return nanos == MAX_NANOS;
   }
 
@@ -155,7 +191,7 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * between zero and one decreases it. A zero factor returns
    * {@link #ZERO}. Results exceeding the maximum representable value
    * are not explicitly saturated except when the original delay is
-   * already {@link #FOREVER} and the factor is greater than one.
+   * already {@link #MAX} and the factor is greater than one.
    *
    * @param factor the scaling factor; must be finite and non-negative
    * @return the scaled delay
@@ -175,7 +211,7 @@ public record Delay(long nanos) implements Comparable<Delay> {
     double result = nanos * factor;
 
     if (result >= MAX_NANOS) {
-      return FOREVER;
+      return MAX;
     }
 
     return new Delay(Math.round(result));

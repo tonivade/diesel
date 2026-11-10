@@ -1202,7 +1202,7 @@ public final class Concurrent {
     if (delay.isZero()) {
       return raise(TimeoutException::new);
     }
-    if (delay.isForever()) {
+    if (delay.isMax()) {
       return program;
     }
     // the timer is forked first, like in race: with a single thread executor it expires before

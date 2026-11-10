@@ -65,8 +65,8 @@ class DelayTest {
 
     @Test
     void shouldHaveMaximumConstant() {
-      assertEquals(Delay.MAX_NANOS, Delay.FOREVER.nanos());
-      assertTrue(Delay.FOREVER.isForever());
+      assertEquals(Delay.MAX_NANOS, Delay.MAX.nanos());
+      assertTrue(Delay.MAX.isMax());
     }
   }
 
@@ -156,7 +156,7 @@ class DelayTest {
 
     @Test
     void shouldReturnFalseForMaximumDelay() {
-      assertFalse(Delay.FOREVER.isZero());
+      assertFalse(Delay.MAX.isZero());
     }
   }
 
@@ -165,17 +165,17 @@ class DelayTest {
 
     @Test
     void shouldReturnTrueWhenDelayIsMaximum() {
-      assertTrue(Delay.FOREVER.isForever());
+      assertTrue(Delay.MAX.isMax());
     }
 
     @Test
     void shouldReturnFalseWhenDelayIsNotMaximum() {
-      assertFalse(Delay.ofNanos(1).isForever());
+      assertFalse(Delay.ofNanos(1).isMax());
     }
 
     @Test
     void shouldReturnFalseForZeroDelay() {
-      assertFalse(Delay.ZERO.isForever());
+      assertFalse(Delay.ZERO.isMax());
     }
   }
 
@@ -194,7 +194,7 @@ class DelayTest {
 
     @Test
     void shouldConvertMaximumDelay() {
-      assertEquals(Duration.ofNanos(Delay.MAX_NANOS), Delay.FOREVER.toDuration());
+      assertEquals(Duration.ofNanos(Delay.MAX_NANOS), Delay.MAX.toDuration());
     }
   }
 
@@ -218,13 +218,13 @@ class DelayTest {
 
     @Test
     void shouldCompareZeroAndMaximum() {
-      assertTrue(Delay.ZERO.compareTo(Delay.FOREVER) < 0);
-      assertTrue(Delay.FOREVER.compareTo(Delay.ZERO) > 0);
+      assertTrue(Delay.ZERO.compareTo(Delay.MAX) < 0);
+      assertTrue(Delay.MAX.compareTo(Delay.ZERO) > 0);
     }
 
     @Test
     void shouldCompareMaximumValuesWithoutOverflow() {
-      assertTrue(Delay.ofNanos(Delay.MAX_NANOS - 1).compareTo(Delay.FOREVER) < 0);
+      assertTrue(Delay.ofNanos(Delay.MAX_NANOS - 1).compareTo(Delay.MAX) < 0);
     }
   }
 
@@ -280,17 +280,17 @@ class DelayTest {
 
     @Test
     void shouldReturnMaximumWhenScalingMaximumDelayUp() {
-      assertEquals(Delay.FOREVER, Delay.FOREVER.scale(2));
+      assertEquals(Delay.MAX, Delay.MAX.scale(2));
     }
 
     @Test
     void shouldReturnMaximumWhenScalingMaximumDelayByOne() {
-      assertEquals(Delay.FOREVER, Delay.FOREVER.scale(1));
+      assertEquals(Delay.MAX, Delay.MAX.scale(1));
     }
 
     @Test
     void shouldAllowScalingMaximumDelayDown() {
-      assertEquals(Delay.ofNanos(Delay.MAX_NANOS / 2), Delay.FOREVER.scale(0.5));
+      assertEquals(Delay.ofNanos(Delay.MAX_NANOS / 2), Delay.MAX.scale(0.5));
     }
 
     @Test
@@ -315,7 +315,7 @@ class DelayTest {
 
     @Test
     void shouldNotOverflowWhenScalingLargeDelay() {
-      assertEquals(Delay.FOREVER, Delay.ofNanos(Delay.MAX_NANOS / 2 + 1).scale(2));
+      assertEquals(Delay.MAX, Delay.ofNanos(Delay.MAX_NANOS / 2 + 1).scale(2));
     }
   }
 }
