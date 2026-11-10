@@ -8,6 +8,7 @@ import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.evalAll;
 import static com.github.tonivade.diesel.Program.raise;
+import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.unit;
 import static java.util.function.Function.identity;
@@ -1198,10 +1199,16 @@ public final class Concurrent {
 
   static <S, E, T> Program<S, E, T> timeout(
       Program<S, E, T> program, Delay delay, Executor executor) {
+    if (delay.isZero()) {
+      return raise(TimeoutException::new);
+    }
+    if (delay.isForever()) {
+      return program;
+    }
     // the timer is forked first, like in race: with a single thread executor it expires before
     // the program starts, which then is cancelled before it runs
     return zip(
-        Program.<S, E>sleep(delay).fork(executor),
+        fork(sleep(delay), executor),
         program.fork(executor),
         Concurrent::<E, T>timeoutFuture)
         .flatMap(Program::join);
