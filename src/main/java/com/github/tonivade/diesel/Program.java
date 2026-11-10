@@ -1405,8 +1405,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * its result is returned instead of the timeout, so a value that the program has already
    * consumed, like an element taken from a {@link Queue}, is not lost.
    *
-   * <p>if duration is equal to {@link Delay#ZERO} it will raise a {@link TimeoutException}.
-   * <p>if duration is equal to {@link Delay#MAX} it will return the original program untouched.
+   * <p>If the duration is {@link Delay#ZERO}, this method returns a program that raises {@link TimeoutException}.
+   * If the duration is {@link Delay#MAX}, it returns the original program untouched.
    *
    * @param duration the duration of the timeout
    * @param executor the executor used to run the program and its timeout in parallel
@@ -1623,8 +1623,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <p>Cancelling the sleep cancels its delay too, so a cancelled sleep, like the one of a
    * {@link #timeout(Delay)} that didn't expire, doesn't stay scheduled until the delay expires.
    *
-   * <p>If duration is equals to {@link Delay#ZERO} it will return {@link #unit()}.
-   * <p>If duration is equals to {@link Delay#MAX}, it will return {@link #never()}.
+   * <p>If the duration is {@link Delay#ZERO}, this method returns {@link #unit()}.
+   * If the duration is {@link Delay#MAX}, it returns {@link #never()}.
    *
    * @param duration the duration of the sleep
    * @param <S> the type of the state
