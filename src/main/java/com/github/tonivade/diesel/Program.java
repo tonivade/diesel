@@ -246,6 +246,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <p>An evaluation that waits for itself, like a program that evaluates the same memoized
    * program recursively, waits forever.
    *
+   * <p>A fatal error, like an {@link OutOfMemoryError} or a {@link StackOverflowError}, skips the
+   * finalizers, see {@link Fatal}, so if the running evaluation dies with one, the waiting and the
+   * later evaluations wait forever too.
+   *
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
@@ -1683,12 +1687,15 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private static <E, T, A> void completeWith(CompletableFuture<Result<E, T>> callback,
       CompletableFuture<? extends A> future, Function<? super A, ? extends Result<E, T>> adapter) {
+    // not async: completing the callback is cheap, and it avoids depending on the common pool.
+    // The returned future can be ignored because the action cannot throw
     var _ = future.whenComplete((result, error) -> {
       if (error != null) {
         callback.completeExceptionally(error);
       } else if (result != null) {
         callback.complete(adapter.apply(result));
       } else {
+        // a program can't produce null, so a future completed with null fails instead
         callback.completeExceptionally(new NullPointerException());
       }
     });

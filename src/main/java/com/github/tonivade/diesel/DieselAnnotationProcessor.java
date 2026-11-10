@@ -83,7 +83,6 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         var diesel = getAnnotation(annotation, element);
         var dslName = getDslNameFromAnnotation(diesel)
           .map(a -> a.getValue().toString())
-          .filter(not(String::isEmpty))
           .filter(not(String::isBlank))
           .orElse(element.getSimpleName() + DSL_SUFFIX);
         var errorType = getErrorTypeFromAnnotation(diesel)

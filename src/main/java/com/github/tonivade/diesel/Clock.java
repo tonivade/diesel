@@ -26,7 +26,7 @@ public interface Clock {
     /**
      * Retrieves the current time.
      *
-     * @return the current time in millisecons
+     * @return the current time in milliseconds
      */
     default long currentTime() {
       return System.currentTimeMillis();

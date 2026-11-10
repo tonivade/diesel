@@ -191,7 +191,7 @@ public interface Schedule<S, I> {
    */
   static <S, I> Schedule<S, I> spaced(Duration delay) {
     if (delay.isNegative()) {
-      throw new IllegalArgumentException("delay must be a positive duration");
+      throw new IllegalArgumentException("delay cannot be negative");
     }
     return _ -> more(delay, spaced(delay));
   }

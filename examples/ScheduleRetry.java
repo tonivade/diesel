@@ -33,7 +33,7 @@ public class ScheduleRetry {
   }
 
   private static Schedule<Random.Service, String> schedule() {
-    return  Schedule.<Random.Service, String>exponential(Duration.ofMillis(200), 2.0)
+    return Schedule.<Random.Service, String>exponential(Duration.ofMillis(200), 2.0)
         .jittered(0.2, Random.nextDouble())
         .and(Schedule.recurs(3));
   }
