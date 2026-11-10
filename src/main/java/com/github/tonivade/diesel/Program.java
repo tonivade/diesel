@@ -1405,6 +1405,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * its result is returned instead of the timeout, so a value that the program has already
    * consumed, like an element taken from a {@link Queue}, is not lost.
    *
+   * <p>if Delay is equals to {@link Delay#ZERO} it will raise a {@link TimeoutException}.
+   * <p>if Delay is equals to {@link Delay#MAX} it will return the original program untouched.}
+   *
    * @param duration the duration of the timeout
    * @param executor the executor used to run the program and its timeout in parallel
    * @return a new program representing the computation with timeout
