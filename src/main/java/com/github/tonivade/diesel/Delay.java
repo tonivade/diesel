@@ -206,10 +206,9 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * Scales this delay by the specified factor.
    *
    * <p>A factor greater than one increases the delay, while a factor
-   * between zero and one decreases it. A zero factor returns
-   * {@link #ZERO}. Results exceeding the maximum representable value
-   * are not explicitly saturated except when the original delay is
-   * already {@link #MAX} and the factor is greater than one.
+   * between zero and one decreases it. The result is rounded to the
+   * nearest nanosecond and saturated at {@link #MAX} if it reaches
+   * or exceeds the maximum representable value.
    *
    * @param factor the scaling factor; must be finite and non-negative
    * @return the scaled delay
