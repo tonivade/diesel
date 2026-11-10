@@ -8,7 +8,9 @@ import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.success;
 import static java.util.Objects.requireNonNull;
 
+import com.github.tonivade.diesel.Schedule.Decision;
 import com.github.tonivade.diesel.Schedule.Decision.More;
+
 import java.time.Duration;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -173,10 +175,7 @@ public interface Schedule<S, I> {
     if (base.isNegative()) {
       throw new IllegalArgumentException("delay cannot be negative");
     }
-    if (!Double.isFinite(factor)) {
-      throw new IllegalArgumentException("factor must be a positive value");
-    }
-    if (factor <= 0) {
+    if (!Double.isFinite(factor) || factor <= 0) {
       throw new IllegalArgumentException("factor must be a positive value");
     }
     return _ -> more(base, exponential(scale(base, factor), factor));
@@ -299,22 +298,26 @@ public interface Schedule<S, I> {
   }
 
   /**
-   * Adds random jitter to the delays produced by the given schedule.
+   * Adds random jitter to the delays produced by this schedule.
    *
    * <p>Each delay is multiplied by a random value in the range
    * {@code [1 - factor, 1 + factor]}.
    *
    * <p>The value factor must be between 0 and 1.
    *
+   * <p>The random program must produce a value between 0 and 1, like {@link Random#nextDouble()}.
+   * If it produces any other value, the evaluation of the schedule throws an
+   * {@link IllegalArgumentException}.
+   *
    * @param factor the maximum relative variation applied to each delay
+   * @param random the program that produces a random value between 0 and 1 for each delay
    * @return a schedule with randomized delays
+   * @throws NullPointerException if random is {@code null}
+   * @throws IllegalArgumentException if factor is not between 0 and 1
    */
   default Schedule<S, I> jittered(double factor, Program<S, Void, Double> random) {
     requireNonNull(random);
-    if (!Double.isFinite(factor)) {
-      throw new IllegalArgumentException("factor must be a value between 0 to 1");
-    }
-    if (factor < 0 || factor > 1) {
+    if (Double.isNaN(factor) || factor < 0 || factor > 1) {
       throw new IllegalArgumentException("factor must be a value between 0 to 1");
     }
     return input -> next(input).flatMap(decision ->
@@ -324,6 +327,12 @@ public interface Schedule<S, I> {
           pipe(
               random,
               r -> {
+                // otherwise the multiplier, and so the delay, could be negative. A NaN fails every
+                // comparison, so it has to be checked on its own, or it would become a zero delay
+                if (Double.isNaN(r) || r < 0 || r > 1) {
+                  throw new IllegalArgumentException(
+                      "the random value must be between 0 and 1, but it was " + r);
+                }
                 var multiplier = 1 + (r * 2 - 1) * factor;
                 return more(scale(delay, multiplier), next.jittered(factor, random));
               })

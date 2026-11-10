@@ -200,6 +200,20 @@ class ScheduleTest {
   }
 
   @Test
+  void jitteredRejectsARandomValueOutOfRange(@Mock Random.Service random) {
+    var schedule = Schedule.<Random.Service, Integer>spaced(Duration.ofMillis(100))
+        .jittered(1.0, Random.nextDouble());
+    when(random.nextDouble()).thenReturn(
+        -0.5, 1.5, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+
+    for (int i = 0; i < 5; i++) {
+      assertThatThrownBy(() -> schedule.next(1).eval(random))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageStartingWith("the random value must be between 0 and 1");
+    }
+  }
+
+  @Test
   void jitteredDoesNotRequestRandomnessWhenScheduleIsDone(@Mock Random.Service random) {
     var schedule = Schedule.<Random.Service, Integer>stop().jittered(0.2, Random.nextDouble());
 
