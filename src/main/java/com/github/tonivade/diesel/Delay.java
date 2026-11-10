@@ -22,6 +22,8 @@ public record Delay(long nanos) implements Comparable<Delay> {
 
   static final long MAX_NANOS = Duration.ofDays(365).toNanos();
 
+  private static final Duration MAX_DURATION = Duration.ofNanos(MAX_NANOS);
+
   /**
    * Represents a zero-length delay.
    */
@@ -159,6 +161,19 @@ public record Delay(long nanos) implements Comparable<Delay> {
       return MAX;
     }
     return new Delay(nanos);
+  }
+
+  public static Delay from(Duration duration) {
+    if (duration.isNegative()) {
+      throw new IllegalArgumentException("delay cannot be negative");
+    }
+    if (duration.isZero()) {
+      return ZERO;
+    }
+    if (duration.compareTo(MAX_DURATION) >= 0) {
+      return MAX;
+    }
+    return new Delay(duration.toNanos());
   }
 
   /**

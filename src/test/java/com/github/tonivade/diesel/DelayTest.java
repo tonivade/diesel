@@ -75,6 +75,22 @@ class DelayTest {
   class FactoryMethodsTest {
 
     @Test
+    void fromDurationContract() {
+      assertSame(Delay.ZERO, Delay.from(Duration.ZERO));
+      assertSame(Delay.MAX, Delay.from(Duration.ofNanos(Delay.MAX_NANOS)));
+      assertSame(Delay.MAX, Delay.from(Duration.ofNanos(Delay.MAX_NANOS + 1)));
+      assertSame(Delay.MAX, Delay.from(Duration.ofNanos(Long.MAX_VALUE)));
+      assertThrows(IllegalArgumentException.class, () -> Delay.from(Duration.ofNanos(-1)));
+      assertThrows(IllegalArgumentException.class, () -> Delay.from(Duration.ofNanos(Long.MIN_VALUE)));
+      assertEquals(new Delay(1), Delay.from(Duration.ofNanos(1)));
+      assertEquals(new Delay(1_000), Delay.from(Duration.ofNanos(1_000)));
+      assertEquals(new Delay(1_000_000), Delay.from(Duration.ofMillis(1)));
+      assertEquals(new Delay(1_000_000_000), Delay.from(Duration.ofSeconds(1)));
+      assertEquals(new Delay(60_000_000_000L), Delay.from(Duration.ofMinutes(1)));
+      assertEquals(new Delay(3_600_000_000_000L), Delay.from(Duration.ofHours(1)));
+    }
+
+    @Test
     void ofNanosContract() {
       assertSame(Delay.ZERO, Delay.ofNanos(0));
       assertSame(Delay.MAX, Delay.ofNanos(Delay.MAX_NANOS));
