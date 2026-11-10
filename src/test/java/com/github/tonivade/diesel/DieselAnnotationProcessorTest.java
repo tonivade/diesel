@@ -150,6 +150,52 @@ class DieselAnnotationProcessorTest {
   }
 
   @Test
+  void shouldGenerateDslCodeInheritanceWithThrows() {
+    var file = forSourceLines("test.Console",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Diesel;
+      import com.github.tonivade.diesel.Result;
+
+      interface Parent<E extends Exception> {
+        Result<Void, String> read() throws E;
+      }
+
+      @Diesel
+      public interface Console extends Parent<RuntimeException> {
+      }""");
+
+    var expected = forSourceLines("test.ConsoleDsl",
+      """
+      package test;
+
+      import com.github.tonivade.diesel.Program;
+      import com.github.tonivade.diesel.Result;
+      import java.lang.String;
+      import java.lang.SuppressWarnings;
+      import javax.annotation.processing.Generated;
+
+      @Generated("com.github.tonivade.diesel.DieselAnnotationProcessor")
+      public interface ConsoleDsl {
+        @SuppressWarnings({
+            "unchecked",
+            "rawtypes"
+        })
+        static <S extends Console, E> Program<S, E, String> read() {
+          return Program.accessResult(state -> (Result) state.read());
+        }
+      }""");
+
+    assert_().about(javaSource())
+      .that(file)
+      .processedWith(new DieselAnnotationProcessor())
+      .compilesWithoutError()
+      .and()
+      .generatesSources(expected);
+  }
+
+  @Test
   void shouldFailWhenAMethodReturningAResultDeclaresCheckedExceptions() {
     var file = forSourceLines("test.Console",
       """
