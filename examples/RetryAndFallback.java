@@ -13,10 +13,10 @@ import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
 
+import com.github.tonivade.diesel.Delay;
 import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Resource;
 
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -44,7 +44,7 @@ public class RetryAndFallback {
             connection -> task(connection::close));
 
     return primary
-        .retry(2, Duration.ofMillis(200))
+        .retry(2, Delay.ofMillis(200))
         .orElse(fallback)
         .use(connection -> success(connection.name()));
   }

@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
+ * Distributed under the terms of the MIT License
+ */
 package com.github.tonivade.diesel;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -32,9 +36,16 @@ class DelayTest {
 
     @Test
     void shouldAllowMaximumValue() {
-      Delay delay = new Delay(Long.MAX_VALUE);
+      Delay delay = new Delay(Delay.MAX_NANOS);
 
-      assertEquals(Long.MAX_VALUE, delay.nanos());
+      assertEquals(Delay.MAX_NANOS, delay.nanos());
+    }
+
+    @Test
+    void shouldAllowCollapseToMaxNanos() {
+      Delay delay = new Delay(Delay.MAX_NANOS + 1);
+
+      assertEquals(Delay.MAX_NANOS, delay.nanos());
     }
 
     @Test
@@ -54,7 +65,7 @@ class DelayTest {
 
     @Test
     void shouldHaveMaximumConstant() {
-      assertEquals(Long.MAX_VALUE, Delay.FOREVER.nanos());
+      assertEquals(Delay.MAX_NANOS, Delay.FOREVER.nanos());
       assertTrue(Delay.FOREVER.isForever());
     }
   }
@@ -183,7 +194,7 @@ class DelayTest {
 
     @Test
     void shouldConvertMaximumDelay() {
-      assertEquals(Duration.ofNanos(Long.MAX_VALUE), Delay.FOREVER.toDuration());
+      assertEquals(Duration.ofNanos(Delay.MAX_NANOS), Delay.FOREVER.toDuration());
     }
   }
 
@@ -213,7 +224,7 @@ class DelayTest {
 
     @Test
     void shouldCompareMaximumValuesWithoutOverflow() {
-      assertTrue(Delay.ofNanos(Long.MAX_VALUE - 1).compareTo(Delay.FOREVER) < 0);
+      assertTrue(Delay.ofNanos(Delay.MAX_NANOS - 1).compareTo(Delay.FOREVER) < 0);
     }
   }
 
@@ -279,7 +290,7 @@ class DelayTest {
 
     @Test
     void shouldAllowScalingMaximumDelayDown() {
-      assertEquals(Delay.ofNanos((Long.MAX_VALUE / 2) + 1), Delay.FOREVER.scale(0.5));
+      assertEquals(Delay.ofNanos(Delay.MAX_NANOS / 2), Delay.FOREVER.scale(0.5));
     }
 
     @Test
@@ -304,7 +315,7 @@ class DelayTest {
 
     @Test
     void shouldNotOverflowWhenScalingLargeDelay() {
-      assertEquals(Delay.FOREVER, Delay.ofNanos(Long.MAX_VALUE / 2 + 1).scale(2));
+      assertEquals(Delay.FOREVER, Delay.ofNanos(Delay.MAX_NANOS / 2 + 1).scale(2));
     }
   }
 }

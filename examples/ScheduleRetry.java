@@ -11,11 +11,11 @@ import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
 
+import com.github.tonivade.diesel.Delay;
 import com.github.tonivade.diesel.Program;
 import com.github.tonivade.diesel.Schedule;
 import com.github.tonivade.diesel.Random;
 
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -33,7 +33,7 @@ public class ScheduleRetry {
   }
 
   private static Schedule<Random.Service, String> schedule() {
-    return Schedule.<Random.Service, String>exponential(Duration.ofMillis(200), 2.0)
+    return Schedule.<Random.Service, String>exponential(Delay.ofMillis(200), 2.0)
         .jittered(0.2, Random.nextDouble())
         .and(Schedule.recurs(3));
   }

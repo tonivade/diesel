@@ -20,6 +20,8 @@ import java.time.Duration;
  */
 public record Delay(long nanos) implements Comparable<Delay> {
 
+  static final long MAX_NANOS = Duration.ofDays(365).toNanos();
+
   /**
    * Represents a zero-length delay.
    */
@@ -28,7 +30,7 @@ public record Delay(long nanos) implements Comparable<Delay> {
   /**
    * Represents the maximum possible delay.
    */
-  public static final Delay FOREVER = new Delay(Long.MAX_VALUE);
+  public static final Delay FOREVER = new Delay(MAX_NANOS);
 
   /**
    * Creates a delay.
@@ -38,6 +40,9 @@ public record Delay(long nanos) implements Comparable<Delay> {
   public Delay {
     if (nanos < 0) {
       throw new IllegalArgumentException("delay cannot be a negative value");
+    }
+    if (nanos > MAX_NANOS) {
+      nanos = MAX_NANOS;
     }
   }
 
@@ -118,7 +123,7 @@ public record Delay(long nanos) implements Comparable<Delay> {
    *         {@code false} otherwise
    */
   public boolean isForever() {
-    return nanos == Long.MAX_VALUE;
+    return nanos == MAX_NANOS;
   }
 
   /**
@@ -169,7 +174,7 @@ public record Delay(long nanos) implements Comparable<Delay> {
 
     double result = nanos * factor;
 
-    if (result >= Long.MAX_VALUE) {
+    if (result >= MAX_NANOS) {
       return FOREVER;
     }
 

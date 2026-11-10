@@ -11,9 +11,8 @@ import static com.github.tonivade.diesel.Concurrent.parZip;
 import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.supply;
 
+import com.github.tonivade.diesel.Delay;
 import com.github.tonivade.diesel.Program;
-
-import java.time.Duration;
 
 public class ParallelRequests {
 
@@ -42,7 +41,7 @@ public class ParallelRequests {
 
   private static Program<Void, Throwable, Profile> loadProfile() {
     return delayed(
-        Duration.ofMillis(500),
+        Delay.ofMillis(500),
         supply(() -> {
           IO.println("Profile loaded");
           return new Profile(1, "Alice");
@@ -51,7 +50,7 @@ public class ParallelRequests {
 
   private static Program<Void, Throwable, Orders> loadOrders() {
     return delayed(
-        Duration.ofMillis(1000),
+        Delay.ofMillis(1000),
         supply(() -> {
           IO.println("Orders loaded");
           return new Orders(3);
@@ -60,7 +59,7 @@ public class ParallelRequests {
 
   private static Program<Void, Throwable, Preferences> loadPreferences() {
     return delayed(
-        Duration.ofMillis(700),
+        Delay.ofMillis(700),
         supply(() -> {
           IO.println("Preferences loaded");
           return new Preferences("dark", "en");
