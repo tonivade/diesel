@@ -163,6 +163,17 @@ public record Delay(long nanos) implements Comparable<Delay> {
     return new Delay(nanos);
   }
 
+  /**
+   * Creates a delay from the specified duration.
+   *
+   * <p>If the duration exceeds the maximum representable delay,
+   * the result is saturated at {@link #MAX}.
+   *
+   * @param duration the duration; must be non-negative
+   * @return the resulting delay
+   * @throws IllegalArgumentException if the duration is negative
+   * @throws NullPointerException if the duration is null
+   */
   public static Delay from(Duration duration) {
     if (duration.isNegative()) {
       throw new IllegalArgumentException("delay cannot be negative");
