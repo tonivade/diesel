@@ -56,7 +56,23 @@ class DelayTest {
   }
 
   @Nested
-  class Factory {
+  class ConstantsTest {
+
+    @Test
+    void shouldHaveZeroConstant() {
+      assertEquals(0, Delay.ZERO.nanos());
+      assertTrue(Delay.ZERO.isZero());
+    }
+
+    @Test
+    void shouldHaveMaximumConstant() {
+      assertEquals(Delay.MAX_NANOS, Delay.MAX.nanos());
+      assertTrue(Delay.MAX.isMax());
+    }
+  }
+
+  @Nested
+  class FactoryMethodsTest {
 
     @Test
     void ofNanosContract() {
@@ -123,27 +139,6 @@ class DelayTest {
       assertThrows(IllegalArgumentException.class, () -> Delay.ofHours(Long.MIN_VALUE));
       assertEquals(new Delay(3_600_000_000_000L), Delay.ofHours(1));
     }
-
-  }
-
-  @Nested
-  class ConstantsTest {
-
-    @Test
-    void shouldHaveZeroConstant() {
-      assertEquals(0, Delay.ZERO.nanos());
-      assertTrue(Delay.ZERO.isZero());
-    }
-
-    @Test
-    void shouldHaveMaximumConstant() {
-      assertEquals(Delay.MAX_NANOS, Delay.MAX.nanos());
-      assertTrue(Delay.MAX.isMax());
-    }
-  }
-
-  @Nested
-  class FactoryMethodsTest {
 
     @Test
     void shouldCreateDelayFromHours() {
