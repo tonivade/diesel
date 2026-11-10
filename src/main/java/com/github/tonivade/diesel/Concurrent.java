@@ -1197,6 +1197,24 @@ public final class Concurrent {
     return parZip(p0, p1, p2, p3, p4, p5, p6, p7, p8, finisher, DEFAULT_EXECUTOR);
   }
 
+  /**
+   * Adds a timeout to the program using the provided duration and virtual threads.
+   *
+   * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
+   * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
+   *
+   * <p>The cancellation is a request: if the program finishes successfully before it observes it,
+   * its result is returned instead of the timeout, so a value that the program has already
+   * consumed, like an element taken from a {@link Queue}, is not lost.
+   *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @param program original program
+   * @param delay the duration of the timeout
+   * @param executor executor to be used
+   * @return a new program representing the computation with timeout
+   */
   static <S, E, T> Program<S, E, T> timeout(
       Program<S, E, T> program, Delay delay, Executor executor) {
     if (delay.isZero()) {

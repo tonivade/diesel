@@ -14,7 +14,7 @@ import java.time.Duration;
  * operations, conversion to {@link Duration}, and scaling.
  *
  * <p>The maximum representable delay is {@link #MAX}, corresponding to
- * {@link Long#MAX_VALUE} nanoseconds.
+ * one year in nanoseconds.
  *
  * @param nanos the delay in nanoseconds; must be non-negative
  */
