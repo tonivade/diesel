@@ -582,6 +582,9 @@ public final class Queue<A> {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /**
+     * Creates the exception with the message "queue is closed".
+     */
     public QueueClosedException() {
       super("queue is closed");
     }

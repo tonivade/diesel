@@ -245,6 +245,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * <p>An evaluation that waits for itself, like a program that evaluates the same memoized
    * program recursively, waits forever.
+   *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
    */
   final class Memoized<S, E, T> implements Program<S, E, T> {
 

@@ -404,6 +404,12 @@ public sealed interface Result<F, S> {
    */
   record Failure<F, S>(F error) implements Result<F, S> {
 
+    /**
+     * Creates a failure, rejecting null.
+     *
+     * @param error the failure value
+     * @throws NullPointerException if the value is {@code null}
+     */
     public Failure {
       Objects.requireNonNull(error);
     }
@@ -418,6 +424,12 @@ public sealed interface Result<F, S> {
    */
   record Success<F, S>(S value) implements Result<F, S> {
 
+    /**
+     * Creates a success, rejecting null.
+     *
+     * @param value the success value
+     * @throws NullPointerException if the value is {@code null}
+     */
     public Success {
       Objects.requireNonNull(value);
     }

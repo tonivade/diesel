@@ -87,6 +87,12 @@ public interface Clock {
   /**
    * Like {@link Program#timed()}, but reading the time from the {@link Service}
    * of the context.
+   *
+   * @param program the program to measure
+   * @param <S> the service type
+   * @param <E> the error type
+   * @param <T> the type of the result
+   * @return a program that yields the result with the elapsed time
    */
   static <S extends Service, E, T> Program<S, E, ElapsedTime<T>> timed(Program<S, E, T> program) {
     return program.timed(nanoTime());
@@ -95,6 +101,12 @@ public interface Clock {
   /**
    * Like {@link Program#timedResult()}, but reading the time from the {@link Service}
    * of the context.
+   *
+   * @param program the program to measure
+   * @param <S> the service type
+   * @param <E> the error type
+   * @param <T> the type of the result
+   * @return a program that yields the elapsed time and the original result
    */
   static <S extends Service, E, T> Program<S, Void, ElapsedTime<Result<E, T>>> timedResult(Program<S, E, T> program) {
     return program.timedResult(nanoTime());

@@ -49,6 +49,12 @@ public sealed interface Validation<E> {
    */
   record Invalid<E>(E error) implements Validation<E> {
 
+    /**
+     * Creates an invalid result, rejecting null.
+     *
+     * @param error the error associated with the invalid validation
+     * @throws NullPointerException if the error is {@code null}
+     */
     public Invalid {
       requireNonNull(error);
     }

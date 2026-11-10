@@ -24,11 +24,18 @@ public sealed interface Either<L, R> {
   /**
    * Represents the left value of the Either type.
    *
+   * @param left the left value
    * @param <L> the type of the left value
    * @param <R> the type of the right value
    */
   record Left<L, R>(L left) implements Either<L, R> {
 
+    /**
+     * Creates a left value, rejecting null.
+     *
+     * @param left the left value
+     * @throws NullPointerException if the value is {@code null}
+     */
     public Left {
       requireNonNull(left);
     }
@@ -37,11 +44,18 @@ public sealed interface Either<L, R> {
   /**
    * Represents the right value of the Either type.
    *
+   * @param right the right value
    * @param <L> the type of the left value
    * @param <R> the type of the right value
    */
   record Right<L, R>(R right) implements Either<L, R> {
 
+    /**
+     * Creates a right value, rejecting null.
+     *
+     * @param right the right value
+     * @throws NullPointerException if the value is {@code null}
+     */
     public Right {
       requireNonNull(right);
     }
@@ -53,6 +67,7 @@ public sealed interface Either<L, R> {
    * @param left the left value
    * @param <L> the type of the left value
    * @param <R> the type of the right value
+   * @return an Either holding the left value
    */
   static <L, R> Either<L, R> left(L left) {
     return new Left<>(left);
@@ -64,6 +79,7 @@ public sealed interface Either<L, R> {
    * @param right the right value
    * @param <L> the type of the left value
    * @param <R> the type of the right value
+   * @return an Either holding the right value
    */
   static <L, R> Either<L, R> right(R right) {
     return new Right<>(right);

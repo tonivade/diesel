@@ -8,6 +8,8 @@ import java.util.function.Supplier;
 
 /**
  * Similar to {@link Supplier} but {@code get()} method throws a checked exception.
+ *
+ * @param <T> the type of the result
  */
 @FunctionalInterface
 public interface CheckedSupplier<T> {

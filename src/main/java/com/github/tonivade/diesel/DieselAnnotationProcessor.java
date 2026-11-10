@@ -64,6 +64,13 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
   private static final String STATE_VARIABLE = "S";
   private static final String ERROR_VARIABLE = "E";
 
+  /**
+   * Creates the processor. It's called by the compiler, through the service loader.
+   */
+  public DieselAnnotationProcessor() {
+    // nothing to do
+  }
+
   @Override
   public SourceVersion getSupportedSourceVersion() {
     return SourceVersion.latestSupported();

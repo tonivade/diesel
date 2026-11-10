@@ -48,11 +48,27 @@ public interface Schedule<S, I> {
    */
   sealed interface Decision<S, I> {
 
+    /**
+     * Returns the decision that completes the schedule.
+     *
+     * @param <S> the type of the state used by the schedule
+     * @param <I> the type of the input received by the schedule
+     * @return the shared {@link Done} decision
+     */
     @SuppressWarnings("unchecked")
     static <S, I> Decision<S, I> done() {
       return (Decision<S, I>) Done.DONE;
     }
 
+    /**
+     * Applies {@code onDone} if the schedule is complete, or {@code onMore} with the delay and the
+     * next schedule if it continues.
+     *
+     * @param onDone the function used when the schedule is complete
+     * @param onMore the function used with the delay and the next schedule when it continues
+     * @param <A> the type of the result
+     * @return the result of the function that matches the decision
+     */
     default <A> A fold(
         Supplier<? extends A> onDone,
         BiFunction<? super Duration, ? super Schedule<S, I>, ? extends A> onMore) {
@@ -87,6 +103,14 @@ public interface Schedule<S, I> {
      */
     record More<S, I>(Duration delay, Schedule<S, I> next) implements Decision<S, I> {
 
+      /**
+       * Creates a decision to continue after the given delay.
+       *
+       * @param delay the duration to wait before the next execution
+       * @param next the schedule to evaluate after the next execution
+       * @throws NullPointerException if delay or next is {@code null}
+       * @throws IllegalArgumentException if delay is negative
+       */
       public More {
         requireNonNull(delay);
         requireNonNull(next);
@@ -107,10 +131,30 @@ public interface Schedule<S, I> {
    */
   Program<S, Void, Decision<S, I>> next(I input);
 
+  /**
+   * Creates a program that yields the decision to complete the schedule, useful to implement
+   * {@link #next(Object)}.
+   *
+   * @param <S> the type of the state used by the schedule
+   * @param <I> the type of the input received by the schedule
+   * @return a program that yields {@link Decision#done()}
+   */
   static <S, I> Program<S, Void, Decision<S, I>> done() {
     return success(Decision.done());
   }
 
+  /**
+   * Creates a program that yields the decision to continue after a delay, useful to implement
+   * {@link #next(Object)}.
+   *
+   * @param delay the duration to wait before the next execution
+   * @param next the schedule to evaluate after the next execution
+   * @param <S> the type of the state used by the schedule
+   * @param <I> the type of the input received by the schedule
+   * @return a program that yields a {@link Decision.More} decision
+   * @throws NullPointerException if delay or next is {@code null}
+   * @throws IllegalArgumentException if delay is negative
+   */
   static <S, I> Program<S, Void, Decision<S, I>> more(Duration delay, Schedule<S, I> next) {
     return success(new More<>(delay, next));
   }
