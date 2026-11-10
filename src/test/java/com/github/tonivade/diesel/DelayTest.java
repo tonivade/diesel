@@ -4,6 +4,7 @@
  */
 package com.github.tonivade.diesel;
 
+import static org.junit.Assert.assertSame;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -52,6 +53,77 @@ class DelayTest {
     void shouldRejectNegativeValue() {
       assertThrows(IllegalArgumentException.class, () -> new Delay(-1));
     }
+  }
+
+  @Nested
+  class Factory {
+
+    @Test
+    void ofNanosContract() {
+      assertSame(Delay.ZERO, Delay.ofNanos(0));
+      assertSame(Delay.MAX, Delay.ofNanos(Delay.MAX_NANOS));
+      assertSame(Delay.MAX, Delay.ofNanos(Delay.MAX_NANOS + 1));
+      assertSame(Delay.MAX, Delay.ofNanos(Long.MAX_VALUE));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofNanos(-1));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofNanos(Long.MIN_VALUE));
+      assertEquals(new Delay(1), Delay.ofNanos(1));
+    }
+
+    @Test
+    void ofMicrosContract() {
+      assertSame(Delay.ZERO, Delay.ofMicros(0));
+      assertSame(Delay.MAX, Delay.ofMicros(Delay.MAX_NANOS / 1_000));
+      assertSame(Delay.MAX, Delay.ofMicros((Delay.MAX_NANOS / 1_000) + 1));
+      assertSame(Delay.MAX, Delay.ofMicros(Long.MAX_VALUE));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofMicros(-1));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofMicros(Long.MIN_VALUE));
+      assertEquals(new Delay(1_000), Delay.ofMicros(1));
+    }
+
+    @Test
+    void ofMillisContract() {
+      assertSame(Delay.ZERO, Delay.ofMillis(0));
+      assertSame(Delay.MAX, Delay.ofMillis(Delay.MAX_NANOS / 1_000_000));
+      assertSame(Delay.MAX, Delay.ofMillis((Delay.MAX_NANOS / 1_000_000) + 1));
+      assertSame(Delay.MAX, Delay.ofMillis(Long.MAX_VALUE));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofMillis(-1));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofMillis(Long.MIN_VALUE));
+      assertEquals(new Delay(1_000_000), Delay.ofMillis(1));
+    }
+
+    @Test
+    void ofSecondsContract() {
+      assertSame(Delay.ZERO, Delay.ofSeconds(0));
+      assertSame(Delay.MAX, Delay.ofSeconds(Delay.MAX_NANOS / 1_000_000_000));
+      assertSame(Delay.MAX, Delay.ofSeconds((Delay.MAX_NANOS / 1_000_000_000) + 1));
+      assertSame(Delay.MAX, Delay.ofSeconds(Long.MAX_VALUE));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofSeconds(-1));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofSeconds(Long.MIN_VALUE));
+      assertEquals(new Delay(1_000_000_000), Delay.ofSeconds(1));
+    }
+
+    @Test
+    void ofMinutesContract() {
+      assertSame(Delay.ZERO, Delay.ofMinutes(0));
+      assertSame(Delay.MAX, Delay.ofMinutes(Delay.MAX_NANOS / 60_000_000_000L));
+      assertSame(Delay.MAX, Delay.ofMinutes((Delay.MAX_NANOS / 60_000_000_000L) + 1));
+      assertSame(Delay.MAX, Delay.ofMinutes(Long.MAX_VALUE));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofMinutes(-1));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofMinutes(Long.MIN_VALUE));
+      assertEquals(new Delay(60_000_000_000L), Delay.ofMinutes(1));
+    }
+
+    @Test
+    void ofHoursContract() {
+      assertSame(Delay.ZERO, Delay.ofHours(0));
+      assertSame(Delay.MAX, Delay.ofHours(Delay.MAX_NANOS / 3_600_000_000_000L));
+      assertSame(Delay.MAX, Delay.ofHours((Delay.MAX_NANOS / 3_600_000_000_000L) + 1));
+      assertSame(Delay.MAX, Delay.ofHours(Long.MAX_VALUE));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofHours(-1));
+      assertThrows(IllegalArgumentException.class, () -> Delay.ofHours(Long.MIN_VALUE));
+      assertEquals(new Delay(3_600_000_000_000L), Delay.ofHours(1));
+    }
+
   }
 
   @Nested
