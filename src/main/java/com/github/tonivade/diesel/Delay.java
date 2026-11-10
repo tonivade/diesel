@@ -39,7 +39,7 @@ public record Delay(long nanos) implements Comparable<Delay> {
    */
   public Delay {
     if (nanos < 0) {
-      throw new IllegalArgumentException("delay cannot be a negative value");
+      throw new IllegalArgumentException("delay cannot be negative");
     }
     if (nanos > MAX_NANOS) {
       nanos = MAX_NANOS;
@@ -53,6 +53,9 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @return the resulting delay
    */
   public static Delay ofHours(long hours) {
+    if (hours < 0) {
+      throw new IllegalArgumentException("delay cannot be negative");
+    }
     if (hours == 0) {
       return ZERO;
     }
@@ -69,6 +72,9 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @return the resulting delay
    */
   public static Delay ofMinutes(long minutes) {
+    if (minutes < 0) {
+      throw new IllegalArgumentException("delay cannot be negative");
+    }
     if (minutes == 0) {
       return ZERO;
     }
@@ -85,6 +91,9 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @return the resulting delay
    */
   public static Delay ofSeconds(long seconds) {
+    if (seconds < 0) {
+      throw new IllegalArgumentException("delay cannot be negative");
+    }
     if (seconds == 0) {
       return ZERO;
     }
@@ -101,6 +110,9 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @return the resulting delay
    */
   public static Delay ofMillis(long millis) {
+    if (millis < 0) {
+      throw new IllegalArgumentException("delay cannot be negative");
+    }
     if (millis == 0) {
       return ZERO;
     }
@@ -117,6 +129,9 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @return the resulting delay
    */
   public static Delay ofMicros(long micros) {
+    if (micros < 0) {
+      throw new IllegalArgumentException("delay cannot be negative");
+    }
     if (micros == 0) {
       return ZERO;
     }
@@ -134,6 +149,9 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @throws IllegalArgumentException if {@code nanos} is negative
    */
   public static Delay ofNanos(long nanos) {
+    if (nanos < 0) {
+      throw new IllegalArgumentException("delay cannot be negative");
+    }
     if (nanos == 0) {
       return ZERO;
     }
