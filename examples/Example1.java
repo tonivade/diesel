@@ -10,7 +10,6 @@ package examples;
 import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Concurrent.fork;
-import static com.github.tonivade.diesel.Program.join;
 import static com.github.tonivade.diesel.Program.success;
 
 import com.github.tonivade.diesel.Deferred;
@@ -60,7 +59,7 @@ class Example1 {
         fork(signal.get()),
         waiter -> pipe(
             signal.complete("all systems go"),
-            _ -> join(waiter))
+            _ -> waiter.join())
       )
     );
   }

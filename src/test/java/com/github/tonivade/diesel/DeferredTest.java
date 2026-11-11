@@ -169,7 +169,7 @@ class DeferredTest {
 
   @Test
   void getInAnUncancelableRegionWaitsForTheValue() throws Exception {
-    var future = deferred.get().uncancelable().fork().evalOrElseThrow();
+    var future = deferred.get().uncancelable().fork().evalOrElseThrow().future();
     awaitWaiting(1);
 
     // the future of a fork isn't completed by cancel: it only asks the program to stop

@@ -27,7 +27,6 @@ import static java.util.Objects.requireNonNull;
 import com.github.tonivade.diesel.Program.Poll;
 import com.github.tonivade.purefun.Kind;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -603,7 +602,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   public static <S, E, T> Resource<S, E, Program<S, E, T>> background(Program<S, E, T> program, Executor executor) {
     return new Resource<>(_ -> chain(
         program.fork(executor),
-        future -> tuple(Program.join(future), cancelAndWait(future))));
+        fiber -> tuple(fiber.<S>join(), fiber.<S>cancel())));
   }
 
   private Program<S, E, Tuple2<A, Program<S, Void, Unit>>> retryLoop(Poll poll, Schedule<S, E> schedule) {
@@ -677,13 +676,6 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
     return suspend(() -> release.apply(value).discard());
   }
 
-  // cancels a forked program and waits until it has stopped, whatever its outcome: the future of a
-  // fork only completes once the cancelled program has run its finalizers
-  private static <S> Program<S, Void, Unit> cancelAndWait(CompletableFuture<?> future) {
-    return pipe(
-        task(() -> future.cancel(true)),
-        _ -> join(future.handle((_, _) -> Result.unit())));
-  }
 
   private static void close(AutoCloseable resource) {
     try {

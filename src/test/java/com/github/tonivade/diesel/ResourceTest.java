@@ -116,7 +116,7 @@ class ResourceTest {
       return never();
     });
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     started.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -134,7 +134,7 @@ class ResourceTest {
       return never();
     });
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     started.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -151,7 +151,7 @@ class ResourceTest {
         .evalTap(_ -> task(() -> acquired.complete(null)))
         .useForever();
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     acquired.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -510,7 +510,7 @@ class ResourceTest {
         .retry(1, Delay.ofHours(1))
         .use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     attempted.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -663,7 +663,7 @@ class ResourceTest {
             a -> log.add("release " + a))
         .use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     acquiring.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -683,7 +683,7 @@ class ResourceTest {
 
     var program = resource("a").flatMap(_ -> blocking).use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     acquiring.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -702,7 +702,7 @@ class ResourceTest {
     var waiting = new CompletableFuture<Void>();
     var program = waitingForever(waiting).use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     waiting.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -715,7 +715,7 @@ class ResourceTest {
     var waiting = new CompletableFuture<Void>();
     var program = resource("a").flatMap(_ -> waitingForever(waiting)).use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     waiting.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -730,7 +730,7 @@ class ResourceTest {
         .flatMapError(_ -> waitingForever(waiting))
         .use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     waiting.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -745,7 +745,7 @@ class ResourceTest {
         .either(waitingForever(waiting))
         .use(Program::success);
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     waiting.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -763,7 +763,7 @@ class ResourceTest {
         .retry(1, Delay.ofHours(1))
         .use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     attempted.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -823,7 +823,7 @@ class ResourceTest {
     var started = new CompletableFuture<Void>();
     var program = Resource.background(worker(started)).use(_ -> never());
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     started.join();
 
     assertThat(future.cancel(true)).isTrue();

@@ -56,7 +56,7 @@ public final class Concurrent {
    * @return a new program representing the forked computation
    * @see Program#fork()
    */
-  public static <S, E, T> Program<S, E, CompletableFuture<Result<E, T>>> fork(Program<S, E, T> program) {
+  public static <S, E, T> Program<S, E, Fiber<E, T>> fork(Program<S, E, T> program) {
     return program.fork();
   }
 
@@ -71,7 +71,7 @@ public final class Concurrent {
    * @return a new program representing the forked computation
    * @see Program#fork()
    */
-  public static <S, E, T> Program<S, E, CompletableFuture<Result<E, T>>> fork(Program<S, E, T> program, Executor executor) {
+  public static <S, E, T> Program<S, E, Fiber<E, T>> fork(Program<S, E, T> program, Executor executor) {
     return program.fork(executor);
   }
 
@@ -110,7 +110,7 @@ public final class Concurrent {
    */
   public static <S, E, T, U> Program<S, E, Either<T, U>> either(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
-    return zip(p1.fork(executor), p2.fork(executor), Concurrent::either)
+    return zip(p1.fork(executor), p2.fork(executor), (f1, f2) -> Concurrent.<E, T, U>either(f1.future(), f2.future()))
         .flatMap(Program::join);
   }
 
@@ -149,7 +149,7 @@ public final class Concurrent {
    */
   public static <S, E, T, U> Program<S, E, Either<T, U>> race(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
-    return zip(p1.fork(executor), p2.fork(executor), Concurrent::race)
+    return zip(p1.fork(executor), p2.fork(executor), (f1, f2) -> Concurrent.<E, T, U>race(f1.future(), f2.future()))
         .flatMap(Program::join);
   }
 
@@ -499,7 +499,7 @@ public final class Concurrent {
          (f0, f1) ->
           Concurrent.<S, E, R>joinAll(
             List.of(f0, f1),
-            () -> Result.zip(f0.join(), f1.join(), finisher)))
+            () -> Result.zip(f0.resultNow(), f1.resultNow(), finisher)))
         .flatMap(identity());
   }
 
@@ -541,7 +541,7 @@ public final class Concurrent {
          (f0, f1, f2) ->
           Concurrent.<S, E, R>joinAll(
             List.of(f0, f1, f2),
-            () -> Result.zip(f0.join(), f1.join(), f2.join(), finisher)))
+            () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), finisher)))
         .flatMap(identity());
   }
 
@@ -587,7 +587,7 @@ public final class Concurrent {
          (f0, f1, f2, f3) ->
           Concurrent.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3),
-            () -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), finisher)))
+            () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), finisher)))
         .flatMap(identity());
   }
 
@@ -637,7 +637,7 @@ public final class Concurrent {
          (f0, f1, f2, f3, f4) ->
           Concurrent.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3, f4),
-            () -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), finisher)))
+            () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), f4.resultNow(), finisher)))
         .flatMap(identity());
   }
 
@@ -691,7 +691,7 @@ public final class Concurrent {
          (f0, f1, f2, f3, f4, f5) ->
           Concurrent.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3, f4, f5),
-            () -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), finisher)))
+            () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), f4.resultNow(), f5.resultNow(), finisher)))
         .flatMap(identity());
   }
 
@@ -749,7 +749,7 @@ public final class Concurrent {
          (f0, f1, f2, f3, f4, f5, f6) ->
           Concurrent.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3, f4, f5, f6),
-            () -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), finisher)))
+            () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), f4.resultNow(), f5.resultNow(), f6.resultNow(), finisher)))
         .flatMap(identity());
   }
 
@@ -811,7 +811,7 @@ public final class Concurrent {
          (f0, f1, f2, f3, f4, f5, f6, f7) ->
           Concurrent.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3, f4, f5, f6, f7),
-            () -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), f7.join(), finisher)))
+            () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), f4.resultNow(), f5.resultNow(), f6.resultNow(), f7.resultNow(), finisher)))
         .flatMap(identity());
   }
 
@@ -877,7 +877,7 @@ public final class Concurrent {
          (f0, f1, f2, f3, f4, f5, f6, f7, f8) ->
           Concurrent.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3, f4, f5, f6, f7, f8),
-            () -> Result.zip(f0.join(), f1.join(), f2.join(), f3.join(), f4.join(), f5.join(), f6.join(), f7.join(), f8.join(), finisher)))
+            () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), f4.resultNow(), f5.resultNow(), f6.resultNow(), f7.resultNow(), f8.resultNow(), finisher)))
         .flatMap(identity());
   }
 
@@ -1210,7 +1210,7 @@ public final class Concurrent {
     return zip(
         fork(sleep(delay), executor),
         program.fork(executor),
-        Concurrent::<E, T>timeoutFuture)
+        (timer, work) -> Concurrent.<E, T>timeoutFuture(timer.future(), work.future()))
         .flatMap(Program::join);
   }
 
@@ -1252,11 +1252,11 @@ public final class Concurrent {
         || (error instanceof CompletionException && error.getCause() instanceof CancellationException);
   }
 
-  private static <S, E, T> Collection<Program<S, E, CompletableFuture<Result<E, T>>>> forkAll(
+  private static <S, E, T> Collection<Program<S, E, CancelableFuture<Result<E, T>>>> forkAll(
       Executor executor, Collection<? extends Program<S, E, ? extends T>> programs) {
     return programs.stream()
         .map(Concurrent::<S, E, T>narrow)
-        .map(p -> p.fork(executor))
+        .map(p -> p.fork(executor).map(Fiber::future))
         .toList();
   }
 
@@ -1278,10 +1278,10 @@ public final class Concurrent {
    * waits, not in the thread that completes the last one.
    */
   private static <S, E, R> Program<S, E, R> joinAll(
-      Collection<? extends CompletableFuture<? extends Result<E, ?>>> futures,
+      Collection<? extends Fiber<E, ?>> fibers,
       Supplier<? extends Result<E, R>> combine) {
     return pipe(
-        Program.join(parAllFailFast(futures)),
+        Program.join(parAllFailFast(fibers.stream().map(Fiber::future).toList())),
         // built when it runs, in the thread of the parent, so if combine throws it's an ordinary
         // exception of the program and catchAll can handle it
         _ -> Program.suspend(() -> Program.from(combine.get())));

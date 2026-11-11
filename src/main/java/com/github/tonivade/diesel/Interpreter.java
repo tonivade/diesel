@@ -127,7 +127,7 @@ final class Interpreter {
             // It isn't tracked by the parent either, so a cancelled parent doesn't wait for it: the
             // programs that wait for their forks, like timeout or par*, are not affected
             var parent = regions.isEmpty() ? token : CancelToken.NONE;
-            current = Program.success(startFork(state, parent, forked.current(), forked.executor()));
+            current = Program.success(new Fiber<>(startFork(state, parent, forked.current(), forked.executor())));
           }
           case FoldMap(var source, var onFailure, var onSuccess) -> {
             stack.push(Frame.fold(onFailure, onSuccess));
@@ -302,7 +302,7 @@ final class Interpreter {
    * like {@code parZip}, see a failed program and cancel the ones they already started. A fatal
    * error is thrown too, see {@link Fatal}.
    */
-  private static <S, E, T> CompletableFuture<Result<E, T>> startFork(
+  private static <S, E, T> CancelableFuture<Result<E, T>> startFork(
       @Nullable S state, CancelToken parent, Program<S, E, T> program, Executor executor) {
     var token = parent.newChild();
     var future = new CancelableFuture<Result<E, T>>(token);
