@@ -515,7 +515,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource that closes the acquired value when released
    */
   public static <S, E, A extends AutoCloseable> Resource<S, E, A> from(Program<S, E, A> resource) {
-    return from(resource, Resource::close);
+    return make(resource, Combine::close);
   }
 
   /**
@@ -547,7 +547,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a resource that closes the acquired value when released
    */
   public static <S, E, A extends AutoCloseable> Resource<S, E, A> from(Function<? super S, ? extends A> mapper) {
-    return from(mapper, Resource::close);
+    return make(mapper, Combine::close);
   }
 
   /**
@@ -687,13 +687,5 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   private static <S, A> Program<S, Void, Unit> release(
       A value, Function<? super A, ? extends Program<S, Void, ?>> release) {
     return suspend(() -> release.apply(value).discard());
-  }
-
-  private static void close(AutoCloseable resource) {
-    try {
-      resource.close();
-    } catch (Exception e) {
-      Fatal.sneakyThrow(e);
-    }
   }
 }

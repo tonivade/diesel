@@ -140,7 +140,7 @@ interface Todo {
   static Program<TodoContext, TodoError, Unit> findAllTodos() {
     return pipe(
         findAll(),
-        success(list -> list.stream().map(Object::toString).collect(joining("\n"))),
+        list -> success(list.stream().map(Object::toString).collect(joining("\n"))),
         Console::writeLine,
         _ -> program()
       );
@@ -176,7 +176,7 @@ interface Todo {
     return pipe(
         promptId(),
         Todo::findOne,
-        success(optional -> optional.map(Object::toString).orElse("not found")),
+        optional -> success(optional.map(Object::toString).orElse("not found")),
         Console::writeLine,
         _ -> program());
   }

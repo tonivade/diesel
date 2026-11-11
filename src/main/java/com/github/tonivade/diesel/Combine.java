@@ -1157,7 +1157,7 @@ public final class Combine {
     return zip(acc, value, PSequence::plus);
   }
 
-  private static <S, E, T extends AutoCloseable> Program<S, E, Unit> close(T resource) {
+  static <S, E, T extends AutoCloseable> Program<S, E, Unit> close(T resource) {
     return Program.task(() -> {
       try {
         resource.close();

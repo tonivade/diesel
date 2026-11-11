@@ -118,7 +118,7 @@ interface Weather {
     return pipe(
         getForecast(city),
         forecast -> forecast.map(Program::<WeatherContext, WeatherError, Forecast>success).orElseGet(Weather::forecast),
-        success(forecast -> new CityForecast(city, forecast))
+        forecast -> success(new CityForecast(city, forecast))
       );
   }
 
@@ -132,7 +132,7 @@ interface Weather {
   static Program<WeatherContext, WeatherError, Forecast> forecast() {
     return pipe(
         nextInt(30),
-        success(Forecast::new)
+        temperature -> success(new Forecast(temperature))
       );
   }
 
