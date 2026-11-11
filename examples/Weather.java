@@ -7,6 +7,7 @@
  */
 package examples;
 
+import static com.github.tonivade.diesel.Combine.catchAll;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.writeLine;
@@ -74,9 +75,12 @@ interface Weather {
   }
 
   static Program<WeatherContext, WeatherError, Unit> program() {
-    return pipe(
-        hostAndPort(),
-        _ -> loop()
+    return catchAll(
+        pipe(
+          hostAndPort(),
+          _ -> loop()
+        ),
+        _ -> writeLine("Bye!")
       );
   }
 

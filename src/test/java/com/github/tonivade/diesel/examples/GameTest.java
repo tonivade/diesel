@@ -9,6 +9,8 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
+import java.io.EOFException;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -17,7 +19,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 class GameTest {
 
   @Test
-  void testWin(@Mock Game.GameContext context) {
+  void testWin(@Mock Game.GameContext context) throws EOFException {
     when(context.nextInt(10)).thenReturn(3);
     when(context.readLine()).thenReturn("y", "1", "2", "3");
 
@@ -30,7 +32,7 @@ class GameTest {
   }
 
   @Test
-  void testInvalidValue(@Mock Game.GameContext context) {
+  void testInvalidValue(@Mock Game.GameContext context) throws EOFException {
     when(context.nextInt(10)).thenReturn(3);
     when(context.readLine()).thenReturn("y", "c", "?", "3");
 
@@ -45,7 +47,7 @@ class GameTest {
   }
 
   @Test
-  void testQuit(@Mock Game.GameContext context) {
+  void testQuit(@Mock Game.GameContext context) throws EOFException {
     when(context.readLine()).thenReturn("n");
 
     game().eval(context);

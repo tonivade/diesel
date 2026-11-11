@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import com.github.tonivade.diesel.Console.Service;
 
+import java.io.EOFException;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -27,7 +29,7 @@ class ConsoleTest {
   }
 
   @Test
-  void shouldWriteAndReadFromConsole(@Mock Console.Service service) {
+  void shouldWriteAndReadFromConsole(@Mock Console.Service service) throws EOFException {
     when(service.readLine()).thenReturn("Toni");
 
     whatsYourName().flatMap(ConsoleTest::sayHello).eval(service);

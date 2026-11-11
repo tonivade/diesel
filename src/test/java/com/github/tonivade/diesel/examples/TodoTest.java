@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import com.github.tonivade.diesel.examples.Todo.TodoEntity;
 
+import java.io.EOFException;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -19,7 +21,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 class TodoTest {
 
   @Test
-  void shouldCreateTodo(@Mock Todo.TodoContext context) {
+  void shouldCreateTodo(@Mock Todo.TodoContext context) throws EOFException {
     when(context.readLine()).thenReturn("1", "buy milk", "7");
 
     program().eval(context);
