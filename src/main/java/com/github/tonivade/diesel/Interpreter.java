@@ -71,7 +71,7 @@ final class Interpreter {
                   // run the finalizer and then continue with the result, unless the finalizer throws
                   stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
                   enterUncancelable(stack, regions);
-                  current = finalizer.apply(Outcome.from(result));
+                  current = Program.suspend(() -> finalizer.apply(Outcome.from(result)));
                   resumed = true;
                 }
                 case UnmaskFrame(var region) -> regions.remove(region);

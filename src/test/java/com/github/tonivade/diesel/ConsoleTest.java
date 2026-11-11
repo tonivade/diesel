@@ -6,6 +6,7 @@ package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Console.prompt;
 import static com.github.tonivade.diesel.Console.writeLine;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
@@ -31,11 +32,21 @@ class ConsoleTest {
   @Test
   void shouldWriteAndReadFromConsole(@Mock Console.Service service) throws EOFException {
     when(service.readLine()).thenReturn("Toni");
+    var program = whatsYourName().flatMap(ConsoleTest::sayHello);
 
-    whatsYourName().flatMap(ConsoleTest::sayHello).eval(service);
+    program.eval(service);
 
     var inOrder = inOrder(service);
     inOrder.verify(service).writeLine("What's your name?");
     inOrder.verify(service).writeLine("Hello Toni");
+  }
+
+  @Test
+  void shouldThrowException(@Mock Console.Service service) throws EOFException {
+    when(service.readLine()).thenThrow(EOFException.class);
+    var program = whatsYourName().flatMap(ConsoleTest::sayHello);
+
+    assertThatThrownBy(() -> program.eval(service))
+      .isInstanceOf(EOFException.class);
   }
 }
