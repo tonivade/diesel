@@ -310,8 +310,12 @@ final class Interpreter {
     try {
       executor.execute(() -> runForked(state, token, program, future));
     } catch (Throwable e) {
-      token.detachFromParent();
-      future.fail(e, false);
+      // claimed like runForked does: if a cancellation claimed it first, the future is already
+      // completed as cancelled, and failing it again would overwrite how it ended
+      if (future.start()) {
+        token.detachFromParent();
+        future.fail(e, false);
+      }
       Fatal.rethrowIfFatal(e);
     }
     return future;

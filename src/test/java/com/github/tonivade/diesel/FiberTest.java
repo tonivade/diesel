@@ -94,6 +94,25 @@ class FiberTest {
   }
 
   @Test
+  void cancellingAFiberThatAlreadySucceededKeepsItsValue() {
+    var fiber = finished(success("a"));
+
+    fiber.cancel().evalOrElseThrow();
+
+    assertThat(fiber.join().eval()).isEqualTo(Result.success("a"));
+  }
+
+  @Test
+  void cancellingAFiberThatAlreadyThrewDoesNotFail() {
+    var fiber = finished(raise(IllegalStateException::new));
+
+    fiber.cancel().evalOrElseThrow();
+
+    assertThat(fiber.poll().evalOrElseThrow())
+        .hasValueSatisfying(outcome -> assertThat(outcome).isInstanceOf(Outcome.Errored.class));
+  }
+
+  @Test
   void pollIsEmptyWhileTheFiberIsRunning() {
     var fiber = never().fork().evalOrElseThrow();
     try {
