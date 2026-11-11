@@ -4,6 +4,7 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Fatal.rethrowIfFatal;
 import static com.github.tonivade.diesel.Fatal.sneakyThrow;
 
 import com.github.tonivade.diesel.Frame.CatchFrame;
@@ -101,12 +102,7 @@ final class Interpreter {
           }
           case UncancelableWith(var body) -> {
             var region = enterUncancelable(stack, regions);
-            current = body.apply(new Poll() {
-              @Override
-              public <S1, E1, T1> Program<S1, E1, T1> apply(Program<S1, E1, T1> program) {
-                return new Polled<>(program, region);
-              }
-            });
+            current = body.apply(createPoll(region));
           }
           case Polled(var source, var region) -> {
             if (regions.peek() == region) {
@@ -144,7 +140,7 @@ final class Interpreter {
         }
       } catch (Throwable e) {
         // a fatal error leaves right away: no catchAll and no finalizers, see Fatal
-        Fatal.rethrowIfFatal(e);
+        rethrowIfFatal(e);
         // unwind to the nearest catchAll, discarding the continuations inside its scope and
         // running the finalizers found on the way
         var resumed = false;
@@ -302,7 +298,7 @@ final class Interpreter {
         token.detachFromParent();
         future.fail(e, false);
       }
-      Fatal.rethrowIfFatal(e);
+      rethrowIfFatal(e);
     }
     return future;
   }
@@ -342,9 +338,18 @@ final class Interpreter {
     if (error != null) {
       future.fail(error, cancelled);
       // after completing the future, so the parent fails instead of waiting forever
-      Fatal.rethrowIfFatal(error);
+      rethrowIfFatal(error);
     } else {
       future.complete(result);
     }
+  }
+
+  private static Poll createPoll(Region region) {
+    return new Poll() {
+      @Override
+      public <S1, E1, T1> Program<S1, E1, T1> apply(Program<S1, E1, T1> program) {
+        return new Polled<>(program, region);
+      }
+    };
   }
 }
