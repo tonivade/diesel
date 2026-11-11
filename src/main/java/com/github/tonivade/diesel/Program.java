@@ -1543,16 +1543,27 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Ensures that the finalizer program is executed after the current program, regardless of success or failure.
+   * Runs the specified finalizer when this program terminates, regardless of its outcome.
    *
-   * <p>The finalizer also runs when the program throws an exception or is cancelled, and it can't be
-   * cancelled itself. The finalizer can't fail with an error, only throw an exception, which
-   * replaces the result of the program. If the program threw an exception or was cancelled, that
-   * exception goes on and the one of the finalizer is added to it as suppressed, like
-   * try-with-resources does.
+   * <p>The finalizer receives an {@link Outcome} describing how this program terminated:
+   * <ul>
+   *   <li>{@link Outcome.Succeeded} if the program completed successfully.</li>
+   *   <li>{@link Outcome.Failed} if the program failed with a typed error.</li>
+   *   <li>{@link Outcome.Errored} if the program terminated with an exception.</li>
+   *   <li>{@link Outcome.Canceled} if the program was canceled.</li>
+   * </ul>
    *
-   * @param finalizer a function that generates the program to be executed as a finalizer
-   * @return a new program representing the computation with the finalizer
+   * <p>The finalizer is executed uncancelably, so it is allowed to complete even if
+   * cancellation has been requested. Its own typed error channel is {@code Void}.
+   *
+   * <p>If the finalizer terminates successfully, the original outcome is preserved.
+   * If it fails or throws an exception, that failure becomes the result of the
+   * combined program. When the original program already terminated with an exception
+   * or was canceled, an exception thrown by the finalizer is added as a suppressed
+   * exception to the original cause.
+   *
+   * @param finalizer the function that produces the finalizer program for the outcome
+   * @return a program that runs the finalizer when this program terminates
    */
   default Program<S, E, T> onExit(
       Function<? super Outcome<E, T>, ? extends Program<S, Void, ?>> finalizer) {
