@@ -127,7 +127,7 @@ final class Interpreter {
             // It isn't tracked by the parent either, so a cancelled parent doesn't wait for it: the
             // programs that wait for their forks, like timeout or par*, are not affected
             var parent = regions.isEmpty() ? token : CancelToken.NONE;
-            current = Program.success(startFork(state, parent, forked.current(), forked.executor()));
+            current = Program.success(new Fiber<>(startFork(state, parent, forked.current(), forked.executor())));
           }
           case FoldMap(var source, var onFailure, var onSuccess) -> {
             stack.push(Frame.fold(onFailure, onSuccess));
@@ -302,7 +302,7 @@ final class Interpreter {
    * like {@code parZip}, see a failed program and cancel the ones they already started. A fatal
    * error is thrown too, see {@link Fatal}.
    */
-  private static <S, E, T> CompletableFuture<Result<E, T>> startFork(
+  private static <S, E, T> CancelableFuture<Result<E, T>> startFork(
       @Nullable S state, CancelToken parent, Program<S, E, T> program, Executor executor) {
     var token = parent.newChild();
     var future = new CancelableFuture<Result<E, T>>(token);
@@ -310,8 +310,12 @@ final class Interpreter {
     try {
       executor.execute(() -> runForked(state, token, program, future));
     } catch (Throwable e) {
-      token.detachFromParent();
-      future.completeExceptionally(e);
+      // claimed like runForked does: if a cancellation claimed it first, the future is already
+      // completed as cancelled, and failing it again would overwrite how it ended
+      if (future.start()) {
+        token.detachFromParent();
+        future.fail(e, false);
+      }
       Fatal.rethrowIfFatal(e);
     }
     return future;
@@ -340,7 +344,9 @@ final class Interpreter {
     } catch (Throwable e) {
       error = e;
     }
-    if (token.isCancelled()) {
+    // read when the program stops: a cancellation that arrives later doesn't change how it ended
+    var cancelled = token.isCancelled();
+    if (cancelled) {
       // only when cancelled: a program that finishes normally can leave forks running, and they
       // are not awaited even if a cancellation arrives right after the program has finished
       token.awaitForks();
@@ -348,7 +354,7 @@ final class Interpreter {
     // otherwise the parent keeps a callback for each program it has ever forked
     token.detachFromParent();
     if (error != null) {
-      future.completeExceptionally(error);
+      future.fail(error, cancelled);
       // after completing the future, so the parent fails instead of waiting forever
       Fatal.rethrowIfFatal(error);
     } else {

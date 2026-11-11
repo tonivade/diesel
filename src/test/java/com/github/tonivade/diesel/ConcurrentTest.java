@@ -224,7 +224,7 @@ class ConcurrentTest {
 
   @Test
   void forkedProgramThrowsTheOriginalException() {
-    var program = boom().fork().flatMap(Program::join);
+    var program = boom().fork().flatMap(Fiber::join);
 
     assertThatThrownBy(program::evalOrElseThrow).isExactlyInstanceOf(UnsupportedOperationException.class);
   }
@@ -353,14 +353,14 @@ class ConcurrentTest {
           },
           executor);
 
-      var future = program.fork().evalOrElseThrow();
+      var fiber = program.fork().evalOrElseThrow();
       started.join();
 
       // the only thread of the executor is free, so another program can run on it
       var other = success(7).fork(executor).evalOrElseThrow();
-      assertThat(other.join()).isEqualTo(Result.success(7));
+      assertThat(other.<Void>join().eval()).isEqualTo(Result.success(7));
       release.complete(Unit.unit());
-      assertThat(future.join()).isEqualTo(Result.success(3));
+      assertThat(fiber.<Void>join().eval()).isEqualTo(Result.success(3));
     } finally {
       executor.shutdownNow();
     }

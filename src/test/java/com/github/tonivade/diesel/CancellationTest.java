@@ -127,13 +127,12 @@ class CancellationTest {
   @Test
   void cancellingAForkedProgramStopsIt() {
     expected = 1;
-    var future = blocked().fork().evalOrElseThrow();
+    var fiber = blocked().fork().evalOrElseThrow();
     allStarted.join();
 
-    assertThat(future.cancel(true)).isTrue();
+    fiber.cancel().evalOrElseThrow();
 
-    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
-    assertThat(future.isCancelled()).isTrue();
+    assertThat(fiber.poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(released).hasValue(1);
   }
 
@@ -214,7 +213,7 @@ class CancellationTest {
   void joiningACancelledForkIsAnOrdinaryException() {
     // the program that joins is not cancelled, so it can recover from it
     var program = never().fork()
-        .flatMap(fork -> run(() -> fork.cancel(true)).andThen(Program.join(fork)))
+        .flatMap(fork -> fork.<Void, String>cancel().andThen(fork.join()))
         .map(_ -> "joined")
         .catchAll(_ -> success("recovered"));
 
@@ -231,14 +230,14 @@ class CancellationTest {
       throw new RejectedExecutionException();
     };
     var program = never().fork(rejecting)
-        .flatMap(rejected -> run(() -> error.set(rejected.exceptionNow())).andThen(start()).andThen(never()));
+        .flatMap(rejected -> run(() -> error.set(rejected.future().exceptionNow())).andThen(start()).andThen(never()));
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     allStarted.get(5, TimeUnit.SECONDS);
-    future.cancel(true);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
 
-    // get with a timeout: join can't be interrupted, so a regression would hang instead of failing
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    // a regression would make cancel wait forever, and the timeout of the class makes it fail
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(error.get()).isInstanceOf(RejectedExecutionException.class);
   }
 
@@ -350,7 +349,7 @@ class CancellationTest {
         .uncancelable()
         .andThen(run(after::incrementAndGet));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     allStarted.get(5, TimeUnit.SECONDS);
     future.cancel(true);
     gate.complete(Result.unit());
@@ -367,7 +366,7 @@ class CancellationTest {
     var program = start().andThen(Program.join(gate)).andThen(run(executed::incrementAndGet)).uncancelable();
     var failing = whenStarted(1).andThen(run(() -> failed.complete(Unit.unit()))).andThen(failure("error"));
 
-    var future = parZip(program, failing, (_, _) -> "done").fork().evalOrElseThrow();
+    var future = parZip(program, failing, (_, _) -> "done").fork().evalOrElseThrow().future();
     failed.get(5, TimeUnit.SECONDS);
 
     // parZip can't complete while the uncancelable program is still running
@@ -379,9 +378,9 @@ class CancellationTest {
 
   @Test
   void forksInsideUncancelableAreNotCancelled() throws Exception {
-    var forked = new CompletableFuture<CompletableFuture<Result<String, Unit>>>();
+    var forked = new CompletableFuture<CancelableFuture<Result<String, Unit>>>();
     var child = Program.<Void, String, Unit>join(gate).andThen(run(executed::incrementAndGet));
-    var program = child.fork().flatMap(f -> run(() -> forked.complete(f))).uncancelable()
+    var program = child.fork().flatMap(f -> run(() -> forked.complete(f.future()))).uncancelable()
         .andThen(start()).andThen(never());
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
@@ -439,7 +438,7 @@ class CancellationTest {
   void onCancelDoesNotRunWhenJoiningACancelledFork() {
     // the program that joins is not cancelled, the fork is
     var program = never().fork()
-        .flatMap(fork -> run(() -> fork.cancel(true)).andThen(Program.join(fork)))
+        .flatMap(fork -> fork.<Void, String>cancel().andThen(fork.join()))
         .onCancel(finalizer(released::incrementAndGet))
         .map(_ -> "joined")
         .catchAll(_ -> success("recovered"));
@@ -548,7 +547,7 @@ class CancellationTest {
     });
     var program = operation.andThen(run(executed::incrementAndGet)).uncancelable();
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     allStarted.get(5, TimeUnit.SECONDS);
     future.cancel(true);
     gate.complete(Result.unit());
@@ -568,11 +567,11 @@ class CancellationTest {
       var parent = never().fork(executor).flatMap(_ -> start()).andThen(never());
       expected = 1;
 
-      var future = parent.fork(executor).evalOrElseThrow();
+      var fiber = parent.fork(executor).evalOrElseThrow();
       allStarted.get(5, TimeUnit.SECONDS);
-      future.cancel(true);
+      fiber.<Void, Void>cancel().evalOrElseThrow();
 
-      assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+      assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     } finally {
       executor.shutdownNow();
     }
@@ -585,7 +584,7 @@ class CancellationTest {
       var busy = new CompletableFuture<Unit>();
       executor.execute(busy::join);
 
-      var future = run(executed::incrementAndGet).fork(executor).evalOrElseThrow();
+      var future = run(executed::incrementAndGet).fork(executor).evalOrElseThrow().future();
       future.cancel(true);
 
       // completes right away, while the program is still queued
@@ -613,21 +612,21 @@ class CancellationTest {
 
   @Test
   void cancellingASleepRemovesItsDelay() throws Exception {
-    var future = sleep(Delay.ofHours(1)).fork().evalOrElseThrow();
+    var fiber = sleep(Delay.ofHours(1)).fork().evalOrElseThrow();
     awaitLongDelays(1);
-    future.cancel(true);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
 
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(DelayScheduler.pendingLongerThan(LONG_DELAY)).isZero();
   }
 
   @Test
   void sleepingForeverCanBeCancelled() throws Exception {
-    // as long as Long.MAX_VALUE nanoseconds or longer, the sleep never expires: it waits until it's cancelled
-    var future = sleep(Delay.MAX).fork().evalOrElseThrow();
-    future.cancel(true);
+    // a sleep of Delay.MAX never expires: it waits until it's cancelled
+    var fiber = sleep(Delay.MAX).fork().evalOrElseThrow();
+    fiber.<Void, Void>cancel().evalOrElseThrow();
 
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
   }
 
   @Test
@@ -665,7 +664,7 @@ class CancellationTest {
         .andThen(poll.apply(run(inPoll::incrementAndGet)))
         .andThen(run(after::incrementAndGet)));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     allStarted.get(5, TimeUnit.SECONDS);
     future.cancel(true);
     gate.complete(Result.unit());
@@ -685,7 +684,7 @@ class CancellationTest {
         .andThen(Program.join(gate))
         .andThen(run(after::incrementAndGet)));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     allStarted.get(5, TimeUnit.SECONDS);
     future.cancel(true);
     gate.complete(Result.unit());
@@ -701,7 +700,7 @@ class CancellationTest {
         uncancelable(inner -> inner.apply(
             start().andThen(Program.join(gate)).andThen(run(executed::incrementAndGet)))));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     allStarted.get(5, TimeUnit.SECONDS);
     future.cancel(true);
     gate.complete(Result.unit());
@@ -720,7 +719,7 @@ class CancellationTest {
     var program = uncancelable(poll ->
         poll.apply(inner.andThen(never())));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     allStarted.get(5, TimeUnit.SECONDS);
     future.cancel(true);
     gate.complete(Result.unit());
@@ -739,7 +738,7 @@ class CancellationTest {
             .andThen(Program.join(gate))
             .andThen(run(executed::incrementAndGet)));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     allStarted.get(5, TimeUnit.SECONDS);
     future.cancel(true);
     gate.complete(Result.unit());
@@ -757,7 +756,7 @@ class CancellationTest {
             .andThen(Program.join(gate))
             .andThen(run(executed::incrementAndGet)));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     allStarted.get(5, TimeUnit.SECONDS);
     future.cancel(true);
     gate.complete(Result.unit());
@@ -828,11 +827,11 @@ class CancellationTest {
     var program = uncancelable(poll -> poll.apply(
         start().andThen(never()).ensuring(finalizer(released::incrementAndGet))));
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     allStarted.get(5, TimeUnit.SECONDS);
-    future.cancel(true);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
 
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(released).hasValue(1);
   }
 
@@ -844,7 +843,7 @@ class CancellationTest {
             closedWait().andThen(
                 inner.apply(outer.apply(run(executed::incrementAndGet))))));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     cancelAndOpen(future);
 
     assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
@@ -859,7 +858,7 @@ class CancellationTest {
             closedWait().andThen(
                 outer.apply(inner.apply(run(executed::incrementAndGet))))));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     cancelAndOpen(future);
 
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
@@ -873,7 +872,7 @@ class CancellationTest {
         uncancelable(_ ->
             closedWait().andThen(outer.apply(run(executed::incrementAndGet)))));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     cancelAndOpen(future);
 
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
@@ -887,7 +886,7 @@ class CancellationTest {
         uncancelable(inner ->
             closedWait().andThen(inner.apply(run(executed::incrementAndGet)))));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     cancelAndOpen(future);
 
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
@@ -900,7 +899,7 @@ class CancellationTest {
     var program = uncancelable(poll ->
         closedWait().andThen(poll.apply(poll.apply(run(executed::incrementAndGet)))));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     cancelAndOpen(future);
 
     assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
@@ -913,7 +912,7 @@ class CancellationTest {
     var program = uncancelable(poll ->
         closedWait().andThen(poll.apply(run(executed::incrementAndGet))));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     cancelAndOpen(future);
 
     assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
@@ -932,7 +931,7 @@ class CancellationTest {
     var program = uncancelable(_ ->
         closedWait().andThen(escaped.join().apply(run(executed::incrementAndGet))));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     cancelAndOpen(future);
 
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
@@ -952,7 +951,7 @@ class CancellationTest {
         uncancelable(_ ->
             closedWait().andThen(escaped.join().apply(run(executed::incrementAndGet)))));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     cancelAndOpen(future);
 
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
@@ -967,7 +966,7 @@ class CancellationTest {
             .andThen(outer.apply(run(executed::incrementAndGet)))
             .uncancelable());
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     cancelAndOpen(future);
 
     assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(Result.unit());
@@ -984,7 +983,7 @@ class CancellationTest {
     }).ensuring(suspend(() ->
         escaped.join().apply(finalizer(executed::incrementAndGet))));
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     cancelAndOpen(future);
 
     // the deferred cancellation takes effect when the finalizer exits, but the whole finalizer

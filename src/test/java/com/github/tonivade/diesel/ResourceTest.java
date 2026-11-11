@@ -116,12 +116,11 @@ class ResourceTest {
       return never();
     });
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     started.join();
 
-    assertThat(future.cancel(true)).isTrue();
-    assertThatThrownBy(future::join)
-        .isInstanceOf(CancellationException.class);
+    fiber.cancel().evalOrElseThrow();
+    assertThat(fiber.poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log)
         .containsExactly("acquire a", "release a");
   }
@@ -134,12 +133,11 @@ class ResourceTest {
       return never();
     });
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     started.join();
 
-    assertThat(future.cancel(true)).isTrue();
-    assertThatThrownBy(future::join)
-        .isInstanceOf(CancellationException.class);
+    fiber.cancel().evalOrElseThrow();
+    assertThat(fiber.poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log)
         .containsExactly("acquire a", "acquire b", "release b", "release a");
   }
@@ -151,12 +149,11 @@ class ResourceTest {
         .evalTap(_ -> task(() -> acquired.complete(null)))
         .useForever();
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     acquired.join();
 
-    assertThat(future.cancel(true)).isTrue();
-    assertThatThrownBy(future::join)
-        .isInstanceOf(CancellationException.class);
+    fiber.cancel().evalOrElseThrow();
+    assertThat(fiber.poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log)
         .containsExactly("acquire a", "release a");
   }
@@ -510,11 +507,11 @@ class ResourceTest {
         .retry(1, Delay.ofHours(1))
         .use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     attempted.join();
 
-    assertThat(future.cancel(true)).isTrue();
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     // the first resource was released before the delay started, and it's not acquired again
     assertThat(log).containsExactly("acquire a", "release a");
   }
@@ -663,7 +660,7 @@ class ResourceTest {
             a -> log.add("release " + a))
         .use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     acquiring.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -683,7 +680,7 @@ class ResourceTest {
 
     var program = resource("a").flatMap(_ -> blocking).use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var future = program.fork().evalOrElseThrow().future();
     acquiring.join();
 
     assertThat(future.cancel(true)).isTrue();
@@ -702,11 +699,11 @@ class ResourceTest {
     var waiting = new CompletableFuture<Void>();
     var program = waitingForever(waiting).use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     waiting.join();
 
-    assertThat(future.cancel(true)).isTrue();
-    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).isEmpty(); // nothing was acquired, so nothing is released
   }
 
@@ -715,11 +712,11 @@ class ResourceTest {
     var waiting = new CompletableFuture<Void>();
     var program = resource("a").flatMap(_ -> waitingForever(waiting)).use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     waiting.join();
 
-    assertThat(future.cancel(true)).isTrue();
-    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).containsExactly("acquire a", "release a");
   }
 
@@ -730,11 +727,11 @@ class ResourceTest {
         .flatMapError(_ -> waitingForever(waiting))
         .use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     waiting.join();
 
-    assertThat(future.cancel(true)).isTrue();
-    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).isEmpty(); // neither the failed nor the fallback resource was acquired
   }
 
@@ -745,11 +742,11 @@ class ResourceTest {
         .either(waitingForever(waiting))
         .use(Program::success);
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     waiting.join();
 
-    assertThat(future.cancel(true)).isTrue();
-    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).isEmpty(); // neither the failed nor the alternative resource was acquired
   }
 
@@ -763,12 +760,12 @@ class ResourceTest {
         .retry(1, Delay.ofHours(1))
         .use(this::use);
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     attempted.join();
 
-    assertThat(future.cancel(true)).isTrue();
+    fiber.<Void, Void>cancel().evalOrElseThrow();
     // it doesn't wait for the hour of the delay
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).isEmpty();
   }
 
@@ -823,11 +820,11 @@ class ResourceTest {
     var started = new CompletableFuture<Void>();
     var program = Resource.background(worker(started)).use(_ -> never());
 
-    var future = program.fork().evalOrElseThrow();
+    var fiber = program.fork().evalOrElseThrow();
     started.join();
 
-    assertThat(future.cancel(true)).isTrue();
-    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).containsExactly("worker stopped");
   }
 

@@ -11,7 +11,6 @@ import static com.github.tonivade.diesel.Concurrent.parAll;
 import static com.github.tonivade.diesel.Concurrent.parSequence;
 import static com.github.tonivade.diesel.Concurrent.parZip;
 import static com.github.tonivade.diesel.Program.delayed;
-import static com.github.tonivade.diesel.Program.join;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
@@ -553,7 +552,7 @@ class QueueTest {
         future -> pipe(
             task(() -> await(queue::waitingTakers, 1)),
             _ -> queue.close(),
-            _ -> join(future)));
+            _ -> future.join()));
 
     assertThat(program.evalOrElseThrow()).isEmpty();
   }
@@ -567,7 +566,7 @@ class QueueTest {
         future -> pipe(
             task(() -> await(queue::waitingTakers, 1)),
             _ -> queue.close(),
-            _ -> join(future)));
+            _ -> future.join()));
 
     assertThat(program.evalOrElseThrow()).isEqualTo("QueueClosedException");
   }
@@ -584,7 +583,7 @@ class QueueTest {
         future -> pipe(
             task(() -> await(queue::waitingTakers, 20)),
             _ -> queue.close(),
-            _ -> join(future)));
+            _ -> future.join()));
 
     assertThat(program.evalOrElseThrow()).hasSize(20).allMatch(Optional::isEmpty);
   }
@@ -599,7 +598,7 @@ class QueueTest {
         future -> pipe(
             task(() -> await(queue::waitingOfferers, 1)),
             _ -> queue.close(),
-            _ -> join(future)));
+            _ -> future.join()));
 
     assertThat(program.evalOrElseThrow()).isEqualTo("QueueClosedException");
   }
@@ -614,7 +613,7 @@ class QueueTest {
         future -> pipe(
             task(() -> await(queue::waitingOfferers, 1)),
             _ -> queue.close(),
-            _ -> join(future)))
+            _ -> future.join()))
         .evalOrElseThrow();
 
     assertThat(drain(queue).evalOrElseThrow()).containsExactly(1);
@@ -633,7 +632,7 @@ class QueueTest {
         future -> pipe(
             task(() -> await(queue::waitingOfferers, 10)),
             _ -> queue.close(),
-            _ -> join(future)));
+            _ -> future.join()));
 
     assertThat(program.evalOrElseThrow()).hasSize(10).containsOnly("QueueClosedException");
     assertThat(drain(queue).evalOrElseThrow()).containsExactly(1);

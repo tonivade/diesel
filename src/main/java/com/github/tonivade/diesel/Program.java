@@ -177,7 +177,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Forked<S, E, T>(Program<S, E, T> current, Executor executor) implements Program<S, E, CompletableFuture<Result<E, T>>> {}
+  record Forked<S, E, T>(Program<S, E, T> current, Executor executor) implements Program<S, E, Fiber<E, T>> {}
 
   /**
    * Represents an effectful computation that accesses a domain-specific language (DSL) using the provided function.
@@ -430,7 +430,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that will wait for the completion of a future.
    *
-   * <p>If the program is cancelled, the original future is not cancelled
+   * <p>If the program is cancelled, the original future is not cancelled.
+   *
+   * <p>It's meant for futures created outside the program, like the ones of an external API. A
+   * program started with {@link #fork()} is joined with {@link Fiber#join()}.
    *
    * @param future the CompletableFuture representing the asynchronous computation
    * @param <S> the type of the state
@@ -1327,15 +1330,15 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Forks the program to be executed asynchronously in a virtual thread.
    *
-   * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
-   * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
+   * <p>The returned {@link Fiber} can be joined, cancelled or polled. Cancelling it cancels the
+   * program: it stops at its next step and runs its finalizers.
    *
    * <p>The lifetime of the forked program depends on how the program that forked it ends:
    * <ul>
    *   <li>If that program is cancelled, the forked program is cancelled too, and the cancelled
    *   program only completes once the forked program has stopped.</li>
    *   <li>If that program completes on its own, the forked program keeps running and nobody waits
-   *   for it. To stop it, cancel the returned future, or join it before completing.</li>
+   *   for it. To stop it, cancel the returned fiber, or join it before completing.</li>
    *   <li>If it's forked in an uncancelable region, like a finalizer, it can't be cancelled, and
    *   nobody waits for it either.</li>
    * </ul>
@@ -1345,25 +1348,25 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *
    * @return a new program representing the forked computation
    */
-  default Program<S, E, CompletableFuture<Result<E, T>>> fork() {
+  default Program<S, E, Fiber<E, T>> fork() {
     return fork(Concurrent.DEFAULT_EXECUTOR);
   }
 
   /**
    * Forks the program to be executed asynchronously using the provided executor.
    *
-   * <p>Cancelling the returned future cancels the program: it stops at its next step, runs its
-   * finalizers and then completes the future with a {@link java.util.concurrent.CancellationException}.
+   * <p>The returned {@link Fiber} can be joined, cancelled or polled. Cancelling it cancels the
+   * program: it stops at its next step and runs its finalizers.
    *
    * <p>If the executor refuses to run the program, like a {@code RejectedExecutionException} of a
-   * full or shut down executor, the fork doesn't fail: the returned future fails with that error.
+   * full or shut down executor, the fork doesn't fail: the returned fiber fails with that error.
    *
    * <p>The lifetime of the forked program depends on how the program that forked it ends:
    * <ul>
    *   <li>If that program is cancelled, the forked program is cancelled too, and the cancelled
    *   program only completes once the forked program has stopped.</li>
    *   <li>If that program completes on its own, the forked program keeps running and nobody waits
-   *   for it. To stop it, cancel the returned future, or join it before completing.</li>
+   *   for it. To stop it, cancel the returned fiber, or join it before completing.</li>
    *   <li>If it's forked in an uncancelable region, like a finalizer, it can't be cancelled, and
    *   nobody waits for it either.</li>
    * </ul>
@@ -1374,7 +1377,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param executor the executor used to execute the program asynchronously
    * @return a new program representing the forked computation
    */
-  default Program<S, E, CompletableFuture<Result<E, T>>> fork(Executor executor) {
+  default Program<S, E, Fiber<E, T>> fork(Executor executor) {
     return new Forked<>(this, executor);
   }
 

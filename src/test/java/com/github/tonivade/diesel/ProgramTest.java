@@ -221,7 +221,7 @@ class ProgramTest {
     try {
       var program = never().timeout(Delay.ofMillis(100), executor);
 
-      var future = program.fork().evalOrElseThrow();
+      var future = program.fork().evalOrElseThrow().future();
 
       // the program fails with a timeout; a deadlock would make get itself throw a bare TimeoutException
       assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS))
@@ -463,7 +463,7 @@ class ProgramTest {
         } catch (InterruptedException e) {
           interrupted.countDown();
         }
-      }).fork().evalOrElseThrow();
+      }).fork().evalOrElseThrow().future();
 
       assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
       result.cancel(true);
@@ -497,7 +497,7 @@ class ProgramTest {
         })
         .ensuring(task(() -> stoppedWhenReleased.complete(stopped.get())))
         .fork()
-        .evalOrElseThrow();
+        .evalOrElseThrow().future();
 
       assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
       future.cancel(true);
@@ -529,7 +529,7 @@ class ProgramTest {
       })
       .ensuring(task(() -> stoppedWhenReleased.complete(stopped.get())))
       .fork()
-      .evalOrElseThrow();
+      .evalOrElseThrow().future();
 
     assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
     future.cancel(true);
