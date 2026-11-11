@@ -4,7 +4,6 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.evalAll;
 import static com.github.tonivade.diesel.Program.raise;
@@ -13,7 +12,6 @@ import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.unit;
 import static java.util.function.Function.identity;
 
-import com.github.tonivade.diesel.Result.Failure;
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
 import com.github.tonivade.diesel.function.Finisher4;
@@ -23,19 +21,13 @@ import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * Concurrent combinators to execute {@link Program}s in parallel.
@@ -110,8 +102,8 @@ public final class Concurrent {
    */
   public static <S, E, T, U> Program<S, E, Either<T, U>> either(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
-    return zip(p1.fork(executor), p2.fork(executor), (f1, f2) -> Concurrent.<E, T, U>either(f1.future(), f2.future()))
-        .flatMap(Program::join);
+    return zip(p1.fork(executor), p2.fork(executor), Fiber::<S, E, T, U>either)
+        .flatMap(identity());
   }
 
   /**
@@ -149,8 +141,8 @@ public final class Concurrent {
    */
   public static <S, E, T, U> Program<S, E, Either<T, U>> race(
       Program<S, E, T> p1, Program<S, E, U> p2, Executor executor) {
-    return zip(p1.fork(executor), p2.fork(executor), (f1, f2) -> Concurrent.<E, T, U>race(f1.future(), f2.future()))
-        .flatMap(Program::join);
+    return zip(p1.fork(executor), p2.fork(executor), Fiber::<S, E, T, U>race)
+        .flatMap(identity());
   }
 
   /**
@@ -239,19 +231,7 @@ public final class Concurrent {
       return unit();
     }
 
-    var forked = forkAll(executor, programs);
-
-    return Program.<S, E, CompletableFuture<Result<E, Unit>>>async(
-        (state, future) -> {
-          try {
-            var result = evalAll(state, forked).map(Concurrent::parAllFailFast);
-            future.complete(result);
-          } catch (Throwable e) {
-            Fatal.rethrowIfFatal(e);
-            future.completeExceptionally(e);
-          }
-        })
-        .flatMap(Program::join);
+    return forkAllAndThen(executor, programs, Fiber::all);
   }
 
   /**
@@ -341,19 +321,7 @@ public final class Concurrent {
       return raise(NoSuchElementException::new);
     }
 
-    var forked = forkAll(executor, programs);
-
-    return Program.<S, E, CompletableFuture<Result<E, T>>>async(
-        (state, future) -> {
-          try {
-            var result = evalAll(state, forked).map(Concurrent::parAnySuccess);
-            future.complete(result);
-          } catch (Throwable e) {
-            Fatal.rethrowIfFatal(e);
-            future.completeExceptionally(e);
-          }
-        })
-        .flatMap(Program::join);
+    return forkAllAndThen(executor, programs, Fiber::any);
   }
 
   /**
@@ -450,19 +418,7 @@ public final class Concurrent {
       return success(List.of());
     }
 
-    var forked = forkAll(executor, programs);
-
-    return Program.<S, E, CompletableFuture<Result<E, Collection<T>>>>async(
-        (state, future) -> {
-          try {
-            var result = evalAll(state, forked).map(Concurrent::parSequenceFailFast);
-            future.complete(result);
-          } catch (Throwable e) {
-            Fatal.rethrowIfFatal(e);
-            future.completeExceptionally(e);
-          }
-        })
-        .flatMap(Program::join);
+    return forkAllAndThen(executor, programs, Fiber::sequence);
   }
 
   /**
@@ -497,7 +453,7 @@ public final class Concurrent {
          p0.fork(executor),
          p1.fork(executor),
          (f0, f1) ->
-          Concurrent.<S, E, R>joinAll(
+          Fiber.<S, E, R>joinAll(
             List.of(f0, f1),
             () -> Result.zip(f0.resultNow(), f1.resultNow(), finisher)))
         .flatMap(identity());
@@ -539,7 +495,7 @@ public final class Concurrent {
          p1.fork(executor),
          p2.fork(executor),
          (f0, f1, f2) ->
-          Concurrent.<S, E, R>joinAll(
+          Fiber.<S, E, R>joinAll(
             List.of(f0, f1, f2),
             () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), finisher)))
         .flatMap(identity());
@@ -585,7 +541,7 @@ public final class Concurrent {
          p2.fork(executor),
          p3.fork(executor),
          (f0, f1, f2, f3) ->
-          Concurrent.<S, E, R>joinAll(
+          Fiber.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3),
             () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), finisher)))
         .flatMap(identity());
@@ -635,7 +591,7 @@ public final class Concurrent {
          p3.fork(executor),
          p4.fork(executor),
          (f0, f1, f2, f3, f4) ->
-          Concurrent.<S, E, R>joinAll(
+          Fiber.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3, f4),
             () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), f4.resultNow(), finisher)))
         .flatMap(identity());
@@ -689,7 +645,7 @@ public final class Concurrent {
          p4.fork(executor),
          p5.fork(executor),
          (f0, f1, f2, f3, f4, f5) ->
-          Concurrent.<S, E, R>joinAll(
+          Fiber.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3, f4, f5),
             () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), f4.resultNow(), f5.resultNow(), finisher)))
         .flatMap(identity());
@@ -747,7 +703,7 @@ public final class Concurrent {
          p5.fork(executor),
          p6.fork(executor),
          (f0, f1, f2, f3, f4, f5, f6) ->
-          Concurrent.<S, E, R>joinAll(
+          Fiber.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3, f4, f5, f6),
             () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), f4.resultNow(), f5.resultNow(), f6.resultNow(), finisher)))
         .flatMap(identity());
@@ -809,7 +765,7 @@ public final class Concurrent {
          p6.fork(executor),
          p7.fork(executor),
          (f0, f1, f2, f3, f4, f5, f6, f7) ->
-          Concurrent.<S, E, R>joinAll(
+          Fiber.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3, f4, f5, f6, f7),
             () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), f4.resultNow(), f5.resultNow(), f6.resultNow(), f7.resultNow(), finisher)))
         .flatMap(identity());
@@ -875,7 +831,7 @@ public final class Concurrent {
          p7.fork(executor),
          p8.fork(executor),
          (f0, f1, f2, f3, f4, f5, f6, f7, f8) ->
-          Concurrent.<S, E, R>joinAll(
+          Fiber.<S, E, R>joinAll(
             List.of(f0, f1, f2, f3, f4, f5, f6, f7, f8),
             () -> Result.zip(f0.resultNow(), f1.resultNow(), f2.resultNow(), f3.resultNow(), f4.resultNow(), f5.resultNow(), f6.resultNow(), f7.resultNow(), f8.resultNow(), finisher)))
         .flatMap(identity());
@@ -1210,53 +1166,39 @@ public final class Concurrent {
     return zip(
         fork(sleep(delay), executor),
         program.fork(executor),
-        (timer, work) -> Concurrent.<E, T>timeoutFuture(timer.future(), work.future()))
-        .flatMap(Program::join);
+        Fiber::<S, E, T>timeout)
+        .flatMap(identity());
   }
 
-  private static <E, T> CompletableFuture<Result<E, T>> timeoutFuture(
-      CompletableFuture<Result<E, Unit>> timer, CompletableFuture<Result<E, T>> work) {
-    var timedOut = new AtomicBoolean();
-    var result = new CompletableFuture<Result<E, T>>();
+  /**
+   * Forks all the programs, and then waits for them with the given combinator.
+   *
+   * <p>The forks are evaluated inside the async callback, so the combinator gets the fibers as
+   * soon as they are all started.
+   */
+  private static <S, E, T, R> Program<S, E, R> forkAllAndThen(
+      Executor executor,
+      Collection<? extends Program<S, E, ? extends T>> programs,
+      Function<Collection<Fiber<E, T>>, Program<S, E, R>> combinator) {
+    var forked = forkAll(executor, programs);
 
-    var _ = timer.whenComplete((_, error) -> {
-      if (error == null) {
-        // the timer expired: it only asks the program to stop, the program decides the result
-        timedOut.set(true);
-        work.cancel(true);
-      } else if (!isCancellation(error)) {
-        // the timer itself failed, like a rejected executor: don't leave the program unbounded
-        result.completeExceptionally(error);
-        work.cancel(true);
-      }
-    });
-
-    var _ = work.whenComplete((value, error) -> {
-      if (error == null) {
-        // even if the timer expired: a value that was already produced must not be lost
-        result.complete(value);
-      } else if (timedOut.get() && isCancellation(error)) {
-        result.completeExceptionally(new TimeoutException());
-      } else {
-        result.completeExceptionally(error);
-      }
-      // the program is done, so the timer isn't needed anymore
-      timer.cancel(true);
-    });
-
-    return afterAll(List.of(timer, work), result);
+    return Program.<S, E, Program<S, E, R>>async(
+        (state, future) -> {
+          try {
+            future.complete(evalAll(state, forked).map(combinator));
+          } catch (Throwable e) {
+            Fatal.rethrowIfFatal(e);
+            future.completeExceptionally(e);
+          }
+        })
+        .flatMap(identity());
   }
 
-  private static boolean isCancellation(Throwable error) {
-    return error instanceof CancellationException
-        || (error instanceof CompletionException && error.getCause() instanceof CancellationException);
-  }
-
-  private static <S, E, T> Collection<Program<S, E, CancelableFuture<Result<E, T>>>> forkAll(
+  private static <S, E, T> Collection<Program<S, E, Fiber<E, T>>> forkAll(
       Executor executor, Collection<? extends Program<S, E, ? extends T>> programs) {
     return programs.stream()
         .map(Concurrent::<S, E, T>narrow)
-        .map(p -> p.fork(executor).map(Fiber::future))
+        .map(p -> p.fork(executor))
         .toList();
   }
 
@@ -1265,126 +1207,4 @@ public final class Concurrent {
     return (Program<S, E, T>) program;
   }
 
-  private static <E, T> CompletableFuture<Result<E, Collection<T>>> parSequenceFailFast(
-      Collection<? extends CompletableFuture<Result<E, T>>> futures) {
-    return parAllFailFast(futures)
-        .thenApply(value -> value.fold(
-            Result::failure,
-            _ -> Result.sequence(futures.stream().map(CompletableFuture::join).toList())));
-  }
-
-  /**
-   * Waits, fail-fast, for all the futures and then combines their results in the program that
-   * waits, not in the thread that completes the last one.
-   */
-  private static <S, E, R> Program<S, E, R> joinAll(
-      Collection<? extends Fiber<E, ?>> fibers,
-      Supplier<? extends Result<E, R>> combine) {
-    return pipe(
-        Program.join(parAllFailFast(fibers.stream().map(Fiber::future).toList())),
-        // built when it runs, in the thread of the parent, so if combine throws it's an ordinary
-        // exception of the program and catchAll can handle it
-        _ -> Program.suspend(() -> Program.from(combine.get())));
-  }
-
-  private static <E> CompletableFuture<Result<E, Unit>> parAllFailFast(
-      Collection<? extends CompletableFuture<? extends Result<E, ?>>> futures) {
-    if (futures.isEmpty()) {
-      return CompletableFuture.completedFuture(Result.unit());
-    }
-    var result = new CompletableFuture<Result<E, Unit>>();
-    var remaining = new AtomicInteger(futures.size());
-
-    for (var future : futures) {
-      var _ = future.whenComplete((value, error) -> {
-        if (error != null) {
-          result.completeExceptionally(error);
-        } else if (value instanceof Failure(var fail)) {
-          result.complete(Result.failure(fail));
-        } else if (remaining.decrementAndGet() == 0) {
-          result.complete(Result.unit());
-        }
-      });
-    }
-
-    var outcome = result.whenComplete((value, error) -> {
-      if (error != null || value instanceof Failure) {
-        // fail-fast: cancel the programs that are still running
-        futures.forEach(future -> future.cancel(true));
-      }
-    });
-    return afterAll(futures, outcome);
-  }
-
-  private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> race(
-      CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
-    var outcome = f1.thenApply(t -> t.map(Either::<T, U>left))
-        .applyToEither(f2.thenApply(u -> u.map(Either::<T, U>right)), identity())
-        .whenComplete((_, _) -> cancelBoth(f1, f2));
-    return afterAll(List.of(f1, f2), outcome);
-  }
-
-  private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> either(
-      CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
-    // parAnySuccess only cancels the mapped futures it receives, and cancelling a future doesn't
-    // reach the future it was mapped from: the forked programs have to be cancelled through f1
-    // and f2, and waited for through them too
-    var outcome = parAnySuccess(List.of(
-            f1.thenApply(t -> t.map(Either::<T, U>left)),
-            f2.thenApply(u -> u.map(Either::<T, U>right))))
-        .whenComplete((_, _) -> cancelBoth(f1, f2));
-    return afterAll(List.of(f1, f2), outcome);
-  }
-
-  private static <E, T> CompletableFuture<Result<E, T>> parAnySuccess(
-      Collection<? extends CompletableFuture<Result<E, T>>> futures) {
-    var result = new CompletableFuture<Result<E, T>>();
-    var remaining = new AtomicInteger(futures.size());
-
-    for (var future : futures) {
-      future.whenComplete((value, error) -> {
-        // only fail when all programs have failed, otherwise wait for the others
-        if (error != null) {
-          if (remaining.decrementAndGet() == 0) {
-            result.completeExceptionally(error);
-          }
-        } else if (value instanceof Failure(var fail)) {
-          if (remaining.decrementAndGet() == 0) {
-            result.complete(Result.failure(fail));
-          }
-        } else {
-          result.complete(value);
-        }
-      });
-    }
-
-    var outcome = result.whenComplete((_, _) -> futures.forEach(f -> f.cancel(true)));
-    return afterAll(futures, outcome);
-  }
-
-  /**
-   * Completes like {@code outcome} once all the futures are done too, so the cancelled programs
-   * have stopped and run their finalizers before the caller continues.
-   */
-  private static <T> CompletableFuture<T> afterAll(
-      Collection<? extends CompletableFuture<?>> futures, CompletableFuture<T> outcome) {
-    var all = new ArrayList<CompletableFuture<?>>(futures);
-    all.add(outcome);
-    return CompletableFuture.allOf(all.toArray(new CompletableFuture<?>[0]))
-        // the cancelled programs complete exceptionally, that is expected
-        .handle((_, _) -> null)
-        .thenCompose(_ -> outcome);
-  }
-
-  private static void cancelBoth(CompletableFuture<?> f1, CompletableFuture<?> f2) {
-    try {
-      if (!f1.isDone()) {
-        f1.cancel(true);
-      }
-    } finally {
-      if (!f2.isDone()) {
-        f2.cancel(true);
-      }
-    }
-  }
 }

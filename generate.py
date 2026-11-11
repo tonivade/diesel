@@ -101,7 +101,7 @@ public static <S, E, {% for i in range(value) %}T{{ i }}, {% endfor %}R> Program
      return zip(
       {% for i in range(value) %} p{{ i }}.fork(executor),
       {% endfor %} ({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}) ->
-        Concurrent.<S, E, R>joinAll(
+        Fiber.<S, E, R>joinAll(
           List.of({% for i in range(value) %}f{{ i }}{% if i < value - 1 %}, {% endif %}{% endfor %}),
           () -> Result.zip({% for i in range(value) %}f{{ i }}.resultNow(), {% endfor %}finisher)))
       .flatMap(identity());
