@@ -5,11 +5,13 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.chain;
+import static com.github.tonivade.diesel.Combine.delayed;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Fatal.sneakyThrow;
 import static com.github.tonivade.diesel.function.Finisher2.first;
+import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Frame.Region;
@@ -91,7 +93,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {}
+  record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {
+    public Pure {
+      requireNonNull(result);
+    }
+  }
 
   /**
    * Represents a computation that catches exceptions within the program.
@@ -105,6 +111,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record Catch<S, E, T>(
       Program<S, E, T> current,
       Function<? super Throwable, ? extends Program<S, E, T>> recover) implements Program<S, E, T> {
+
+    public Catch {
+      requireNonNull(current);
+      requireNonNull(recover);
+    }
 
     @Override
     public final String toString() {
@@ -121,6 +132,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record Raise<S, E, T>(Supplier<? extends Throwable> supplier) implements Program<S, E, T> {
+
+    public Raise {
+      requireNonNull(supplier);
+    }
 
     @Override
     public final String toString() {
@@ -145,6 +160,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Function<? super E, ? extends Program<S, F, R>> onFailure,
       Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {
 
+    public FoldMap {
+      requireNonNull(current);
+      requireNonNull(onFailure);
+      requireNonNull(onSuccess);
+    }
+
     @Override
     public final String toString() {
       return "FoldMap[current=%s, onFailure=..., onSuccess=...]".formatted(current);
@@ -162,6 +183,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record Async<S, E, T>(
       BiConsumer<? super S, ? super CompletableFuture<Result<E, T>>> callback) implements Program<S, E, T> {
 
+    public Async {
+      requireNonNull(callback);
+    }
+
     @Override
     public final String toString() {
       return "Async[callback=...]";
@@ -177,7 +202,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Forked<S, E, T>(Program<S, E, T> current, Executor executor) implements Program<S, E, Fiber<E, T>> {}
+  record Forked<S, E, T>(Program<S, E, T> current, Executor executor) implements Program<S, E, Fiber<E, T>> {
+
+    public Forked {
+      requireNonNull(current);
+      requireNonNull(executor);
+    }
+  }
 
   /**
    * Represents an effectful computation that accesses a domain-specific language (DSL) using the provided function.
@@ -188,6 +219,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record Access<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {
+
+    public Access {
+      requireNonNull(mapper);
+    }
 
     @Override
     public final String toString() {
@@ -205,6 +240,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Suspend<S, E, T>(Supplier<? extends Program<S, E, T>> supplier) implements Program<S, E, T> {
 
+    public Suspend {
+      requireNonNull(supplier);
+    }
+
     @Override
     public final String toString() {
       return "Suspend[supplier=...]";
@@ -221,7 +260,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Ensuring<S, E, T>(Program<S, E, T> current, Program<S, Void, ?> finalizer) implements Program<S, E, T> {}
+  record Ensuring<S, E, T>(Program<S, E, T> current, Program<S, Void, ?> finalizer) implements Program<S, E, T> {
+
+    public Ensuring {
+      requireNonNull(current);
+      requireNonNull(finalizer);
+    }
+  }
 
   /**
    * Represents a computation that runs a finalizer only when the program is cancelled. The
@@ -233,7 +278,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record OnCancel<S, E, T>(Program<S, E, T> current, Program<S, Void, ?> finalizer) implements Program<S, E, T> {}
+  record OnCancel<S, E, T>(Program<S, E, T> current, Program<S, Void, ?> finalizer) implements Program<S, E, T> {
+
+    public OnCancel {
+      requireNonNull(current);
+      requireNonNull(finalizer);
+    }
+  }
 
   /**
    * Represents a memoized computation that caches the result of the program.
@@ -265,7 +316,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     private final AtomicReference<State<E, T>> state = new AtomicReference<>(new Idle<>());
 
     Memoized(Program<S, E, T> current) {
-      this.current = current;
+      this.current = requireNonNull(current);
     }
 
     /** The program the interpreter runs in place of this one. */
@@ -335,7 +386,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Uncancelable<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {}
+  record Uncancelable<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {
+
+    public Uncancelable {
+      requireNonNull(current);
+    }
+  }
 
   /**
    * Represents a computation that can't be cancelled, a cancellation requested while it runs
@@ -350,6 +406,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record UncancelableWith<S, E, T>(Function<? super Poll, ? extends Program<S, E, T>> body) implements Program<S, E, T> {
+
+    public UncancelableWith {
+      requireNonNull(body);
+    }
 
     @Override
     public final String toString() {
@@ -366,7 +426,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Polled<S, E, T>(Program<S, E, T> current, Region region) implements Program<S, E, T> {}
+  record Polled<S, E, T>(Program<S, E, T> current, Region region) implements Program<S, E, T> {
+
+    public Polled {
+      requireNonNull(current);
+      requireNonNull(region);
+    }
+  }
 
   /**
    * Makes a program cancelable inside the uncancelable region it comes from, see
@@ -511,10 +577,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return the same computation with the new error type
    */
+  @SuppressWarnings("unchecked")
   static <S, E, T> Program<S, E, T> widen(Program<S, Void, T> program) {
-    return program.mapError(_ -> {
-      throw new IllegalStateException("a program with Void as error type can't fail with an error");
-    });
+    return (Program<S, E, T>) program;
   }
 
   /**
@@ -685,7 +750,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing an asynchronous computation
    */
-  static <S, E, T> Program<S, E, T> async(BiConsumer<? super S, ? super CompletableFuture<Result<E, T>>> callback) {
+  static <S, E, T> Program<S, E, T> async(
+      BiConsumer<? super S, ? super CompletableFuture<Result<E, T>>> callback) {
     return new Async<>(callback);
   }
 
@@ -899,7 +965,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return the result of evaluating all the programs
    */
-  static <S, E, T> Result<E, Collection<T>> evalAll(@Nullable S state, Collection<Program<S, E, T>> programs) {
+  static <S, E, T> Result<E, Collection<T>> evalAll(
+      @Nullable S state, Collection<Program<S, E, T>> programs) {
     return Result.traverse(programs, p -> p.eval(state));
   }
 
@@ -1113,7 +1180,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   default <F, R> Program<S, F, R> foldMap(
       Function<? super E, ? extends Program<S, F, R>> onFailure,
-          Function<? super T, ? extends Program<S, F, R>> onSuccess) {
+      Function<? super T, ? extends Program<S, F, R>> onSuccess) {
     return new FoldMap<>(this, onFailure, onSuccess);
   }
 
@@ -1517,7 +1584,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <R> the type of the result
    * @return a function that maps a value to a memoized program
    */
-  static <S, E, T, R> Function<T, Program<S, E, R>> memoize(Function<? super T, ? extends Program<S, E, R>> function) {
+  static <S, E, T, R> Function<T, Program<S, E, R>> memoize(
+      Function<? super T, ? extends Program<S, E, R>> function) {
     final Map<T, Program<S, E, R>> cache = new ConcurrentHashMap<>();
     final var memoized = function.andThen(Program::memoized);
     return input -> cache.computeIfAbsent(input, memoized);
@@ -1588,37 +1656,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
         return cache.computeIfAbsent(input, key -> function.apply(self, key).memoized());
       }
     };
-  }
-
-  /**
-   * Delays the execution of the program using the provided delay and supplier.
-   *
-   * @param delay the time to wait
-   * @param supplier the supplier of the value to be returned after the delay
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a new program representing the delayed computation
-   */
-  static <S, E, T> Program<S, E, T> delayed(Delay delay, Supplier<T> supplier) {
-    return delayed(delay, supply(supplier));
-  }
-
-  /**
-   * Delays the execution of the program using the provided delay.
-   *
-   * @param delay the time to wait
-   * @param program the next program to be executed after the delay
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   * @return a new program representing the delayed computation
-   */
-  static <S, E, T> Program<S, E, T> delayed(Delay delay, Program<S, E, T> program) {
-    return pipe(
-        sleep(delay),
-        _ -> program
-        );
   }
 
   /**

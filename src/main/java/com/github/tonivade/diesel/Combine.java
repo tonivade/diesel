@@ -974,6 +974,37 @@ public final class Combine {
   }
 
   /**
+   * Delays the execution of the program using the provided delay and supplier.
+   *
+   * @param delay the time to wait
+   * @param supplier the supplier of the value to be returned after the delay
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the delayed computation
+   */
+  public static <S, E, T> Program<S, E, T> delayed(Delay delay, Supplier<T> supplier) {
+    return delayed(delay, Program.supply(supplier));
+  }
+
+  /**
+   * Delays the execution of the program using the provided delay.
+   *
+   * @param delay the time to wait
+   * @param program the next program to be executed after the delay
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return a new program representing the delayed computation
+   */
+  public static <S, E, T> Program<S, E, T> delayed(Delay delay, Program<S, E, T> program) {
+    return pipe(
+        Program.sleep(delay),
+        _ -> program
+        );
+  }
+
+  /**
    * Creates a function that branches the program based on a condition.
    *
    * @param condition the condition used to branch the program

@@ -7,8 +7,8 @@
  */
 package examples;
 
+import static com.github.tonivade.diesel.Combine.delayed;
 import static com.github.tonivade.diesel.Concurrent.parZip;
-import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.supply;
 
 import com.github.tonivade.diesel.Delay;

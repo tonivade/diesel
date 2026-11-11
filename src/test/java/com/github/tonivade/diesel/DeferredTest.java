@@ -4,10 +4,10 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.delayed;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Concurrent.parSequence;
 import static com.github.tonivade.diesel.Concurrent.parZip;
-import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Tuple2.tuple;

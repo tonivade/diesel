@@ -81,6 +81,20 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   }
 
   /**
+   * Converts a higher-kinded value to a {@code Resource}.
+   *
+   * @param value the value to convert
+   * @param <S> the state type
+   * @param <E> the error type
+   * @param <A> the element type
+   * @return the value as a {@code Resource}
+   */
+  @SuppressWarnings("unchecked")
+  public static <S, E, A> Resource<S, E, A> toResource(Kind<Resource<S, E, ?>, ? extends A> value) {
+    return (Resource<S, E, A>) value;
+  }
+
+  /**
    * Maps the acquired value while preserving its release action.
    *
    * <p>The mapper is applied after acquisition. The original resource is still released when

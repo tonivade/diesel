@@ -5,10 +5,10 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.bracket;
+import static com.github.tonivade.diesel.Combine.delayed;
 import static com.github.tonivade.diesel.Combine.recover;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.accessResult;
-import static com.github.tonivade.diesel.Program.delayed;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.interruptibleTask;
 import static com.github.tonivade.diesel.Program.memoizeRecursive;
@@ -625,7 +625,7 @@ class ProgramTest {
   void concurrentEvaluationsRunTheEffectOnce() {
     var calls = new AtomicInteger();
     var program =
-        Program.delayed(Delay.ofMillis(100), supply(calls::incrementAndGet))
+        delayed(Delay.ofMillis(100), supply(calls::incrementAndGet))
             .memoized();
     var evaluations =
         IntStream.range(0, 50).mapToObj(_ -> program).toList();
@@ -653,7 +653,7 @@ class ProgramTest {
   @Test
   void anExceptionIsNotCachedAndAWaiterRunsItAgain() {
     var attempts = new AtomicInteger();
-    var flaky = Program.delayed(Delay.ofMillis(50), suspend(() ->
+    var flaky = delayed(Delay.ofMillis(50), suspend(() ->
             attempts.incrementAndGet() == 1
                 ? raise(IllegalStateException::new)
                 : success(42)))
