@@ -353,14 +353,14 @@ class ConcurrentTest {
           },
           executor);
 
-      var future = program.fork().evalOrElseThrow().future();
+      var fiber = program.fork().evalOrElseThrow();
       started.join();
 
       // the only thread of the executor is free, so another program can run on it
-      var other = success(7).fork(executor).evalOrElseThrow().future();
-      assertThat(other.join()).isEqualTo(Result.success(7));
+      var other = success(7).fork(executor).evalOrElseThrow();
+      assertThat(other.<Void>join().eval()).isEqualTo(Result.success(7));
       release.complete(Unit.unit());
-      assertThat(future.join()).isEqualTo(Result.success(3));
+      assertThat(fiber.<Void>join().eval()).isEqualTo(Result.success(3));
     } finally {
       executor.shutdownNow();
     }

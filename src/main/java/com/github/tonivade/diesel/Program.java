@@ -430,7 +430,10 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   /**
    * Creates a new program that will wait for the completion of a future.
    *
-   * <p>If the program is cancelled, the original future is not cancelled
+   * <p>If the program is cancelled, the original future is not cancelled.
+   *
+   * <p>It's meant for futures created outside the program, like the ones of an external API. A
+   * program started with {@link #fork()} is joined with {@link Fiber#join()}.
    *
    * @param future the CompletableFuture representing the asynchronous computation
    * @param <S> the type of the state

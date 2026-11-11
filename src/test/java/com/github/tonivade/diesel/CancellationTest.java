@@ -127,13 +127,12 @@ class CancellationTest {
   @Test
   void cancellingAForkedProgramStopsIt() {
     expected = 1;
-    var future = blocked().fork().evalOrElseThrow().future();
+    var fiber = blocked().fork().evalOrElseThrow();
     allStarted.join();
 
-    assertThat(future.cancel(true)).isTrue();
+    fiber.<Void>cancel().evalOrElseThrow();
 
-    assertThatThrownBy(future::join).isInstanceOf(CancellationException.class);
-    assertThat(future.isCancelled()).isTrue();
+    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(released).hasValue(1);
   }
 
@@ -233,12 +232,12 @@ class CancellationTest {
     var program = never().fork(rejecting)
         .flatMap(rejected -> run(() -> error.set(rejected.future().exceptionNow())).andThen(start()).andThen(never()));
 
-    var future = program.fork().evalOrElseThrow().future();
+    var fiber = program.fork().evalOrElseThrow();
     allStarted.get(5, TimeUnit.SECONDS);
-    future.cancel(true);
+    fiber.<Void>cancel().evalOrElseThrow();
 
-    // get with a timeout: join can't be interrupted, so a regression would hang instead of failing
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    // a regression would make cancel wait forever, and the timeout of the class makes it fail
+    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(error.get()).isInstanceOf(RejectedExecutionException.class);
   }
 
@@ -568,11 +567,11 @@ class CancellationTest {
       var parent = never().fork(executor).flatMap(_ -> start()).andThen(never());
       expected = 1;
 
-      var future = parent.fork(executor).evalOrElseThrow().future();
+      var fiber = parent.fork(executor).evalOrElseThrow();
       allStarted.get(5, TimeUnit.SECONDS);
-      future.cancel(true);
+      fiber.<Void>cancel().evalOrElseThrow();
 
-      assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+      assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     } finally {
       executor.shutdownNow();
     }
@@ -613,21 +612,21 @@ class CancellationTest {
 
   @Test
   void cancellingASleepRemovesItsDelay() throws Exception {
-    var future = sleep(Delay.ofHours(1)).fork().evalOrElseThrow().future();
+    var fiber = sleep(Delay.ofHours(1)).fork().evalOrElseThrow();
     awaitLongDelays(1);
-    future.cancel(true);
+    fiber.<Void>cancel().evalOrElseThrow();
 
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(DelayScheduler.pendingLongerThan(LONG_DELAY)).isZero();
   }
 
   @Test
   void sleepingForeverCanBeCancelled() throws Exception {
-    // as long as Long.MAX_VALUE nanoseconds or longer, the sleep never expires: it waits until it's cancelled
-    var future = sleep(Delay.MAX).fork().evalOrElseThrow().future();
-    future.cancel(true);
+    // a sleep of Delay.MAX never expires: it waits until it's cancelled
+    var fiber = sleep(Delay.MAX).fork().evalOrElseThrow();
+    fiber.<Void>cancel().evalOrElseThrow();
 
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
   }
 
   @Test
@@ -828,11 +827,11 @@ class CancellationTest {
     var program = uncancelable(poll -> poll.apply(
         start().andThen(never()).ensuring(finalizer(released::incrementAndGet))));
 
-    var future = program.fork().evalOrElseThrow().future();
+    var fiber = program.fork().evalOrElseThrow();
     allStarted.get(5, TimeUnit.SECONDS);
-    future.cancel(true);
+    fiber.<Void>cancel().evalOrElseThrow();
 
-    assertThatThrownBy(() -> future.get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(released).hasValue(1);
   }
 
