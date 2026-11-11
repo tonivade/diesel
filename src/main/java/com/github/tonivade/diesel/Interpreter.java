@@ -181,7 +181,7 @@ final class Interpreter {
    * <ul>
    *   <li>Inside an uncancelable region ({@code masked > 0}), like a finalizer: the cleanup has to
    *   run to completion.</li>
-   *   <li>When the step installs a finalizer ({@link Ensuring} or {@link OnCancel}). {@code bracket} acquires the resource
+   *   <li>When the step installs a finalizer ({@link Finalize}). {@code bracket} acquires the resource
    *   in an uncancelable region, and the step right after it installs the release. Stopping there
    *   would leave the resource acquired with no release to run, so a finalizer is always installed
    *   and the program stops at the step after it, running the finalizer while it unwinds.</li>
