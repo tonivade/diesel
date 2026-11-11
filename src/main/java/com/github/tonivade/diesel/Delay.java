@@ -14,7 +14,14 @@ import java.time.Duration;
  * operations, conversion to {@link Duration}, and scaling.
  *
  * <p>The maximum representable delay is {@link #MAX}, corresponding to
- * one year in nanoseconds.
+ * one year in nanoseconds. Longer delays aren't rejected but saturated: the
+ * factory methods, the constructor and {@link #scale(double)} return {@code MAX}
+ * for anything longer.
+ *
+ * <p>{@code MAX} also means "no limit": {@link Program#sleep(Delay)} sleeps
+ * forever and {@link Program#timeout(Delay)} doesn't add a timeout. So a delay
+ * that saturates, like an exponential backoff after enough attempts, waits
+ * forever instead of one year.
  *
  * @param nanos the delay in nanoseconds; must be non-negative
  */
@@ -30,13 +37,16 @@ public record Delay(long nanos) implements Comparable<Delay> {
   public static final Delay ZERO = new Delay(0);
 
   /**
-   * Represents the maximum possible delay.
+   * Represents the maximum possible delay, one year, which {@code sleep} and
+   * {@code timeout} treat as no limit.
    */
   public static final Delay MAX = new Delay(MAX_NANOS);
 
   /**
-   * Creates a delay.
+   * Creates a delay, saturated at {@link #MAX}.
    *
+   * @param nanos the delay in nanoseconds; a value greater than the maximum
+   *     becomes {@link #MAX}
    * @throws IllegalArgumentException if {@code nanos} is negative
    */
   public Delay {
@@ -53,18 +63,10 @@ public record Delay(long nanos) implements Comparable<Delay> {
    *
    * @param hours the number of hours
    * @return the resulting delay
+   * @throws IllegalArgumentException if {@code hours} is negative
    */
   public static Delay ofHours(long hours) {
-    if (hours < 0) {
-      throw new IllegalArgumentException("delay cannot be negative");
-    }
-    if (hours == 0) {
-      return ZERO;
-    }
-    if (hours >= MAX_NANOS / 3_600_000_000_000L) {
-      return MAX;
-    }
-    return new Delay(hours * 3_600_000_000_000L);
+    return of(hours, 3_600_000_000_000L);
   }
 
   /**
@@ -72,18 +74,10 @@ public record Delay(long nanos) implements Comparable<Delay> {
    *
    * @param minutes the number of minutes
    * @return the resulting delay
+   * @throws IllegalArgumentException if {@code minutes} is negative
    */
   public static Delay ofMinutes(long minutes) {
-    if (minutes < 0) {
-      throw new IllegalArgumentException("delay cannot be negative");
-    }
-    if (minutes == 0) {
-      return ZERO;
-    }
-    if (minutes >= MAX_NANOS / 60_000_000_000L) {
-      return MAX;
-    }
-    return new Delay(minutes * 60_000_000_000L);
+    return of(minutes, 60_000_000_000L);
   }
 
   /**
@@ -91,18 +85,10 @@ public record Delay(long nanos) implements Comparable<Delay> {
    *
    * @param seconds the number of seconds
    * @return the resulting delay
+   * @throws IllegalArgumentException if {@code seconds} is negative
    */
   public static Delay ofSeconds(long seconds) {
-    if (seconds < 0) {
-      throw new IllegalArgumentException("delay cannot be negative");
-    }
-    if (seconds == 0) {
-      return ZERO;
-    }
-    if (seconds >= MAX_NANOS / 1_000_000_000L) {
-      return MAX;
-    }
-    return new Delay(seconds * 1_000_000_000L);
+    return of(seconds, 1_000_000_000L);
   }
 
   /**
@@ -110,18 +96,10 @@ public record Delay(long nanos) implements Comparable<Delay> {
    *
    * @param millis the number of milliseconds
    * @return the resulting delay
+   * @throws IllegalArgumentException if {@code millis} is negative
    */
   public static Delay ofMillis(long millis) {
-    if (millis < 0) {
-      throw new IllegalArgumentException("delay cannot be negative");
-    }
-    if (millis == 0) {
-      return ZERO;
-    }
-    if (millis >= MAX_NANOS / 1_000_000L) {
-      return MAX;
-    }
-    return new Delay(millis * 1_000_000L);
+    return of(millis, 1_000_000L);
   }
 
   /**
@@ -129,18 +107,10 @@ public record Delay(long nanos) implements Comparable<Delay> {
    *
    * @param micros the number of microseconds
    * @return the resulting delay
+   * @throws IllegalArgumentException if {@code micros} is negative
    */
   public static Delay ofMicros(long micros) {
-    if (micros < 0) {
-      throw new IllegalArgumentException("delay cannot be negative");
-    }
-    if (micros == 0) {
-      return ZERO;
-    }
-    if (micros >= MAX_NANOS / 1_000L) {
-      return MAX;
-    }
-    return new Delay(micros * 1_000L);
+    return of(micros, 1_000L);
   }
 
   /**
@@ -151,16 +121,7 @@ public record Delay(long nanos) implements Comparable<Delay> {
    * @throws IllegalArgumentException if {@code nanos} is negative
    */
   public static Delay ofNanos(long nanos) {
-    if (nanos < 0) {
-      throw new IllegalArgumentException("delay cannot be negative");
-    }
-    if (nanos == 0) {
-      return ZERO;
-    }
-    if (nanos >= MAX_NANOS) {
-      return MAX;
-    }
-    return new Delay(nanos);
+    return of(nanos, 1);
   }
 
   /**
@@ -185,6 +146,16 @@ public record Delay(long nanos) implements Comparable<Delay> {
       return MAX;
     }
     return new Delay(duration.toNanos());
+  }
+
+  /**
+   * Returns this delay as a {@link Duration}, like {@code PT1S}.
+   *
+   * @return the string representation of the equivalent duration
+   */
+  @Override
+  public String toString() {
+    return toDuration().toString();
   }
 
   /**
@@ -258,5 +229,19 @@ public record Delay(long nanos) implements Comparable<Delay> {
     }
 
     return new Delay(Math.round(result));
+  }
+
+  // saturates at MAX before multiplying, so the multiplication can't overflow
+  private static Delay of(long amount, long nanosPerUnit) {
+    if (amount < 0) {
+      throw new IllegalArgumentException("delay cannot be negative");
+    }
+    if (amount == 0) {
+      return ZERO;
+    }
+    if (amount >= MAX_NANOS / nanosPerUnit) {
+      return MAX;
+    }
+    return new Delay(amount * nanosPerUnit);
   }
 }

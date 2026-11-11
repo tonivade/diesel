@@ -4,14 +4,13 @@
  */
 package com.github.tonivade.diesel;
 
-import java.time.Duration;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Scheduler of the delays of {@link Program#sleep(Duration)}.
+ * Scheduler of the delays of {@link Program#sleep(Delay)}.
  *
  * <p>Unlike {@link java.util.concurrent.CompletableFuture#delayedExecutor}, it returns a handle to
  * cancel a delay, and a cancelled delay is removed right away, so a cancelled sleep doesn't stay
@@ -28,14 +27,14 @@ final class DelayScheduler {
   }
 
   /**
-   * Number of delays that expire in the given duration or later, used by the tests: they use long
+   * Number of delays that expire in the given delay or later, used by the tests: they use long
    * delays, which no other test does, so they only see their own delays.
    */
-  static long pendingLongerThan(Duration duration) {
+  static long pendingLongerThan(Delay min) {
     return SCHEDULER.getQueue().stream()
         .filter(Delayed.class::isInstance)
         .map(Delayed.class::cast)
-        .filter(delay -> delay.getDelay(TimeUnit.NANOSECONDS) >= duration.toNanos())
+        .filter(delay -> delay.getDelay(TimeUnit.NANOSECONDS) >= min.nanos())
         .count();
   }
 

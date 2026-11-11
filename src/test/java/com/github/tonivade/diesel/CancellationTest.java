@@ -25,7 +25,6 @@ import static com.github.tonivade.diesel.Program.uncancelable;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -52,7 +51,7 @@ import org.junit.jupiter.api.Timeout;
 @Timeout(value = 10, unit = TimeUnit.SECONDS)
 class CancellationTest {
 
-  private static final Duration LONG_DELAY = Duration.ofMinutes(30);
+  private static final Delay LONG_DELAY = Delay.ofMinutes(30);
 
   private final AtomicInteger executed = new AtomicInteger();
   private final AtomicInteger released = new AtomicInteger();

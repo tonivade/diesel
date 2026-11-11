@@ -185,6 +185,7 @@ public interface Schedule<S, I> {
    * @return a schedule with a constant delay between executions
    */
   static <S, I> Schedule<S, I> spaced(Delay delay) {
+    requireNonNull(delay);
     return _ -> more(delay, spaced(delay));
   }
 
@@ -208,6 +209,7 @@ public interface Schedule<S, I> {
    * @return a schedule with an exponentially increasing delay
    */
   static <S, I> Schedule<S, I> exponential(Delay base, double factor) {
+    requireNonNull(base);
     if (!Double.isFinite(factor) || factor <= 0) {
       throw new IllegalArgumentException("factor must be a positive value");
     }

@@ -1379,7 +1379,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Adds a timeout to the program using the provided duration and virtual threads.
+   * Adds a timeout to the program using the provided delay and virtual threads.
    *
    * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
    * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
@@ -1388,15 +1388,15 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * its result is returned instead of the timeout, so a value that the program has already
    * consumed, like an element taken from a {@link Queue}, is not lost.
    *
-   * @param duration the duration of the timeout
+   * @param delay the delay of the timeout
    * @return a new program representing the computation with timeout
    */
-  default Program<S, E, T> timeout(Delay duration) {
-    return timeout(duration, Concurrent.DEFAULT_EXECUTOR);
+  default Program<S, E, T> timeout(Delay delay) {
+    return timeout(delay, Concurrent.DEFAULT_EXECUTOR);
   }
 
   /**
-   * Adds a timeout to the program using the provided duration and executor.
+   * Adds a timeout to the program using the provided delay and executor.
    *
    * <p>If the timeout expires first, the program is cancelled, it stops at its next step and runs
    * its finalizers, and then the resulting program fails with a {@link TimeoutException}.
@@ -1405,15 +1405,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * its result is returned instead of the timeout, so a value that the program has already
    * consumed, like an element taken from a {@link Queue}, is not lost.
    *
-   * <p>If the duration is {@link Delay#ZERO}, this method returns a program that raises {@link TimeoutException}.
-   * If the duration is {@link Delay#MAX}, it returns the original program untouched.
+   * <p>If the delay is {@link Delay#ZERO}, this method returns a program that raises {@link TimeoutException}
+   * without running the program at all, not even an uncancelable one. If the delay is
+   * {@link Delay#MAX}, there is no timeout: it returns the original program untouched.
    *
-   * @param duration the duration of the timeout
+   * @param delay the delay of the timeout
    * @param executor the executor used to run the program and its timeout in parallel
    * @return a new program representing the computation with timeout
    */
-  default Program<S, E, T> timeout(Delay duration, Executor executor) {
-    return Concurrent.timeout(this, duration, executor);
+  default Program<S, E, T> timeout(Delay delay, Executor executor) {
+    return Concurrent.timeout(this, delay, executor);
   }
 
   /**
@@ -1587,63 +1588,63 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Delays the execution of the program using the provided duration and supplier.
+   * Delays the execution of the program using the provided delay and supplier.
    *
-   * @param duration the duration of the delay
+   * @param delay the time to wait
    * @param supplier the supplier of the value to be returned after the delay
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
    * @return a new program representing the delayed computation
    */
-  static <S, E, T> Program<S, E, T> delayed(Delay duration, Supplier<T> supplier) {
-    return delayed(duration, supply(supplier));
+  static <S, E, T> Program<S, E, T> delayed(Delay delay, Supplier<T> supplier) {
+    return delayed(delay, supply(supplier));
   }
 
   /**
-   * Delays the execution of the program using the provided duration.
+   * Delays the execution of the program using the provided delay.
    *
-   * @param duration the duration of the delay
+   * @param delay the time to wait
    * @param program the next program to be executed after the delay
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
    * @return a new program representing the delayed computation
    */
-  static <S, E, T> Program<S, E, T> delayed(Delay duration, Program<S, E, T> program) {
+  static <S, E, T> Program<S, E, T> delayed(Delay delay, Program<S, E, T> program) {
     return pipe(
-        sleep(duration),
+        sleep(delay),
         _ -> program
         );
   }
 
   /**
-   * Creates a new program that represents a sleep for the given duration.
+   * Creates a new program that represents a sleep for the given delay.
    *
    * <p>Cancelling the sleep cancels its delay too, so a cancelled sleep, like the one of a
    * {@link #timeout(Delay)} that didn't expire, doesn't stay scheduled until the delay expires.
    *
-   * <p>If the duration is {@link Delay#ZERO}, this method returns {@link #unit()}.
-   * If the duration is {@link Delay#MAX}, it returns {@link #never()}.
+   * <p>If the delay is {@link Delay#ZERO}, this method returns {@link #unit()}.
+   * If the delay is {@link Delay#MAX}, it sleeps forever: it returns {@link #never()}.
    *
-   * @param duration the duration of the sleep
+   * @param delay the time to sleep
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @return a new program representing a sleep
    */
-  static <S, E> Program<S, E, Unit> sleep(Delay duration) {
-    if (duration.isZero()) {
+  static <S, E> Program<S, E, Unit> sleep(Delay delay) {
+    if (delay.isZero()) {
       return unit();
     }
-    if (duration.isMax()) {
+    if (delay.isMax()) {
       return never();
     }
     return asyncCancelable((_, callback) -> {
       // completed directly on the scheduler thread: the program continues on the thread that waits
       // for it, not on an executor, and handing the completion to the executor of a fork could
       // queue it behind that waiting thread forever
-      var delay = DelayScheduler.schedule(duration, () -> callback.complete(Result.unit()));
-      return task(() -> delay.cancel(false));
+      var scheduled = DelayScheduler.schedule(delay, () -> callback.complete(Result.unit()));
+      return task(() -> scheduled.cancel(false));
     });
   }
 
