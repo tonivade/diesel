@@ -16,6 +16,7 @@ import com.github.tonivade.diesel.Result.Failure;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -71,12 +72,14 @@ public final class Fiber<E, T> {
   /**
    * Cancels the program and waits until it has stopped and run its finalizers.
    *
-   * <p>It doesn't fail, whatever the outcome of the program, even if it had already finished.
+   * <p>It doesn't fail, whatever the outcome of the program, even if it had already finished, so
+   * its error type can be any.
    *
    * @param <S> the type of the state
+   * @param <F> the type of the error, which never happens
    * @return a program that cancels the fiber and waits for it
    */
-  public <S> Program<S, Void, Unit> cancel() {
+  public <S, F> Program<S, F, Unit> cancel() {
     // the future of a fork only completes once the cancelled program has run its finalizers
     return pipe(
         task(() -> future.cancel(true)),
@@ -92,10 +95,17 @@ public final class Fiber<E, T> {
    * when it joins another fiber that was cancelled, is {@link Outcome.Errored}. A program that
    * finished before it saw the cancellation keeps its result.
    *
+   * <p>Whether it was cancelled is decided when the program stops. So a program that is already
+   * failing with its own {@link CancellationException} is reported as {@link Outcome.Canceled} if
+   * it's cancelled before it stops.
+   *
+   * <p>A fatal error of the program, see {@link Fatal}, isn't described: it's thrown again.
+   *
    * @param <S> the type of the state
+   * @param <F> the type of the error, which never happens
    * @return a program that yields the outcome, or an empty optional if the fiber is still running
    */
-  public <S> Program<S, Void, Optional<Outcome<E, T>>> poll() {
+  public <S, F> Program<S, F, Optional<Outcome<E, T>>> poll() {
     return suspend(() -> {
       if (!future.isDone()) {
         return success(Optional.empty());
@@ -103,9 +113,11 @@ public final class Fiber<E, T> {
       try {
         return success(Optional.of(Outcome.from(future.join())));
       } catch (CancellationException e) {
-        return success(Optional.of(future.isCancelledByToken() ? Outcome.canceled() : Outcome.errored(e)));
+        return success(Optional.of(future.wasCancelled() ? Outcome.canceled() : Outcome.errored(e)));
       } catch (CompletionException e) {
-        return success(Optional.of(Outcome.errored(e.getCause() != null ? e.getCause() : e)));
+        var cause = e.getCause() != null ? e.getCause() : e;
+        Fatal.rethrowIfFatal(cause);
+        return success(Optional.of(Outcome.errored(cause)));
       }
     });
   }
@@ -164,33 +176,41 @@ public final class Fiber<E, T> {
    * fail.
    */
   static <S, E, T> Program<S, E, T> any(Collection<Fiber<E, T>> fibers) {
-    return Program.join(anySuccess(fibers.stream().map(Fiber::future).toList()));
+    if (fibers.isEmpty()) {
+      // otherwise it would wait forever: there is no fiber to complete it
+      return Program.raise(NoSuchElementException::new);
+    }
+    return Program.join(anySuccess(futuresOf(fibers)));
   }
 
   /**
    * Waits for the first fiber that finishes, whatever its outcome, and cancels the other.
    */
   static <S, E, T, U> Program<S, E, Either<T, U>> race(Fiber<E, T> f1, Fiber<E, U> f2) {
-    return Program.join(raceFuture(f1.future, f2.future));
+    return Program.join(raceFuture(f1.future(), f2.future()));
   }
 
   /**
    * Waits for the first fiber that succeeds and cancels the other. It fails only if both fail.
    */
   static <S, E, T, U> Program<S, E, Either<T, U>> either(Fiber<E, T> f1, Fiber<E, U> f2) {
-    return Program.join(eitherFuture(f1.future, f2.future));
+    return Program.join(eitherFuture(f1.future(), f2.future()));
   }
 
   /**
    * Waits for the work, cancelling it when the timer expires first.
    */
   static <S, E, T> Program<S, E, T> timeout(Fiber<E, Unit> timer, Fiber<E, T> work) {
-    return Program.join(timeoutFuture(timer.future, work.future));
+    return Program.join(timeoutFuture(timer.future(), work.future()));
   }
 
   private static <E> List<CompletableFuture<? extends Result<E, ?>>> futures(
       Collection<? extends Fiber<E, ?>> fibers) {
     return fibers.stream().<CompletableFuture<? extends Result<E, ?>>>map(Fiber::future).toList();
+  }
+
+  private static <E, T> List<CompletableFuture<Result<E, T>>> futuresOf(Collection<Fiber<E, T>> fibers) {
+    return fibers.stream().<CompletableFuture<Result<E, T>>>map(Fiber::future).toList();
   }
 
   private static <E, T> CompletableFuture<Result<E, T>> timeoutFuture(
@@ -270,7 +290,7 @@ public final class Fiber<E, T> {
 
   private static <E, T, U> CompletableFuture<Result<E, Either<T, U>>> eitherFuture(
       CompletableFuture<Result<E, T>> f1, CompletableFuture<Result<E, U>> f2) {
-    // parAnySuccess only cancels the mapped futures it receives, and cancelling a future doesn't
+    // anySuccess only cancels the mapped futures it receives, and cancelling a future doesn't
     // reach the future it was mapped from: the forked programs have to be cancelled through f1
     // and f2, and waited for through them too
     var outcome = anySuccess(List.of(

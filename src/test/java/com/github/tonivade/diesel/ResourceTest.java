@@ -119,8 +119,8 @@ class ResourceTest {
     var fiber = program.fork().evalOrElseThrow();
     started.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    fiber.cancel().evalOrElseThrow();
+    assertThat(fiber.poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log)
         .containsExactly("acquire a", "release a");
   }
@@ -136,8 +136,8 @@ class ResourceTest {
     var fiber = program.fork().evalOrElseThrow();
     started.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    fiber.cancel().evalOrElseThrow();
+    assertThat(fiber.poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log)
         .containsExactly("acquire a", "acquire b", "release b", "release a");
   }
@@ -152,8 +152,8 @@ class ResourceTest {
     var fiber = program.fork().evalOrElseThrow();
     acquired.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    fiber.cancel().evalOrElseThrow();
+    assertThat(fiber.poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log)
         .containsExactly("acquire a", "release a");
   }
@@ -510,8 +510,8 @@ class ResourceTest {
     var fiber = program.fork().evalOrElseThrow();
     attempted.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     // the first resource was released before the delay started, and it's not acquired again
     assertThat(log).containsExactly("acquire a", "release a");
   }
@@ -702,8 +702,8 @@ class ResourceTest {
     var fiber = program.fork().evalOrElseThrow();
     waiting.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).isEmpty(); // nothing was acquired, so nothing is released
   }
 
@@ -715,8 +715,8 @@ class ResourceTest {
     var fiber = program.fork().evalOrElseThrow();
     waiting.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).containsExactly("acquire a", "release a");
   }
 
@@ -730,8 +730,8 @@ class ResourceTest {
     var fiber = program.fork().evalOrElseThrow();
     waiting.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).isEmpty(); // neither the failed nor the fallback resource was acquired
   }
 
@@ -745,8 +745,8 @@ class ResourceTest {
     var fiber = program.fork().evalOrElseThrow();
     waiting.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).isEmpty(); // neither the failed nor the alternative resource was acquired
   }
 
@@ -763,9 +763,9 @@ class ResourceTest {
     var fiber = program.fork().evalOrElseThrow();
     attempted.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
+    fiber.<Void, Void>cancel().evalOrElseThrow();
     // it doesn't wait for the hour of the delay
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).isEmpty();
   }
 
@@ -823,8 +823,8 @@ class ResourceTest {
     var fiber = program.fork().evalOrElseThrow();
     started.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(log).containsExactly("worker stopped");
   }
 

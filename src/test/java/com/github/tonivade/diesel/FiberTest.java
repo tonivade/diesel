@@ -5,11 +5,17 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Program.failure;
+import static com.github.tonivade.diesel.Program.never;
+import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Program.supply;
 import static com.github.tonivade.diesel.Program.task;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -25,7 +31,7 @@ class FiberTest {
   @Test
   void joinReturnsTheValue() {
     var program = pipe(
-        Program.<Void, String, String>success("a").fork(),
+        success("a").fork(),
         Fiber::join);
 
     assertThat(program.eval()).isEqualTo(Result.success("a"));
@@ -34,7 +40,7 @@ class FiberTest {
   @Test
   void joinFailsWithTheError() {
     var program = pipe(
-        Program.<Void, String, String>failure("boom").fork(),
+        failure("boom").fork(),
         Fiber::join);
 
     assertThat(program.eval()).isEqualTo(Result.failure("boom"));
@@ -43,7 +49,7 @@ class FiberTest {
   @Test
   void joinThrowsTheException() {
     var program = pipe(
-        Program.<Void, String, String>raise(IllegalStateException::new).fork(),
+        raise(IllegalStateException::new).fork(),
         Fiber::join);
 
     assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
@@ -60,9 +66,9 @@ class FiberTest {
             .fork(),
         fiber -> pipe(
             task(started::join),
-            _ -> Program.<Void, String, Unit>widen(fiber.cancel()),
+            _ -> fiber.cancel(),
             // the finalizer has run by the time cancel returns
-            _ -> Program.<Void, String, Integer>supply(released::get)));
+            _ -> supply(released::get)));
 
     assertThat(program.eval()).isEqualTo(Result.success(1));
   }
@@ -71,7 +77,7 @@ class FiberTest {
   void joiningACancelledFiberThrowsACancellationException() {
     var program = pipe(
         Program.<Void, String, Unit>never().fork(),
-        fiber -> Program.<Void, String, Unit>widen(fiber.cancel()).andThen(fiber.join()));
+        fiber -> fiber.<Void, String>cancel().andThen(fiber.join()));
 
     assertThatThrownBy(program::eval).isInstanceOf(CancellationException.class);
   }
@@ -82,49 +88,49 @@ class FiberTest {
         Program.<Void, String, String>failure("boom").fork(),
         fiber -> pipe(
             Program.<Void, String, String>join(fiber.future()).foldMap(_ -> success("done"), _ -> success("done")),
-            _ -> Program.<Void, String, Unit>widen(fiber.cancel())));
+            _ -> fiber.cancel()));
 
     assertThat(program.eval()).isEqualTo(Result.success(Unit.unit()));
   }
 
   @Test
   void pollIsEmptyWhileTheFiberIsRunning() {
-    var fiber = Program.<Void, String, Unit>never().fork().evalOrElseThrow();
+    var fiber = never().fork().evalOrElseThrow();
     try {
-      assertThat(fiber.<Void>poll().evalOrElseThrow()).isEmpty();
+      assertThat(fiber.poll().evalOrElseThrow()).isEmpty();
     } finally {
-      fiber.<Void>cancel().evalOrElseThrow();
+      fiber.cancel().evalOrElseThrow();
     }
   }
 
   @Test
   void pollReturnsSucceededOnceTheFiberHasFinished() {
-    var fiber = finished(Program.<Void, String, String>success("a"));
+    var fiber = finished(success("a"));
 
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.succeeded("a")));
+    assertThat(fiber.poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.succeeded("a")));
   }
 
   @Test
   void pollReturnsFailedWhenTheFiberFailedWithAnError() {
-    var fiber = finished(Program.<Void, String, String>failure("boom"));
+    var fiber = finished(failure("boom"));
 
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.failed("boom")));
+    assertThat(fiber.poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.failed("boom")));
   }
 
   @Test
   void pollReturnsErroredWhenTheFiberThrew() {
     var error = new IllegalStateException();
-    var fiber = finished(Program.<Void, String, String>raise(() -> error));
+    var fiber = finished(raise(() -> error));
 
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.errored(error)));
+    assertThat(fiber.poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.errored(error)));
   }
 
   @Test
   void pollReturnsCanceledWhenTheFiberWasCancelled() {
-    var fiber = Program.<Void, String, Unit>never().fork().evalOrElseThrow();
-    fiber.<Void>cancel().evalOrElseThrow();
+    var fiber = never().fork().evalOrElseThrow();
+    fiber.cancel().evalOrElseThrow();
 
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.canceled()));
+    assertThat(fiber.poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.canceled()));
   }
 
   @Test
@@ -132,12 +138,26 @@ class FiberTest {
     // the fiber joins another one that was cancelled: it fails, but it wasn't cancelled
     var fiber = finished(pipe(
         Program.<Void, String, Unit>never().fork(),
-        inner -> Program.<Void, String, Unit>widen(inner.cancel()).andThen(inner.join())));
+        inner -> inner.<Void, String>cancel().andThen(inner.join())));
 
-    assertThat(fiber.<Void>poll().evalOrElseThrow())
+    assertThat(fiber.poll().evalOrElseThrow())
         .hasValueSatisfying(outcome -> assertThat(outcome)
             .isInstanceOfSatisfying(Outcome.Errored.class, errored ->
                 assertThat(errored.exception()).isInstanceOf(CancellationException.class)));
+  }
+
+  @Test
+  void pollRethrowsAFatalError() {
+    var fiber = finished(raise(StackOverflowError::new));
+
+    assertThatThrownBy(() -> fiber.<Void, Void>poll().evalOrElseThrow()).isInstanceOf(StackOverflowError.class);
+  }
+
+  @Test
+  void anyWithoutFibersFailsInsteadOfWaitingForever() {
+    var program = Fiber.any(List.of());
+
+    assertThatThrownBy(program::eval).isInstanceOf(NoSuchElementException.class);
   }
 
   // forks the program and waits until it has finished, whatever its outcome

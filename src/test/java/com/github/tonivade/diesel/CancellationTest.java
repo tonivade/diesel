@@ -130,9 +130,9 @@ class CancellationTest {
     var fiber = blocked().fork().evalOrElseThrow();
     allStarted.join();
 
-    fiber.<Void>cancel().evalOrElseThrow();
+    fiber.cancel().evalOrElseThrow();
 
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(fiber.poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(released).hasValue(1);
   }
 
@@ -213,7 +213,7 @@ class CancellationTest {
   void joiningACancelledForkIsAnOrdinaryException() {
     // the program that joins is not cancelled, so it can recover from it
     var program = never().fork()
-        .flatMap(fork -> Program.<Void, String, Unit>widen(fork.cancel()).andThen(fork.join()))
+        .flatMap(fork -> fork.<Void, String>cancel().andThen(fork.join()))
         .map(_ -> "joined")
         .catchAll(_ -> success("recovered"));
 
@@ -234,10 +234,10 @@ class CancellationTest {
 
     var fiber = program.fork().evalOrElseThrow();
     allStarted.get(5, TimeUnit.SECONDS);
-    fiber.<Void>cancel().evalOrElseThrow();
+    fiber.<Void, Void>cancel().evalOrElseThrow();
 
     // a regression would make cancel wait forever, and the timeout of the class makes it fail
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(error.get()).isInstanceOf(RejectedExecutionException.class);
   }
 
@@ -438,7 +438,7 @@ class CancellationTest {
   void onCancelDoesNotRunWhenJoiningACancelledFork() {
     // the program that joins is not cancelled, the fork is
     var program = never().fork()
-        .flatMap(fork -> Program.<Void, String, Unit>widen(fork.cancel()).andThen(fork.join()))
+        .flatMap(fork -> fork.<Void, String>cancel().andThen(fork.join()))
         .onCancel(finalizer(released::incrementAndGet))
         .map(_ -> "joined")
         .catchAll(_ -> success("recovered"));
@@ -569,9 +569,9 @@ class CancellationTest {
 
       var fiber = parent.fork(executor).evalOrElseThrow();
       allStarted.get(5, TimeUnit.SECONDS);
-      fiber.<Void>cancel().evalOrElseThrow();
+      fiber.<Void, Void>cancel().evalOrElseThrow();
 
-      assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+      assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     } finally {
       executor.shutdownNow();
     }
@@ -614,9 +614,9 @@ class CancellationTest {
   void cancellingASleepRemovesItsDelay() throws Exception {
     var fiber = sleep(Delay.ofHours(1)).fork().evalOrElseThrow();
     awaitLongDelays(1);
-    fiber.<Void>cancel().evalOrElseThrow();
+    fiber.<Void, Void>cancel().evalOrElseThrow();
 
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(DelayScheduler.pendingLongerThan(LONG_DELAY)).isZero();
   }
 
@@ -624,9 +624,9 @@ class CancellationTest {
   void sleepingForeverCanBeCancelled() throws Exception {
     // a sleep of Delay.MAX never expires: it waits until it's cancelled
     var fiber = sleep(Delay.MAX).fork().evalOrElseThrow();
-    fiber.<Void>cancel().evalOrElseThrow();
+    fiber.<Void, Void>cancel().evalOrElseThrow();
 
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
   }
 
   @Test
@@ -829,9 +829,9 @@ class CancellationTest {
 
     var fiber = program.fork().evalOrElseThrow();
     allStarted.get(5, TimeUnit.SECONDS);
-    fiber.<Void>cancel().evalOrElseThrow();
+    fiber.<Void, Void>cancel().evalOrElseThrow();
 
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
     assertThat(released).hasValue(1);
   }
 

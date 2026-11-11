@@ -29,6 +29,8 @@ final class CancelableFuture<T> extends CompletableFuture<T> {
   private final CancelToken token;
   // claimed either by the task that runs the program or by a cancellation, whichever comes first
   private final AtomicBoolean started = new AtomicBoolean();
+  // written before the future is completed, so whoever sees it completed sees the right value
+  private volatile boolean cancelled;
 
   CancelableFuture(CancelToken token) {
     this.token = token;
@@ -47,16 +49,24 @@ final class CancelableFuture<T> extends CompletableFuture<T> {
   private void cancelIfNotStarted() {
     if (started.compareAndSet(false, true)) {
       token.detachFromParent();
-      completeExceptionally(new CancellationException("cancelled before it started"));
+      fail(new CancellationException("cancelled before it started"), true);
     }
   }
 
   /**
-   * Whether the program was cancelled, by this future or by its parent, as opposed to a
-   * {@link CancellationException} thrown by the program itself.
+   * Fails the future, recording whether the program had been cancelled when it stopped.
    */
-  boolean isCancelledByToken() {
-    return token.isCancelled();
+  void fail(Throwable error, boolean cancelledWhenStopped) {
+    this.cancelled = cancelledWhenStopped;
+    completeExceptionally(error);
+  }
+
+  /**
+   * Whether the program had been cancelled, by this future or by its parent, when it stopped, as
+   * opposed to a {@link CancellationException} thrown by the program itself.
+   */
+  boolean wasCancelled() {
+    return cancelled;
   }
 
   @Override

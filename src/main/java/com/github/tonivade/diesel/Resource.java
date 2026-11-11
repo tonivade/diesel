@@ -11,7 +11,6 @@ import static com.github.tonivade.diesel.Combine.ensuring;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
-import static com.github.tonivade.diesel.Program.join;
 import static com.github.tonivade.diesel.Program.never;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
@@ -602,7 +601,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   public static <S, E, T> Resource<S, E, Program<S, E, T>> background(Program<S, E, T> program, Executor executor) {
     return new Resource<>(_ -> chain(
         program.fork(executor),
-        fiber -> tuple(fiber.<S>join(), fiber.<S>cancel())));
+        fiber -> tuple(fiber.join(), fiber.cancel())));
   }
 
   private Program<S, E, Tuple2<A, Program<S, Void, Unit>>> retryLoop(Poll poll, Schedule<S, E> schedule) {
@@ -675,7 +674,6 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
       A value, Function<? super A, ? extends Program<S, Void, ?>> release) {
     return suspend(() -> release.apply(value).discard());
   }
-
 
   private static void close(AutoCloseable resource) {
     try {

@@ -311,7 +311,7 @@ final class Interpreter {
       executor.execute(() -> runForked(state, token, program, future));
     } catch (Throwable e) {
       token.detachFromParent();
-      future.completeExceptionally(e);
+      future.fail(e, false);
       Fatal.rethrowIfFatal(e);
     }
     return future;
@@ -340,7 +340,9 @@ final class Interpreter {
     } catch (Throwable e) {
       error = e;
     }
-    if (token.isCancelled()) {
+    // read when the program stops: a cancellation that arrives later doesn't change how it ended
+    var cancelled = token.isCancelled();
+    if (cancelled) {
       // only when cancelled: a program that finishes normally can leave forks running, and they
       // are not awaited even if a cancellation arrives right after the program has finished
       token.awaitForks();
@@ -348,7 +350,7 @@ final class Interpreter {
     // otherwise the parent keeps a callback for each program it has ever forked
     token.detachFromParent();
     if (error != null) {
-      future.completeExceptionally(error);
+      future.fail(error, cancelled);
       // after completing the future, so the parent fails instead of waiting forever
       Fatal.rethrowIfFatal(error);
     } else {
