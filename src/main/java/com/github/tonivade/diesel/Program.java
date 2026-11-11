@@ -1518,6 +1518,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with the finalizer
    */
   default Program<S, E, T> ensuring(Program<S, Void, ?> finalizer) {
+    requireNonNull(finalizer);
     return new Finalize<>(this, _ -> finalizer);
   }
 
@@ -1537,6 +1538,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with the finalizer
    */
   default Program<S, E, T> onCancel(Program<S, Void, ?> finalizer) {
+    requireNonNull(finalizer);
     return new Finalize<>(this, outcome -> outcome instanceof Outcome.Canceled ? finalizer : unit());
   }
 

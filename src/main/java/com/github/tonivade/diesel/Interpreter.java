@@ -157,19 +157,11 @@ final class Interpreter {
               resumed = true;
             }
             case FinalizerFrame(var finalizer) -> {
-              // only when this program is being cancelled, not for an ordinary exception or a
-              // cancelled fork joined by this program
-              if (regions.isEmpty() && token.isCancelled()) {
-                // run the finalizer, then keep unwinding with the same exception
-                runFinalizer(stack, regions, e);
-                current = finalizer.apply(Outcome.canceled());
-                resumed = true;
-              } else {
-                // keep unwinding with the same exception once the finalizer is done
-                runFinalizer(stack, regions, e);
-                current = finalizer.apply(Outcome.failed(e));
-                resumed = true;
-              }
+              var outcome = regions.isEmpty() && token.isCancelled() ? Outcome.canceled() : Outcome.errored(e);
+              // run the finalizer, then keep unwinding with the same exception
+              runFinalizer(stack, regions, e);
+              current = Program.suspend(() -> finalizer.apply(outcome));
+              resumed = true;
             }
             case UnmaskFrame(var region) -> regions.remove(region);
             case RemaskFrame(var region) -> regions.push(region);
