@@ -5,9 +5,6 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
-import static com.github.tonivade.diesel.Program.failure;
-import static com.github.tonivade.diesel.Program.never;
-import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.task;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -101,26 +98,52 @@ class FiberTest {
   }
 
   @Test
-  void pollReturnsTheResultOnceTheFiberHasFinished() {
-    var fiber = Program.<Void, String, String>failure("boom").fork().evalOrElseThrow();
-    fiber.future().handle((_, _) -> null).join();
+  void pollReturnsSucceededOnceTheFiberHasFinished() {
+    var fiber = finished(Program.<Void, String, String>success("a"));
 
-    assertThat(fiber.<Void>poll().evalOrElseThrow()).isEqualTo(Optional.of(Result.failure("boom")));
+    assertThat(fiber.<Void>poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.succeeded("a")));
   }
 
   @Test
-  void pollThrowsTheExceptionOfTheFiber() {
-    var fiber = Program.<Void, String, String>raise(IllegalStateException::new).fork().evalOrElseThrow();
-    fiber.future().handle((_, _) -> null).join();
+  void pollReturnsFailedWhenTheFiberFailedWithAnError() {
+    var fiber = finished(Program.<Void, String, String>failure("boom"));
 
-    assertThatThrownBy(() -> fiber.<Void>poll().evalOrElseThrow()).isInstanceOf(IllegalStateException.class);
+    assertThat(fiber.<Void>poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.failed("boom")));
   }
 
   @Test
-  void pollThrowsACancellationExceptionWhenTheFiberWasCancelled() {
+  void pollReturnsErroredWhenTheFiberThrew() {
+    var error = new IllegalStateException();
+    var fiber = finished(Program.<Void, String, String>raise(() -> error));
+
+    assertThat(fiber.<Void>poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.errored(error)));
+  }
+
+  @Test
+  void pollReturnsCanceledWhenTheFiberWasCancelled() {
     var fiber = Program.<Void, String, Unit>never().fork().evalOrElseThrow();
     fiber.<Void>cancel().evalOrElseThrow();
 
-    assertThatThrownBy(() -> fiber.<Void>poll().evalOrElseThrow()).isInstanceOf(CancellationException.class);
+    assertThat(fiber.<Void>poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.canceled()));
+  }
+
+  @Test
+  void pollReturnsErroredWhenTheFiberThrowsACancellationExceptionItself() {
+    // the fiber joins another one that was cancelled: it fails, but it wasn't cancelled
+    var fiber = finished(pipe(
+        Program.<Void, String, Unit>never().fork(),
+        inner -> Program.<Void, String, Unit>widen(inner.cancel()).andThen(inner.join())));
+
+    assertThat(fiber.<Void>poll().evalOrElseThrow())
+        .hasValueSatisfying(outcome -> assertThat(outcome)
+            .isInstanceOfSatisfying(Outcome.Errored.class, errored ->
+                assertThat(errored.exception()).isInstanceOf(CancellationException.class)));
+  }
+
+  // forks the program and waits until it has finished, whatever its outcome
+  private static <T> Fiber<String, T> finished(Program<Void, String, T> program) {
+    var fiber = program.fork().evalOrElseThrow();
+    fiber.future().handle((_, _) -> null).join();
+    return fiber;
   }
 }

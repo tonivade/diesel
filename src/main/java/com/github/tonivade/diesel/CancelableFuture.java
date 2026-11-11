@@ -51,6 +51,14 @@ final class CancelableFuture<T> extends CompletableFuture<T> {
     }
   }
 
+  /**
+   * Whether the program was cancelled, by this future or by its parent, as opposed to a
+   * {@link CancellationException} thrown by the program itself.
+   */
+  boolean isCancelledByToken() {
+    return token.isCancelled();
+  }
+
   @Override
   public boolean cancel(boolean mayInterruptIfRunning) {
     if (isDone()) {

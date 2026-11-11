@@ -5,7 +5,6 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.pipe;
-import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.task;
@@ -85,26 +84,28 @@ public final class Fiber<E, T> {
   }
 
   /**
-   * Returns the result of the program if it has finished, without waiting.
+   * Returns how the program ended if it has finished, without waiting.
    *
-   * <p>If the program ended with an exception, or was cancelled, the returned program throws that
-   * exception, or a {@link CancellationException}.
+   * <p>It never fails: an exception of the program, or its cancellation, is described by the
+   * {@link Outcome}. The program is {@link Outcome.Canceled} only if this fiber was cancelled, or
+   * the program that forked it; a {@link CancellationException} thrown by the program itself, like
+   * when it joins another fiber that was cancelled, is {@link Outcome.Errored}. A program that
+   * finished before it saw the cancellation keeps its result.
    *
    * @param <S> the type of the state
-   * @return a program that yields the result, or an empty optional if the fiber is still running
+   * @return a program that yields the outcome, or an empty optional if the fiber is still running
    */
-  public <S> Program<S, Void, Optional<Result<E, T>>> poll() {
+  public <S> Program<S, Void, Optional<Outcome<E, T>>> poll() {
     return suspend(() -> {
       if (!future.isDone()) {
         return success(Optional.empty());
       }
       try {
-        return success(Optional.of(future.join()));
+        return success(Optional.of(Outcome.from(future.join())));
       } catch (CancellationException e) {
-        return raise(() -> e);
+        return success(Optional.of(future.isCancelledByToken() ? Outcome.canceled() : Outcome.errored(e)));
       } catch (CompletionException e) {
-        var cause = e.getCause() != null ? e.getCause() : e;
-        return raise(() -> cause);
+        return success(Optional.of(Outcome.errored(e.getCause() != null ? e.getCause() : e)));
       }
     });
   }
