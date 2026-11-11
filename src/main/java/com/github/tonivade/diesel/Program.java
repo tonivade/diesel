@@ -538,14 +538,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
-   * Creates a function that maps a value to a suceeded program.
+   * Creates a function that maps a value to a succeeded program.
    *
    * @param mapper the function used to map the value
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the input value
    * @param <R> the type of the result
-   * @return a function that maps a value to a suceeded program
+   * @return a function that maps a value to a succeeded program
    */
   static <S, E, T, R> Function<T, Program<S, E, R>> succeed(Function<T, R> mapper) {
     return mapper.andThen(Program::success);
