@@ -27,23 +27,18 @@ sealed interface Frame<S> {
 
   record RemaskFrame<S>(Region region) implements Frame<S> {}
 
-  @SuppressWarnings("unchecked")
   static <S> FoldFrame<S> fold(
-      Function<?, ? extends Program<S, ?, ?>> onFailure,
-      Function<?, ? extends Program<S, ?, ?>> onSuccess) {
-    return new FoldFrame<>(
-        (Function<Object, Program<S, ?, ?>>) onFailure,
-        (Function<Object, Program<S, ?, ?>>) onSuccess);
+      Function<Object, Program<S, ?, ?>> onFailure,
+      Function<Object, Program<S, ?, ?>> onSuccess) {
+    return new FoldFrame<>(onFailure, onSuccess);
   }
 
-  @SuppressWarnings("unchecked")
-  static <S> CatchFrame<S> catch_(Function<? super Throwable, ? extends Program<S, ?, ?>> recover) {
-    return new CatchFrame<>((Function<Throwable, Program<S, ?, ?>>) recover);
+  static <S> CatchFrame<S> catch_(Function<Throwable, Program<S, ?, ?>> recover) {
+    return new CatchFrame<>(recover);
   }
 
-  @SuppressWarnings("unchecked")
-  static <S> FinalizerFrame<S> finalizer(Function<?, ? extends Program<S, Void, ?>> finalizer) {
-    return new FinalizerFrame<>((Function<Outcome<?, ?>, Program<S, Void, ?>>)finalizer);
+  static <S> FinalizerFrame<S> finalizer(Function<Outcome<?, ?>, Program<S, Void, ?>> finalizer) {
+    return new FinalizerFrame<>(finalizer);
   }
 
   static <S> UnmaskFrame<S> unmask(Region region) {

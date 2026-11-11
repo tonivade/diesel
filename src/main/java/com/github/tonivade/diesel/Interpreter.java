@@ -4,6 +4,8 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Fatal.sneakyThrow;
+
 import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
@@ -25,14 +27,13 @@ import com.github.tonivade.diesel.Program.Suspend;
 import com.github.tonivade.diesel.Program.Uncancelable;
 import com.github.tonivade.diesel.Program.UncancelableWith;
 
-import static com.github.tonivade.diesel.Fatal.sneakyThrow;
-
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import org.jspecify.annotations.Nullable;
 
@@ -86,11 +87,12 @@ final class Interpreter {
           }
           case Async(var callback) -> {
             var async = (BiConsumer<S, CompletableFuture<?>>) callback;
-            var result = regions.isEmpty() ? awaitCancelable(state, async, token) : awaitUncancelable(state, async);
+            var result = regions.isEmpty() ?
+                awaitCancelable(state, async, token) : awaitUncancelable(state, async);
             current = Program.from(result);
           }
           case Finalize(var source, var finalizer) -> {
-            stack.push(Frame.finalizer(finalizer));
+            stack.push(Frame.finalizer((Function<Outcome<?, ?>, Program<S, Void, ?>>) finalizer));
             current = source;
           }
           case Uncancelable(var source) -> {
@@ -121,14 +123,16 @@ final class Interpreter {
             current = Program.success(new Fiber<>(startFork(state, parent, forked.current(), forked.executor())));
           }
           case FoldMap(var source, var onFailure, var onSuccess) -> {
-            stack.push(Frame.fold(onFailure, onSuccess));
+            stack.push(Frame.fold(
+                (Function<Object, Program<S, ?, ?>>) onFailure,
+                (Function<Object, Program<S, ?, ?>>) onSuccess));
             current = source;
           }
           case Raise(var throwable) -> {
             return sneakyThrow(throwable.get());
           }
           case Catch(var source, var recover) -> {
-            stack.push(Frame.catch_(recover));
+            stack.push(Frame.catch_((Function<Throwable, Program<S, ?, ?>>) recover));
             current = source;
           }
           case Suspend(var supplier) -> {
