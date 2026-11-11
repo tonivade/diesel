@@ -16,6 +16,7 @@ import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.inspect;
 import static com.github.tonivade.diesel.Program.success;
+import static com.github.tonivade.diesel.Program.succeed;
 import static com.github.tonivade.diesel.Random.nextInt;
 import static java.lang.System.getLogger;
 import static java.lang.System.Logger.Level.ERROR;
@@ -132,13 +133,13 @@ interface Weather {
   static Program<WeatherContext, WeatherError, Forecast> forecast() {
     return pipe(
         nextInt(30),
-        temperature -> success(new Forecast(temperature))
+        succeed(Forecast::new)
       );
   }
 
   static Program<WeatherContext, WeatherError, City> cityByName(String name) {
     return switch (name) {
-      case "Madrid", "Getafe", "Elche" -> Program.success(new City(name));
+      case "Madrid", "Getafe", "Elche" -> success(new City(name));
       default -> failure(new UnknownCity(name));
     };
   }

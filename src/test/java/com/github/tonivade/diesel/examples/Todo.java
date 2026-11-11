@@ -14,6 +14,7 @@ import static com.github.tonivade.diesel.Console.writeLine;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.inspect;
+import static com.github.tonivade.diesel.Program.succeed;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.examples.Todo.State.COMPLETED;
 import static com.github.tonivade.diesel.examples.Todo.State.NOT_COMPLETED;
@@ -140,7 +141,7 @@ interface Todo {
   static Program<TodoContext, TodoError, Unit> findAllTodos() {
     return pipe(
         findAll(),
-        list -> success(list.stream().map(Object::toString).collect(joining("\n"))),
+        succeed(list -> list.stream().map(Object::toString).collect(joining("\n"))),
         Console::writeLine,
         _ -> program()
       );

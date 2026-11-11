@@ -538,6 +538,34 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
+   * Creates a function that maps a value to a suceeded program.
+   *
+   * @param mapper the function used to map the value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input value
+   * @param <R> the type of the result
+   * @return a function that maps a value to a suceeded program
+   */
+  static <S, E, T, R> Function<T, Program<S, E, R>> succeed(Function<T, R> mapper) {
+    return mapper.andThen(Program::success);
+  }
+
+  /**
+   * Creates a function that maps a value to a failed program.
+   *
+   * @param mapper the function used to map the value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the input value
+   * @param <R> the type of the result
+   * @return a function that maps a value to a failed program
+   */
+  static <S, E, T, R> Function<T, Program<S, E, R>> fail(Function<T, E> mapper) {
+    return mapper.andThen(Program::failure);
+  }
+
+  /**
    * Widens a program that can't fail with an error to any error type.
    *
    * <p>A program with {@code Void} as error type, like the ones returned by {@link #fold}, never
