@@ -20,10 +20,7 @@ sealed interface Frame<S> {
 
   record CatchFrame<S>(Function<Throwable, Program<S, ?, ?>> recover) implements Frame<S> {}
 
-  record FinalizerFrame<S>(Program<S, ?, ?> finalizer) implements Frame<S> {}
-
-  // a finalizer that only runs when the program is cancelled
-  record OnCancelFrame<S>(Program<S, ?, ?> finalizer) implements Frame<S> {}
+  record FinalizerFrame<S>(Function<Outcome<?, ?>, Program<S, Void, ?>> finalizer) implements Frame<S> {}
 
   // marks the end of an uncancelable region
   record UnmaskFrame<S>(Region region) implements Frame<S> {}
@@ -31,7 +28,8 @@ sealed interface Frame<S> {
   record RemaskFrame<S>(Region region) implements Frame<S> {}
 
   @SuppressWarnings("unchecked")
-  static <S> FoldFrame<S> fold(Function<?, ? extends Program<S, ?, ?>> onFailure,
+  static <S> FoldFrame<S> fold(
+      Function<?, ? extends Program<S, ?, ?>> onFailure,
       Function<?, ? extends Program<S, ?, ?>> onSuccess) {
     return new FoldFrame<>(
         (Function<Object, Program<S, ?, ?>>) onFailure,
@@ -43,12 +41,9 @@ sealed interface Frame<S> {
     return new CatchFrame<>((Function<Throwable, Program<S, ?, ?>>) recover);
   }
 
-  static <S> FinalizerFrame<S> finalizer(Program<S, ?, ?> finalizer) {
-    return new FinalizerFrame<>(finalizer);
-  }
-
-  static <S> OnCancelFrame<S> onCancel(Program<S, ?, ?> finalizer) {
-    return new OnCancelFrame<>(finalizer);
+  @SuppressWarnings("unchecked")
+  static <S> FinalizerFrame<S> finalizer(Function<?, ? extends Program<S, Void, ?>> finalizer) {
+    return new FinalizerFrame<>((Function<Outcome<?, ?>, Program<S, Void, ?>>)finalizer);
   }
 
   static <S> UnmaskFrame<S> unmask(Region region) {

@@ -255,32 +255,16 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * throws an exception or is cancelled. The finalizer can't be cancelled.
    *
    * @param current the current program
-   * @param finalizer the program to be executed as a finalizer
+   * @param finalizer the function to generate a program to be executed as a finalizer
    * @param <S> the type of the state
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Ensuring<S, E, T>(Program<S, E, T> current, Program<S, Void, ?> finalizer) implements Program<S, E, T> {
+  record Finalize<S, E, T>(
+      Program<S, E, T> current,
+      Function<? super Outcome<E, T>, ? extends Program<S, Void, ?>> finalizer) implements Program<S, E, T> {
 
-    public Ensuring {
-      requireNonNull(current);
-      requireNonNull(finalizer);
-    }
-  }
-
-  /**
-   * Represents a computation that runs a finalizer only when the program is cancelled. The
-   * finalizer can't be cancelled.
-   *
-   * @param current the current program
-   * @param finalizer the program to be executed if the program is cancelled
-   * @param <S> the type of the state
-   * @param <E> the type of the error
-   * @param <T> the type of the result
-   */
-  record OnCancel<S, E, T>(Program<S, E, T> current, Program<S, Void, ?> finalizer) implements Program<S, E, T> {
-
-    public OnCancel {
+    public Finalize {
       requireNonNull(current);
       requireNonNull(finalizer);
     }
@@ -1534,7 +1518,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with the finalizer
    */
   default Program<S, E, T> ensuring(Program<S, Void, ?> finalizer) {
-    return new Ensuring<>(this, finalizer);
+    return new Finalize<>(this, _ -> finalizer);
   }
 
   /**
@@ -1553,7 +1537,24 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the computation with the finalizer
    */
   default Program<S, E, T> onCancel(Program<S, Void, ?> finalizer) {
-    return new OnCancel<>(this, finalizer);
+    return new Finalize<>(this, outcome -> outcome instanceof Outcome.Canceled ? finalizer : unit());
+  }
+
+  /**
+   * Ensures that the finalizer program is executed after the current program, regardless of success or failure.
+   *
+   * <p>The finalizer also runs when the program throws an exception or is cancelled, and it can't be
+   * cancelled itself. The finalizer can't fail with an error, only throw an exception, which
+   * replaces the result of the program. If the program threw an exception or was cancelled, that
+   * exception goes on and the one of the finalizer is added to it as suppressed, like
+   * try-with-resources does.
+   *
+   * @param finalizer a function that generates the program to be executed as a finalizer
+   * @return a new program representing the computation with the finalizer
+   */
+  default Program<S, E, T> onExit(
+      Function<? super Outcome<E, T>, ? extends Program<S, Void, ?>> finalizer) {
+    return new Finalize<>(this, finalizer);
   }
 
   /**

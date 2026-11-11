@@ -7,18 +7,16 @@ package com.github.tonivade.diesel;
 import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
-import com.github.tonivade.diesel.Frame.OnCancelFrame;
 import com.github.tonivade.diesel.Frame.Region;
 import com.github.tonivade.diesel.Frame.RemaskFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.diesel.Program.Access;
 import com.github.tonivade.diesel.Program.Async;
 import com.github.tonivade.diesel.Program.Catch;
-import com.github.tonivade.diesel.Program.Ensuring;
+import com.github.tonivade.diesel.Program.Finalize;
 import com.github.tonivade.diesel.Program.FoldMap;
 import com.github.tonivade.diesel.Program.Forked;
 import com.github.tonivade.diesel.Program.Memoized;
-import com.github.tonivade.diesel.Program.OnCancel;
 import com.github.tonivade.diesel.Program.Poll;
 import com.github.tonivade.diesel.Program.Polled;
 import com.github.tonivade.diesel.Program.Pure;
@@ -72,14 +70,11 @@ final class Interpreter {
                   // run the finalizer and then continue with the result, unless the finalizer throws
                   stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
                   enterUncancelable(stack, regions);
-                  current = finalizer;
+                  current = finalizer.apply(Outcome.from(result));
                   resumed = true;
                 }
                 case UnmaskFrame(var region) -> regions.remove(region);
                 case RemaskFrame(var region) -> regions.push(region);
-                case OnCancelFrame<S> _ -> {
-                  // the program completed, so it wasn't cancelled
-                }
                 case CatchFrame<S> _ -> {
                   // leaving a catchAll scope normally, its handler no longer applies
                 }
@@ -94,12 +89,8 @@ final class Interpreter {
             var result = regions.isEmpty() ? awaitCancelable(state, async, token) : awaitUncancelable(state, async);
             current = Program.from(result);
           }
-          case Ensuring(var source, var finalizer) -> {
+          case Finalize(var source, var finalizer) -> {
             stack.push(Frame.finalizer(finalizer));
-            current = source;
-          }
-          case OnCancel(var source, var finalizer) -> {
-            stack.push(Frame.onCancel(finalizer));
             current = source;
           }
           case Uncancelable(var source) -> {
@@ -166,18 +157,17 @@ final class Interpreter {
               resumed = true;
             }
             case FinalizerFrame(var finalizer) -> {
-              // keep unwinding with the same exception once the finalizer is done
-              runFinalizer(stack, regions, e);
-              current = finalizer;
-              resumed = true;
-            }
-            case OnCancelFrame(var finalizer) -> {
               // only when this program is being cancelled, not for an ordinary exception or a
               // cancelled fork joined by this program
               if (regions.isEmpty() && token.isCancelled()) {
                 // run the finalizer, then keep unwinding with the same exception
                 runFinalizer(stack, regions, e);
-                current = finalizer;
+                current = finalizer.apply(Outcome.canceled());
+                resumed = true;
+              } else {
+                // keep unwinding with the same exception once the finalizer is done
+                runFinalizer(stack, regions, e);
+                current = finalizer.apply(Outcome.failed(e));
                 resumed = true;
               }
             }
@@ -206,7 +196,7 @@ final class Interpreter {
    * </ul>
    */
   private static boolean shouldStop(CancelToken token, Deque<Region> regions, Program<?, ?, ?> current) {
-    if (!regions.isEmpty() || current instanceof Ensuring || current instanceof OnCancel) {
+    if (!regions.isEmpty() || current instanceof Finalize) {
       return false;
     }
     return token.isCancelled();
