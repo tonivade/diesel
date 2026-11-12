@@ -1200,6 +1200,10 @@ public final class Combine {
    * acquisition, and {@link #bracketCase(Program, Function, BiFunction)}, for the {@link Outcome}
    * that the release receives.
    *
+   * <p>The acquisition follows the same rules as {@code bracketFull}: it runs in an uncancelable
+   * region, and only the programs wrapped with the {@link Poll} can be cancelled, like waiting for
+   * a connection. If a cancellation arrives there, nothing is acquired and the release doesn't run.
+   *
    * @param acquire the function that receives the {@link Poll} and returns the acquisition
    * @param use the function used to use the acquired resource
    * @param release the function used to release the acquired resource, with the outcome of

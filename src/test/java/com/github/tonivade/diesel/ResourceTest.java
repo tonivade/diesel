@@ -875,6 +875,21 @@ class ResourceTest {
   }
 
   @Test
+  void aReleaseFunctionThatThrowsIsLikeAReleaseThatThrows() {
+    var inner = Resource.<Void, String, String>makeCase(
+        success("b"),
+        (_, _) -> {
+          throw new IllegalStateException("release");
+        });
+
+    var program = resource("a").flatMap(_ -> inner).use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class).hasMessage("release");
+    // the outer one is released anyway
+    assertThat(log).containsExactly("acquire a", "use b", "release a");
+  }
+
+  @Test
   void makeCaseFullReleasesWithTheOutcome() {
     var result = Resource.<Void, String, String>makeCaseFull(
             poll -> poll.apply(success("a")),

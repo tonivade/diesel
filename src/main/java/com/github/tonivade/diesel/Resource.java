@@ -534,6 +534,11 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * <p>It combines {@link #makeFull(Function, Function)}, for the {@link Poll} of the acquisition,
    * and {@link #makeCase(Program, BiFunction)}, for the {@link Outcome} that the release receives.
    *
+   * <p>The acquisition follows the same rules as {@code makeFull}: it runs in an uncancelable
+   * region, and only the programs wrapped with the {@link Poll} can be cancelled, like waiting for
+   * a connection. If a cancellation arrives there, the value isn't acquired, so it isn't released,
+   * and the resources acquired before it are released with {@link Outcome.Canceled}.
+   *
    * @param acquire the function that receives the {@link Poll} and returns the acquisition
    * @param release the function used to release the acquired value, with the outcome
    * @param <S> the type of the state
