@@ -801,6 +801,33 @@ class CancellationTest {
   }
 
   @Test
+  void theCancellationOfAJoinedFiberIsErroredEvenIfTheProgramIsAlsoCancelled() throws Exception {
+    var outcome = new AtomicReference<Outcome<String, Unit>>();
+    var ready = new CompletableFuture<Void>();
+    var proceed = new CompletableFuture<Void>();
+    // in an uncancelable region, so the cancellation of the program doesn't stop it before the
+    // cancellation of the joined fiber reaches onExit
+    var program = Program.<Void, String, Unit>uncancelable(_ -> pipe(
+        Program.<Void, String, Unit>never().fork(),
+        inner -> inner.<Void, String>cancel()
+            .andThen(run(() -> {
+              ready.complete(null);
+              proceed.join();
+            }))
+            .andThen(inner.join())
+            .onExit(o -> finalizer(() -> outcome.set(o)))));
+
+    var fiber = program.fork().evalOrElseThrow();
+    ready.get(5, TimeUnit.SECONDS);
+    // the program is cancelled before it joins the fiber that was cancelled
+    fiber.future().cancel(true);
+    proceed.complete(null);
+
+    assertThatThrownBy(() -> fiber.future().get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(outcome.get()).isInstanceOf(Outcome.Errored.class);
+  }
+
+  @Test
   void onExitAroundAPolledProgramSeesTheCancellation() {
     // the shape of bracketCase: the release is installed in the region, around the polled use
     var outcome = new AtomicReference<Outcome<String, Unit>>();

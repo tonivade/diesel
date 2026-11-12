@@ -130,14 +130,25 @@ final class CancelToken {
   /**
    * Signal used by the interpreter to unwind a cancelled program, unlike other exceptions it can't
    * be caught by {@link Program#catchAll(java.util.function.Function)}.
+   *
+   * <p>It records the token whose cancellation it signals, so the cancellation of a program can be
+   * told apart from the cancellation of a fiber it joins, even when both happen at the same time.
    */
   static final class Cancelled extends CancellationException {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
-    Cancelled() {
+    private final transient CancelToken token;
+
+    Cancelled(CancelToken token) {
       super("program cancelled");
+      this.token = token;
+    }
+
+    /** Whether it signals the cancellation of the given token. */
+    boolean isFrom(CancelToken other) {
+      return token == other;
     }
   }
 

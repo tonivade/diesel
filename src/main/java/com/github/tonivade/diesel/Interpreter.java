@@ -52,7 +52,7 @@ final class Interpreter {
         // a cancelled program stops at the start of its next step, unwinding the stack like an
         // exception so the finalizers run
         if (shouldStop(token, regions, current)) {
-          throw new CancelToken.Cancelled();
+          throw new CancelToken.Cancelled(token);
         }
         switch (current) {
           case null -> {
@@ -158,11 +158,12 @@ final class Interpreter {
               resumed = true;
             }
             case FinalizerFrame(var finalizer) -> {
-              // cancelled if this program's cancellation is what is unwinding, also when the
+              // cancelled if this program's own cancellation is what is unwinding, also when the
               // finalizer was installed inside an uncancelable region around a polled program,
-              // like the release of bracketCase. Checking the region instead would report a
-              // cancelled polled program as Errored
-              var outcome = token.isCancelled() && e instanceof CancellationException
+              // like the release of bracketCase. The cancellation of a joined fiber is recorded
+              // with the token of that fiber, so it's Errored even if this program is cancelled
+              // while it unwinds
+              var outcome = e instanceof CancelToken.Cancelled cancelled && cancelled.isFrom(token)
                   ? Outcome.canceled()
                   : Outcome.errored(e);
               // run the finalizer, then keep unwinding with the same exception
@@ -211,7 +212,7 @@ final class Interpreter {
   private static <S> Result<?, ?> awaitCancelable(
       @Nullable S state, BiConsumer<S, CompletableFuture<?>> async, CancelToken token) {
     var future = new CompletableFuture<Result<?, ?>>();
-    var wakeUpOnCancel = token.onCancel(() -> future.completeExceptionally(new CancelToken.Cancelled()));
+    var wakeUpOnCancel = token.onCancel(() -> future.completeExceptionally(new CancelToken.Cancelled(token)));
     try {
       async.accept(state, future);
       return joinOrThrows(future);
@@ -245,6 +246,10 @@ final class Interpreter {
       return future.join();
     } catch (CompletionException e) {
       return sneakyThrow(e.getCause() != null ? e.getCause() : e);
+    } catch (CancellationException e) {
+      // join wraps a cancellation in a new CancellationException: unwrap the one of the interpreter,
+      // which records whose cancellation it is
+      return sneakyThrow(e.getCause() instanceof CancelToken.Cancelled cancelled ? cancelled : e);
     }
   }
 

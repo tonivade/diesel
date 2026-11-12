@@ -865,7 +865,7 @@ class QueueTest {
     var program = queue.offer(1)
         .andThen(queue.register(2, done, Queue.Mode.WAIT)) // the queue is full: the offer waits
         .andThen(queue.claim(taker, true))                 // a take makes room: 2 enters the queue
-        .andThen(queue.cancelOffer(done, new CancelToken.Cancelled())); // the cancellation arrives after it
+        .andThen(queue.cancelOffer(done, new CancelToken.Cancelled(CancelToken.NONE))); // the cancellation arrives after it
 
     assertThat(program.evalOrElseThrow()).isTrue();
     assertThat(queue.tryTake().evalOrElseThrow()).contains(2);
@@ -878,7 +878,7 @@ class QueueTest {
 
     var program = queue.offer(1)
         .andThen(queue.register(2, done, Queue.Mode.WAIT))
-        .andThen(queue.cancelOffer(done, new CancelToken.Cancelled()));
+        .andThen(queue.cancelOffer(done, new CancelToken.Cancelled(CancelToken.NONE)));
 
     assertThatThrownBy(program::evalOrElseThrow).isInstanceOf(CancellationException.class);
     assertThat(queue.waitingOfferers()).isZero();
