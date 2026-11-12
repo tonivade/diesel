@@ -30,6 +30,7 @@ import com.github.tonivade.diesel.Program.UncancelableWith;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -157,7 +158,13 @@ final class Interpreter {
               resumed = true;
             }
             case FinalizerFrame(var finalizer) -> {
-              var outcome = regions.isEmpty() && token.isCancelled() ? Outcome.canceled() : Outcome.errored(e);
+              // cancelled if this program's cancellation is what is unwinding, also when the
+              // finalizer was installed inside an uncancelable region around a polled program,
+              // like the release of bracketCase. Checking the region instead would report a
+              // cancelled polled program as Errored
+              var outcome = token.isCancelled() && e instanceof CancellationException
+                  ? Outcome.canceled()
+                  : Outcome.errored(e);
               // run the finalizer, then keep unwinding with the same exception
               runFinalizer(stack, regions, e);
               current = Program.suspend(() -> finalizer.apply(outcome));

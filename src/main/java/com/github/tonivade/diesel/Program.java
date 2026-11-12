@@ -94,6 +94,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {
+    
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param result the result of the computation
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Pure {
       requireNonNull(result);
     }
@@ -112,6 +119,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Program<S, E, T> current,
       Function<? super Throwable, ? extends Program<S, E, T>> recover) implements Program<S, E, T> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param recover the function used to recover from exceptions
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Catch {
       requireNonNull(current);
       requireNonNull(recover);
@@ -133,6 +147,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Raise<S, E, T>(Supplier<? extends Throwable> supplier) implements Program<S, E, T> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param supplier the exception to be raised
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Raise {
       requireNonNull(supplier);
     }
@@ -160,6 +180,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Function<? super E, ? extends Program<S, F, R>> onFailure,
       Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param onFailure the function used to map the program in case of failure
+     * @param onSuccess the function used to map the program in case of success
+     * @throws NullPointerException if any component is {@code null}
+     */
     public FoldMap {
       requireNonNull(current);
       requireNonNull(onFailure);
@@ -183,6 +211,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record Async<S, E, T>(
       BiConsumer<? super S, ? super CompletableFuture<Result<E, T>>> callback) implements Program<S, E, T> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param callback the callback to be executed asynchronously
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Async {
       requireNonNull(callback);
     }
@@ -204,6 +238,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Forked<S, E, T>(Program<S, E, T> current, Executor executor) implements Program<S, E, Fiber<E, T>> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param executor the executor used to execute the program in parallel
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Forked {
       requireNonNull(current);
       requireNonNull(executor);
@@ -220,6 +261,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Access<S, E, T>(Function<? super S, ? extends Program<S, E, T>> mapper) implements Program<S, E, T> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param mapper the function used to access the DSL computation
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Access {
       requireNonNull(mapper);
     }
@@ -240,6 +287,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Suspend<S, E, T>(Supplier<? extends Program<S, E, T>> supplier) implements Program<S, E, T> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param supplier the supplier of the program to be executed
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Suspend {
       requireNonNull(supplier);
     }
@@ -264,6 +317,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       Program<S, E, T> current,
       Function<? super Outcome<E, T>, ? extends Program<S, Void, ?>> finalizer) implements Program<S, E, T> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param finalizer the function to generate a program to be executed as a finalizer
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Finalize {
       requireNonNull(current);
       requireNonNull(finalizer);
@@ -372,6 +432,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Uncancelable<S, E, T>(Program<S, E, T> current) implements Program<S, E, T> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Uncancelable {
       requireNonNull(current);
     }
@@ -391,6 +457,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record UncancelableWith<S, E, T>(Function<? super Poll, ? extends Program<S, E, T>> body) implements Program<S, E, T> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param body body of the region that is uncancelable
+     * @throws NullPointerException if any component is {@code null}
+     */
     public UncancelableWith {
       requireNonNull(body);
     }
@@ -412,6 +484,13 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Polled<S, E, T>(Program<S, E, T> current, Region region) implements Program<S, E, T> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param region the identifier of the cancellable region
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Polled {
       requireNonNull(current);
       requireNonNull(region);
@@ -1534,6 +1613,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * was cancelled is an ordinary exception for the program that joins it, and doesn't run the
    * finalizer.
    *
+   * <p>It also runs when the program is inside an uncancelable region and the cancellation reaches
+   * it from a polled part, like the release of a bracket.
+   *
    * @param finalizer the program to be executed if the program is cancelled
    * @return a new program representing the computation with the finalizer
    */
@@ -1553,11 +1635,15 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *   <li>{@link Outcome.Canceled} if the program was canceled.</li>
    * </ul>
    *
+   * <p>The outcome is {@link Outcome.Canceled} when this program's cancellation unwinds through it,
+   * also from a polled program inside an uncancelable region, and {@link Outcome.Errored} for any
+   * other exception, including the cancellation of a joined fiber.
+   *
    * <p>The finalizer is executed uncancelably, so it is allowed to complete even if
    * cancellation has been requested. Its own typed error channel is {@code Void}.
    *
    * <p>If the finalizer terminates successfully, the original outcome is preserved.
-   * If it fails or throws an exception, that failure becomes the result of the
+   * If it throws an exception, that exception becomes the result of the
    * combined program. When the original program already terminated with an exception
    * or was canceled, an exception thrown by the finalizer is added as a suppressed
    * exception to the original cause.

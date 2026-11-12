@@ -788,14 +788,29 @@ class CancellationTest {
   }
 
   @Test
-  void onCancelOutsideThePollInsideTheRegion() {
+  void onCancelOutsideThePollInsideTheRegionRunsWhenThePollIsCancelled() {
+    // the cancellation of the polled program unwinds through the onCancel installed in the region,
+    // like the release of a bracket, so the finalizer runs
     var program = uncancelable(poll ->
         poll.apply(start().andThen(never())).onCancel(finalizer(released::incrementAndGet)));
 
     var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
 
     assertThat(result).isEqualTo(Result.failure("error"));
-    assertThat(released).hasValue(0);
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
+  void onExitAroundAPolledProgramSeesTheCancellation() {
+    // the shape of bracketCase: the release is installed in the region, around the polled use
+    var outcome = new AtomicReference<Outcome<String, Unit>>();
+    var program = uncancelable(poll ->
+        poll.apply(start().andThen(never())).onExit(o -> finalizer(() -> outcome.set(o))));
+
+    var result = parZip(program, failingWhenStarted(1), (_, _) -> "done").eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+    assertThat(outcome.get()).isEqualTo(Outcome.canceled());
   }
 
   @Test
