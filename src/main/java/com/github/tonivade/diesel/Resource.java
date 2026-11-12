@@ -302,12 +302,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    */
   public <B> Resource<S, E, Either<A, B>> either(Resource<S, E, B> other) {
     return new Resource<>(poll -> {
-      Program<S, E, Either<Tuple2<A, Release<S>>, Tuple2<B, Release<S>>>> foldM =
-          acquire.apply(poll).foldMap(
-              _ -> other.acquire.apply(poll).map(Either::right),
-              acquired -> success(Either.left(acquired)));
-
-      return foldM.map(
+      return chain(acquire.apply(poll).<E, Either<Tuple2<A, Release<S>>, Tuple2<B, Release<S>>>>foldMap(
+          _ -> other.acquire.apply(poll).map(Either::right),
+          acquired -> success(Either.left(acquired))),
           e -> e.fold(
               a -> tuple(Either.left(a.first()), a.second()),
               b -> tuple(Either.right(b.first()), b.second())));
@@ -686,7 +683,7 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   public static <S, E, T> Resource<S, E, Program<S, E, T>> background(Program<S, E, T> program, Executor executor) {
     return new Resource<>(_ -> chain(
         program.fork(executor),
-        fiber -> tuple(fiber.join(), _ -> fiber.<S, Void>cancel())));
+        fiber -> tuple(fiber.join(), _ -> fiber.cancel())));
   }
 
   private Program<S, E, Tuple2<A, Release<S>>> retryLoop(Poll poll, Schedule<S, E> schedule) {
