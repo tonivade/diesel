@@ -21,13 +21,13 @@ import com.palantir.javapoet.WildcardTypeName;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.IntStream;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Generated;
@@ -262,7 +262,6 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
     var typeVariables = attempt
         ? List.of(TypeVariableName.get(STATE_VARIABLE, service))
         : List.of(TypeVariableName.get(STATE_VARIABLE, service), getErrorType(errorType));
-    var paramTypeMap = createParamTypeMap(method.getParameters(), resolved.getParameterTypes());
     return MethodSpec.methodBuilder(methodName)
         .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember(VALUE, UNCHECKED).addMember(VALUE, RAWTYPES).build())
         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
@@ -271,12 +270,19 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
         // the method's own type variables, with their bounds
         .addTypeVariables(resolved.getTypeVariables().stream().map(TypeVariableName::get).toList())
         .returns(returnType)
-        .addParameters(method.getParameters().stream()
-            .map(param -> ParameterSpec.builder(TypeName.get(paramTypeMap.get(param)), param.getSimpleName().toString()).build())
-            .toList())
+        .addParameters(createParameters(method.getParameters(), resolved.getParameterTypes()))
         .addCode(createMethodBody(method, resolved))
         .varargs(method.isVarArgs())
         .build();
+  }
+
+  private List<ParameterSpec> createParameters(
+      List<? extends VariableElement> parameters, List<? extends TypeMirror> parameterTypes) {
+    return IntStream.range(0, parameters.size())
+        .mapToObj(i -> ParameterSpec.builder(
+            TypeName.get(parameterTypes.get(i)),
+            parameters.get(i).getSimpleName().toString()).build())
+        .toList();
   }
 
   private TypeVariableName getErrorType(TypeName errorType) {
@@ -284,15 +290,6 @@ public class DieselAnnotationProcessor extends AbstractProcessor {
       return TypeVariableName.get(ERROR_VARIABLE);
     }
     return TypeVariableName.get(ERROR_VARIABLE, errorType);
-  }
-
-  private Map<VariableElement, TypeMirror> createParamTypeMap(
-      List<? extends VariableElement> parameters, List<? extends TypeMirror> parameterTypes) {
-    Map<VariableElement, TypeMirror> map = new IdentityHashMap<>();
-    for (int i = 0; i < parameters.size(); i++) {
-      map.put(parameters.get(i), parameterTypes.get(i));
-    }
-    return map;
   }
 
   private CodeBlock createMethodBody(ExecutableElement method, ExecutableType resolved) {
