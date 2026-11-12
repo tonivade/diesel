@@ -634,6 +634,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * <p>A program with {@code Void} as error type, like the ones returned by {@link #fold}, never
    * fails with an error, so it can be used where a program with any error type is expected.
    *
+   * <p>It returns the same program, cast to the new error type, without adding any step. That's
+   * safe only because a {@code Void} program has no error to carry: {@code Void} has no values, and
+   * a failure can't hold {@code null}. A {@code Void} program that fails anyway, which can only
+   * happen through an unchecked cast elsewhere, isn't detected here: its error reaches the code
+   * that handles the new type, and fails there with a {@link ClassCastException}.
+   *
    * @param program the program that can't fail with an error
    * @param <S> the type of the state
    * @param <E> the new type of the error
