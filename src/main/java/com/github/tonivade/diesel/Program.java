@@ -623,7 +623,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing a computation that supplies a value
    */
-  static <S, E, T> Program<S, E, T> supply(Supplier<T> supplier) {
+  static <S, E, T> Program<S, E, T> supply(Supplier<? extends T> supplier) {
     return suspend(() -> success(supplier.get()));
   }
 
@@ -639,7 +639,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    * @return a new program representing a computation that suspends execution
    */
-  static <S, E, T> Program<S, E, T> suspend(Supplier<Program<S, E, T>> supplier) {
+  static <S, E, T> Program<S, E, T> suspend(Supplier<? extends Program<S, E, T>> supplier) {
     return new Suspend<>(supplier);
   }
 
@@ -844,7 +844,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @return a new program representing a DSL access
    */
-  static <S, E> Program<S, E, Unit> inspect(Consumer<S> consumer) {
+  static <S, E> Program<S, E, Unit> inspect(Consumer<? super S> consumer) {
     return accessResult(state -> {
       consumer.accept(state);
       return Result.unit();
