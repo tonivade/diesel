@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.bracket;
+import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.delayed;
 import static com.github.tonivade.diesel.Combine.recover;
 import static com.github.tonivade.diesel.Combine.zip;
@@ -36,6 +37,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -44,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
@@ -439,6 +442,114 @@ class ProgramTest {
   }
 
   @Test
+  void onExitSeesSucceededAndKeepsTheValue() {
+    var seen = new AtomicReference<Outcome<String, String>>();
+    var program = Program.<Void, String, String>success("a").onExit(o -> record(seen, o));
+
+    assertThat(program.eval()).isEqualTo(Result.success("a"));
+    assertThat(seen.get()).isEqualTo(Outcome.succeeded("a"));
+  }
+
+  @Test
+  void onExitSeesFailedAndKeepsTheError() {
+    var seen = new AtomicReference<Outcome<String, String>>();
+    var program = Program.<Void, String, String>failure("boom").onExit(o -> record(seen, o));
+
+    assertThat(program.eval()).isEqualTo(Result.failure("boom"));
+    assertThat(seen.get()).isEqualTo(Outcome.failed("boom"));
+  }
+
+  @Test
+  void onExitSeesErroredAndKeepsTheException() {
+    var seen = new AtomicReference<Outcome<String, String>>();
+    var error = new IllegalStateException();
+    var program = Program.<Void, String, String>raise(() -> error).onExit(o -> record(seen, o));
+
+    assertThatThrownBy(program::eval).isSameAs(error);
+    assertThat(seen.get()).isEqualTo(Outcome.errored(error));
+  }
+
+  @Test
+  void onExitSeesCanceledWhenTheProgramIsCancelled() {
+    var seen = new AtomicReference<Outcome<String, Unit>>();
+    var started = new CompletableFuture<Void>();
+    var fiber = Program.<Void, String>task(() -> started.complete(null))
+        .andThen(Program.<Void, String, Unit>never())
+        .onExit(o -> record(seen, o))
+        .fork()
+        .evalOrElseThrow();
+    started.join();
+
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+
+    assertThat(seen.get()).isEqualTo(Outcome.canceled());
+  }
+
+  @Test
+  void onExitSeesTheCancellationOfAJoinedFiberAsErrored() {
+    // the program that joins isn't cancelled: the cancellation of the fiber is an ordinary exception
+    var seen = new AtomicReference<Outcome<String, Unit>>();
+    var program = pipe(
+        Program.<Void, String, Unit>never().fork(),
+        inner -> inner.<Void, String>cancel().andThen(inner.join()))
+        .onExit(o -> record(seen, o));
+
+    assertThatThrownBy(program::eval).isInstanceOf(CancellationException.class);
+    assertThat(seen.get()).isInstanceOfSatisfying(Outcome.Errored.class,
+        errored -> assertThat(errored.exception()).isInstanceOf(CancellationException.class));
+  }
+
+  @Test
+  void aFinalizerThatThrowsAfterASuccessReplacesTheValue() {
+    var program = Program.<Void, String, String>success("a")
+        .onExit(_ -> raise(() -> new IllegalStateException("finalizer")));
+
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("finalizer");
+  }
+
+  @Test
+  void aFinalizerThatThrowsAfterAnExceptionIsSuppressed() {
+    var program = Program.<Void, String, String>raise(() -> new IllegalArgumentException("program"))
+        .onExit(_ -> raise(() -> new IllegalStateException("finalizer")));
+
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("program")
+        .satisfies(e -> assertThat(e.getSuppressed())
+            .extracting(Throwable::getMessage)
+            .containsExactly("finalizer"));
+  }
+
+  @Test
+  void aFunctionThatThrowsAfterASuccessIsLikeAThrowingFinalizer() {
+    var program = Program.<Void, String, String>success("a")
+        .onExit(_ -> {
+          throw new IllegalStateException("function");
+        });
+
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("function");
+  }
+
+  @Test
+  void aFunctionThatThrowsAfterAnExceptionIsSuppressed() {
+    var program = Program.<Void, String, String>raise(() -> new IllegalArgumentException("program"))
+        .onExit(_ -> {
+          throw new IllegalStateException("function");
+        });
+
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("program")
+        .satisfies(e -> assertThat(e.getSuppressed())
+            .extracting(Throwable::getMessage)
+            .containsExactly("function"));
+  }
+
+  @Test
   void shouldRecoverFromError(@Mock TestDsl.Service service) {
     when(service.operation())
       .thenReturn(Result.failure(newUnknownError()));
@@ -719,4 +830,8 @@ class ProgramTest {
         var fib1 = self.apply(n.subtract(BigInteger.ONE));
         return zip(fib2, fib1, BigInteger::add);
       });
+
+  private static <E, T> Program<Void, Void, Unit> record(AtomicReference<Outcome<E, T>> seen, Outcome<E, T> outcome) {
+    return task(() -> seen.set(outcome));
+  }
 }
