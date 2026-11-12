@@ -11,6 +11,7 @@ import static com.github.tonivade.diesel.Program.unit;
 import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Program.Poll;
+import com.github.tonivade.diesel.function.CheckedSupplier;
 import com.github.tonivade.diesel.function.Finisher2;
 import com.github.tonivade.diesel.function.Finisher3;
 import com.github.tonivade.diesel.function.Finisher4;
@@ -19,7 +20,6 @@ import com.github.tonivade.diesel.function.Finisher6;
 import com.github.tonivade.diesel.function.Finisher7;
 import com.github.tonivade.diesel.function.Finisher8;
 import com.github.tonivade.diesel.function.Finisher9;
-import com.github.tonivade.diesel.function.CheckedSupplier;
 
 import java.util.Collection;
 import java.util.List;
@@ -971,6 +971,21 @@ public final class Combine {
    */
   public static <S, E, T> Program<S, E, T> onCancel(Program<S, E, T> program, Program<S, Void, ?> finalizer) {
     return program.onCancel(finalizer);
+  }
+
+  /**
+   * Installs an on-exit finalizer in a program.
+   *
+   * @param program the program to install the finalizer
+   * @param finalizer the function that produces the finalizer program for the outcome
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the result
+   * @return the same program but with the on-exit finalizer
+   */
+  public static <S, E, T> Program<S, E, T> onExit(Program<S, E, T> program,
+      Function<? super Outcome<E, T>, ? extends Program<S, Void, ?>> finalizer) {
+    return program.onExit(finalizer);
   }
 
   /**
