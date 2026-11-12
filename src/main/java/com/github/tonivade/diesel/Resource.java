@@ -4,15 +4,12 @@
  */
 package com.github.tonivade.diesel;
 
-import static com.github.tonivade.diesel.Combine.bracketFull;
-import static com.github.tonivade.diesel.Combine.catchAll;
+import static com.github.tonivade.diesel.Combine.bracketCaseFull;
 import static com.github.tonivade.diesel.Combine.chain;
-import static com.github.tonivade.diesel.Combine.ensuring;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.access;
 import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.never;
-import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
@@ -27,6 +24,7 @@ import com.github.tonivade.diesel.Program.Poll;
 import com.github.tonivade.purefun.Kind;
 
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -43,6 +41,9 @@ import java.util.function.Function;
  *
  * <p>Resources are always released after use, including when the computation fails, throws an
  * exception, or is cancelled.
+ *
+ * <p>The release of a resource made with {@link #makeCase(Program, BiFunction)} also receives how
+ * the resource was used, as an {@link Outcome}, like a transaction that commits or rolls back.
  *
  * <p>Acquisition can't be cancelled: once {@link #use(Function)} starts acquiring, the
  * acquisition runs to the end, so that whatever is acquired is also released. The only exceptions
@@ -68,14 +69,15 @@ import java.util.function.Function;
 public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
 
   // builds the acquisition with the Poll of the uncancelable region that use opens: it returns the
-  // acquired value and the program that releases it. The release can't fail with an error, like
-  // the programs returned by fold, so changing the error type of the resource doesn't affect it
-  private final Function<Poll, Program<S, E, Tuple2<A, Program<S, Void, Unit>>>> acquire;
+  // acquired value and its release, which receives how the use ended. The release can't fail with
+  // an error, like the programs returned by fold, so changing the error type of the resource
+  // doesn't affect it
+  private final Function<Poll, Program<S, E, Tuple2<A, Release<S>>>> acquire;
 
   // the acquisition is built lazily, when it runs: combinators like flatMap call the acquisition of
   // the previous resource, so building it eagerly would nest a Java call for each step of a long
   // chain, like a map in a loop, and overflow the stack
-  private Resource(Function<Poll, Program<S, E, Tuple2<A, Program<S, Void, Unit>>>> acquire) {
+  private Resource(Function<Poll, Program<S, E, Tuple2<A, Release<S>>>> acquire) {
     requireNonNull(acquire);
     this.acquire = poll -> suspend(() -> acquire.apply(poll));
   }
@@ -204,10 +206,10 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    * @return a program that manages the complete resource lifecycle
    */
   public <B> Program<S, E, B> use(Function<? super A, ? extends Program<S, E, B>> use) {
-    return bracketFull(
+    return bracketCaseFull(
         acquire,
         ta -> use.apply(ta.first()),
-        Tuple2::second);
+        (ta, outcome) -> ta.second().apply(outcome));
   }
 
   /**
@@ -300,12 +302,9 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
    */
   public <B> Resource<S, E, Either<A, B>> either(Resource<S, E, B> other) {
     return new Resource<>(poll -> {
-      Program<S, E, Either<Tuple2<A, Program<S, Void, Unit>>, Tuple2<B, Program<S, Void, Unit>>>> foldM =
-          acquire.apply(poll).foldMap(
-              _ -> other.acquire.apply(poll).map(Either::right),
-              acquired -> success(Either.left(acquired)));
-
-      return foldM.map(
+      return chain(acquire.apply(poll).<E, Either<Tuple2<A, Release<S>>, Tuple2<B, Release<S>>>>foldMap(
+          _ -> other.acquire.apply(poll).map(Either::right),
+          acquired -> success(Either.left(acquired))),
           e -> e.fold(
               a -> tuple(Either.left(a.first()), a.second()),
               b -> tuple(Either.right(b.first()), b.second())));
@@ -480,6 +479,75 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   public static <S, E, A> Resource<S, E, A> makeFull(
       Function<? super Poll, ? extends Program<S, E, A>> acquire,
       Function<? super A, ? extends Program<S, Void, ?>> release) {
+    requireNonNull(release);
+    return makeCaseFull(acquire, (a, _) -> release.apply(a));
+  }
+
+  /**
+   * Creates a resource from an acquisition program and a release function that receives how the
+   * resource was used.
+   *
+   * <p>Like {@link #make(Program, Function)}, but the release also receives the {@link Outcome} of
+   * the program that used the resource, so it can act differently depending on how it ended, like
+   * committing a transaction when it succeeded and rolling it back otherwise:
+   * <ul>
+   *   <li>{@link Outcome.Succeeded} with the result of {@code use}, if it succeeded.</li>
+   *   <li>{@link Outcome.Failed} with the error, if it failed with an error.</li>
+   *   <li>{@link Outcome.Errored} with the exception, if it threw one.</li>
+   *   <li>{@link Outcome.Canceled}, if it was cancelled.</li>
+   * </ul>
+   *
+   * <p>The outcome isn't typed: the release is created before the program that uses the resource,
+   * and the error type of the resource can change, like with {@link #mapError(Function)}.
+   *
+   * <p>If the resource is composed with others, all of them receive the same outcome. If the
+   * acquisition of a resource composed after this one fails, this one is released with the outcome
+   * of that acquisition: its error, its exception, or {@link Outcome.Canceled}.
+   *
+   * <pre>{@code
+   * Resource<S, E, Transaction> transaction = Resource.makeCase(
+   *     db.begin(),
+   *     (tx, outcome) -> outcome instanceof Outcome.Succeeded ? tx.commit() : tx.rollback());
+   * }</pre>
+   *
+   * @param acquire the program that acquires the resource
+   * @param release the function used to release the acquired value, with the outcome
+   * @param <S> the type of the state
+   * @param <E> the type of the acquisition error
+   * @param <A> the type of the acquired value
+   * @return a resource that manages the acquired value and its release
+   */
+  public static <S, E, A> Resource<S, E, A> makeCase(
+      Program<S, E, A> acquire,
+      BiFunction<? super A, ? super Outcome<?, ?>, ? extends Program<S, Void, ?>> release) {
+    requireNonNull(acquire);
+    return makeCaseFull(_ -> acquire, release);
+  }
+
+  /**
+   * Creates a resource whose acquisition can make some of its steps cancelable, and a release
+   * function that receives how the resource was used.
+   *
+   * <p>It combines {@link #makeFull(Function, Function)}, for the {@link Poll} of the acquisition,
+   * and {@link #makeCase(Program, BiFunction)}, for the {@link Outcome} that the release receives.
+   *
+   * <p>The acquisition follows the same rules as {@code makeFull}: it runs in an uncancelable
+   * region, and only the programs wrapped with the {@link Poll} can be cancelled, like waiting for
+   * a connection. If a cancellation arrives there, the value isn't acquired, so it isn't released,
+   * and the resources acquired before it are released with {@link Outcome.Canceled}.
+   *
+   * @param acquire the function that receives the {@link Poll} and returns the acquisition
+   * @param release the function used to release the acquired value, with the outcome
+   * @param <S> the type of the state
+   * @param <E> the type of the acquisition error
+   * @param <A> the type of the acquired value
+   * @return a resource that manages the acquired value and its release
+   */
+  public static <S, E, A> Resource<S, E, A> makeCaseFull(
+      Function<? super Poll, ? extends Program<S, E, A>> acquire,
+      BiFunction<? super A, ? super Outcome<?, ?>, ? extends Program<S, Void, ?>> release) {
+    requireNonNull(acquire);
+    requireNonNull(release);
     return new Resource<>(poll -> acquire(poll, acquire, release));
   }
 
@@ -615,10 +683,10 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   public static <S, E, T> Resource<S, E, Program<S, E, T>> background(Program<S, E, T> program, Executor executor) {
     return new Resource<>(_ -> chain(
         program.fork(executor),
-        fiber -> tuple(fiber.join(), fiber.cancel())));
+        fiber -> tuple(fiber.join(), _ -> fiber.cancel())));
   }
 
-  private Program<S, E, Tuple2<A, Program<S, Void, Unit>>> retryLoop(Poll poll, Schedule<S, E> schedule) {
+  private Program<S, E, Tuple2<A, Release<S>>> retryLoop(Poll poll, Schedule<S, E> schedule) {
     // only the wait between attempts is cancelable: a failed attempt has already released what
     // it acquired, so nothing is lost if it's cancelled
     return suspend(
@@ -640,52 +708,56 @@ public final class Resource<S, E, A> implements Kind<Resource<S, E, ?>, A> {
   // acquires the next resource once the previous one is acquired: if it fails, throws or the
   // mapper throws, the previous resource is released before the error goes on, so nothing leaks.
   // Once both are acquired, the inner one is released first, and the outer one even if it fails
-  // A cancellation from a poll inside the next acquisition is handled the same way: it's raised
-  // in the closed part of the region, so the catchAll can release the previous resource
-  private static <S, F, T, R> Program<S, F, Tuple2<R, Program<S, Void, Unit>>> acquireNext(
+  // A cancellation from a poll inside the next acquisition is handled the same way, and the
+  // previous resource is released with Canceled
+  private static <S, F, T, R> Program<S, F, Tuple2<R, Release<S>>> acquireNext(
       Poll poll,
-      Tuple2<T, Program<S, Void, Unit>> ta,
+      Tuple2<T, Release<S>> ta,
       Function<? super T, ? extends Resource<S, F, R>> mapper) {
     return releaseOnFailure(suspend(() -> {
           var next = mapper.apply(ta.first());
           return next.acquire.apply(poll);
         }),
         ta.second())
-        .map(tb -> tuple(tb.first(), tb.second().ensuring(ta.second())));
+        .map(tb -> tuple(tb.first(), tb.second().andThen(ta.second())));
   }
 
-  // like releaseOnException, but it also releases when the program fails with an error
-  private static <S, E, T> Program<S, E, T> releaseOnFailure(
-      Program<S, E, T> program, Program<S, Void, Unit> release) {
-    return releaseOnException(program, release)
-        .flatMapError(error -> pipe(widen(release), _ -> failure(error)));
-  }
-
-  // if the program throws, runs the release of the resource already acquired, and the exception
-  // goes on, with the one of the release added as suppressed if it throws too
-  private static <S, E, T> Program<S, E, T> releaseOnException(
-      Program<S, E, T> program, Program<S, Void, Unit> release) {
-    return catchAll(
-        program,
-        error -> ensuring(raise(() -> error), release)
-      );
+  // if the program doesn't succeed, runs the release of the resource already acquired with that
+  // outcome: the error, the exception or the cancellation, and then the failure goes on. Like
+  // try-with-resources, an exception of the release is added as suppressed to the one of the program
+  private static <S, E, T> Program<S, E, T> releaseOnFailure(Program<S, E, T> program, Release<S> release) {
+    return program.onExit(outcome -> outcome instanceof Outcome.Succeeded ? unit() : release.apply(outcome));
   }
 
   // the acquisition is built when it runs, inside the region, so if building it throws, it's like
   // any other failure of the acquisition
-  private static <S, E, A> Program<S, E, Tuple2<A, Program<S, Void, Unit>>> acquire(
+  private static <S, E, A> Program<S, E, Tuple2<A, Release<S>>> acquire(
       Poll poll,
       Function<? super Poll, ? extends Program<S, E, A>> acquire,
-      Function<? super A, ? extends Program<S, Void, ?>> release) {
+      BiFunction<? super A, ? super Outcome<?, ?>, ? extends Program<S, Void, ?>> release) {
     return chain(
         suspend(() -> acquire.apply(poll)),
-        a -> tuple(a, release(a, release)));
+        a -> tuple(a, outcome -> release(a, outcome, release)));
   }
 
   // the release program is built when it runs, so if building it throws, it happens inside the
   // finalizer of use, like any other failure of the release
   private static <S, A> Program<S, Void, Unit> release(
-      A value, Function<? super A, ? extends Program<S, Void, ?>> release) {
-    return suspend(() -> release.apply(value).discard());
+      A value, Outcome<?, ?> outcome,
+      BiFunction<? super A, ? super Outcome<?, ?>, ? extends Program<S, Void, ?>> release) {
+    return suspend(() -> release.apply(value, outcome).discard());
+  }
+
+  // releases an acquired value, with the outcome of the program that used it, or of the
+  // acquisition that failed after it
+  @FunctionalInterface
+  private interface Release<S> {
+
+    Program<S, Void, Unit> apply(Outcome<?, ?> outcome);
+
+    // this one first, and then the other, even if this one throws
+    default Release<S> andThen(Release<S> other) {
+      return outcome -> apply(outcome).ensuring(other.apply(outcome));
+    }
   }
 }

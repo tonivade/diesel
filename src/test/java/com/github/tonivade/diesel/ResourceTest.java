@@ -19,11 +19,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -770,6 +772,136 @@ class ResourceTest {
   }
 
   // ---------------------------------------------------------------------------------------------
+  // makeCase
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  void makeCaseReleasesWithSucceeded() {
+    var result = transaction("a").use(this::use).eval();
+
+    assertThat(result).isEqualTo(Result.success("a"));
+    assertThat(log).containsExactly("begin a", "use a", "commit a");
+  }
+
+  @Test
+  void makeCaseReleasesWithFailed() {
+    var result = transaction("a").use(_ -> failure("boom")).eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(log).containsExactly("begin a", "rollback a after Failed");
+  }
+
+  @Test
+  void makeCaseReleasesWithErrored() {
+    var program = transaction("a").use(_ -> raise(IllegalStateException::new));
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("begin a", "rollback a after Errored");
+  }
+
+  @Test
+  void makeCaseReleasesWithCanceledWhenUseIsCancelled() {
+    var started = new CompletableFuture<Void>();
+    var fiber = transaction("a").use(_ -> {
+      started.complete(null);
+      return never();
+    }).fork().evalOrElseThrow();
+    started.join();
+
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+
+    assertThat(log).containsExactly("begin a", "rollback a after Canceled");
+  }
+
+  @Test
+  void composedResourcesReceiveTheSameOutcomeInReverseOrder() {
+    var result = transaction("a")
+        .flatMap(_ -> transaction("b"))
+        .use(_ -> failure("boom"))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(log).containsExactly(
+        "begin a", "begin b", "rollback b after Failed", "rollback a after Failed");
+  }
+
+  @Test
+  void theReleaseSeesTheResultOfUse() {
+    var seen = new AtomicReference<Outcome<?, ?>>();
+    var result = Resource.<Void, String, String>makeCase(
+            success("a"),
+            (_, outcome) -> task(() -> seen.set(outcome)))
+        .use(value -> success(value.toUpperCase(Locale.ROOT)))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success("A"));
+    assertThat(seen.get()).isEqualTo(Outcome.succeeded("A"));
+  }
+
+  @Test
+  void aFailedNextAcquisitionReleasesThePreviousWithItsError() {
+    var result = transaction("a")
+        .flatMap(_ -> Resource.<Void, String, String>eval(failure("no b")))
+        .use(this::use)
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("no b"));
+    assertThat(log).containsExactly("begin a", "rollback a after Failed");
+  }
+
+  @Test
+  void aNextAcquisitionThatThrowsReleasesThePreviousWithErrored() {
+    var program = transaction("a")
+        .flatMap(_ -> Resource.<Void, String, String>eval(raise(IllegalStateException::new)))
+        .use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(log).containsExactly("begin a", "rollback a after Errored");
+  }
+
+  @Test
+  void aCancelledWaitInTheNextAcquisitionReleasesThePreviousWithCanceled() {
+    var waiting = new CompletableFuture<Void>();
+    var fiber = transaction("a")
+        .flatMap(_ -> waitingForever(waiting))
+        .use(this::use)
+        .fork()
+        .evalOrElseThrow();
+    waiting.join();
+
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+
+    assertThat(log).containsExactly("begin a", "rollback a after Canceled");
+  }
+
+  @Test
+  void aReleaseFunctionThatThrowsIsLikeAReleaseThatThrows() {
+    var inner = Resource.<Void, String, String>makeCase(
+        success("b"),
+        (_, _) -> {
+          throw new IllegalStateException("release");
+        });
+
+    var program = resource("a").flatMap(_ -> inner).use(this::use);
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class).hasMessage("release");
+    // the outer one is released anyway
+    assertThat(log).containsExactly("acquire a", "use b", "release a");
+  }
+
+  @Test
+  void makeCaseFullReleasesWithTheOutcome() {
+    var result = Resource.<Void, String, String>makeCaseFull(
+            poll -> poll.apply(success("a")),
+            (value, outcome) -> task(() -> log.add("release " + value + " after " + kind(outcome))))
+        .use(_ -> failure("boom"))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(log).containsExactly("release a after Failed");
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // background
   // ---------------------------------------------------------------------------------------------
 
@@ -892,6 +1024,22 @@ class ResourceTest {
   // ---------------------------------------------------------------------------------------------
   // helpers
   // ---------------------------------------------------------------------------------------------
+
+  // a resource that commits when the use succeeds, and rolls back otherwise
+  private Resource<Void, String, String> transaction(String name) {
+    return Resource.makeCase(
+        supply(() -> {
+          log.add("begin " + name);
+          return name;
+        }),
+        (value, outcome) -> task(() -> log.add(outcome instanceof Outcome.Succeeded
+            ? "commit " + value
+            : "rollback " + value + " after " + kind(outcome))));
+  }
+
+  private static String kind(Outcome<?, ?> outcome) {
+    return outcome.getClass().getSimpleName();
+  }
 
   // a resource whose acquisition signals it's waiting and then waits forever, but cancelably
   private Resource<Void, String, String> waitingForever(CompletableFuture<Void> waiting) {

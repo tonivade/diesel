@@ -8,6 +8,7 @@ import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.suspend;
 import static com.github.tonivade.diesel.Program.uncancelable;
 import static com.github.tonivade.diesel.Program.unit;
+import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 
 import com.github.tonivade.diesel.Program.Poll;
@@ -23,6 +24,7 @@ import com.github.tonivade.diesel.function.Finisher9;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -1151,21 +1153,86 @@ public final class Combine {
       Function<? super Poll, ? extends Program<S, E, T>> acquire,
       Function<? super T, ? extends Program<S, E, R>> use,
       Function<? super T, ? extends Program<S, Void, ?>> release) {
+    requireNonNull(release);
+    return bracketCaseFull(acquire, use, (resource, _) -> release.apply(resource));
+  }
+
+  /**
+   * Creates a new program that acquires a resource, uses it, and then releases it, where the
+   * release receives how the use ended.
+   *
+   * <p>Like {@link #bracket(Program, Function, Function)}, but the release also receives the
+   * {@link Outcome} of {@code use}, so it can act differently depending on how it ended, like
+   * committing a transaction when it succeeded and rolling it back otherwise:
+   * <ul>
+   *   <li>{@link Outcome.Succeeded} with the value, if {@code use} succeeded.</li>
+   *   <li>{@link Outcome.Failed} with the error, if it failed with an error.</li>
+   *   <li>{@link Outcome.Errored} with the exception, if it threw one.</li>
+   *   <li>{@link Outcome.Canceled}, if it was cancelled.</li>
+   * </ul>
+   *
+   * <p>If the acquisition fails, nothing is acquired and the release doesn't run.
+   *
+   * @param acquire the program that acquires the resource
+   * @param use the function used to use the acquired resource
+   * @param release the function used to release the acquired resource, with the outcome of
+   *     {@code use}. It can't fail with an error, only throw an exception, which replaces the result
+   *     of {@code use}, or is added as suppressed to the exception thrown by {@code use}
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the resource
+   * @param <R> the type of the result
+   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
+   */
+  public static <S, E, T, R> Program<S, E, R> bracketCase(
+      Program<S, E, T> acquire,
+      Function<? super T, ? extends Program<S, E, R>> use,
+      BiFunction<? super T, ? super Outcome<E, R>, ? extends Program<S, Void, ?>> release) {
+    requireNonNull(acquire);
+    return bracketCaseFull(_ -> acquire, use, release);
+  }
+
+  /**
+   * Creates a new program that acquires a resource, uses it, and then releases it, where the
+   * acquisition can make some of its steps cancelable and the release receives how the use ended.
+   *
+   * <p>It combines {@link #bracketFull(Function, Function, Function)}, for the {@link Poll} of the
+   * acquisition, and {@link #bracketCase(Program, Function, BiFunction)}, for the {@link Outcome}
+   * that the release receives.
+   *
+   * <p>The acquisition follows the same rules as {@code bracketFull}: it runs in an uncancelable
+   * region, and only the programs wrapped with the {@link Poll} can be cancelled, like waiting for
+   * a connection. If a cancellation arrives there, nothing is acquired and the release doesn't run.
+   *
+   * @param acquire the function that receives the {@link Poll} and returns the acquisition
+   * @param use the function used to use the acquired resource
+   * @param release the function used to release the acquired resource, with the outcome of
+   *     {@code use}. It can't fail with an error, only throw an exception, which replaces the result
+   *     of {@code use}, or is added as suppressed to the exception thrown by {@code use}
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the resource
+   * @param <R> the type of the result
+   * @return a new program representing a computation that acquires a resource, uses it, and then releases it
+   */
+  public static <S, E, T, R> Program<S, E, R> bracketCaseFull(
+      Function<? super Poll, ? extends Program<S, E, T>> acquire,
+      Function<? super T, ? extends Program<S, E, R>> use,
+      BiFunction<? super T, ? super Outcome<E, R>, ? extends Program<S, Void, ?>> release) {
+    requireNonNull(acquire);
+    requireNonNull(use);
+    requireNonNull(release);
     // the acquisition runs in the closed part of the region, except what it wraps with the poll.
     // Installing the finalizer never observes a cancellation, so there is no gap between acquiring
     // the resource and guaranteeing its release: a cancellation requested meanwhile takes effect
-    // when the polled use starts, and the release runs
+    // when the polled use starts, and the release runs with Canceled
     return uncancelable(poll -> pipe(
         suspend(() -> acquire.apply(poll)),
-        // use and release are called inside suspend, after the finalizer is installed: if they
-        // throw while building their programs, the resource is released anyway
-        resource -> poll.apply(suspend(() -> use.apply(resource))).ensuring(release(resource, release))
+        // use is called inside suspend, after the finalizer is installed, and the release when the
+        // use ends: if they throw while building their programs, it's like the program throwing
+        resource -> poll.apply(suspend(() -> use.apply(resource)))
+            .onExit(outcome -> release.apply(resource, outcome))
         ));
-  }
-
-  private static <S, T> Program<S, Void, Unit> release(
-      T resource, Function<? super T, ? extends Program<S, Void, ?>> release) {
-    return suspend(() -> release.apply(resource).discard());
   }
 
   private static <S, E, R> Program<S, E, PSequence<R>> append(Program<S, E, PSequence<R>> acc, Program<S, E, R> value) {

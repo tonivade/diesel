@@ -5,6 +5,7 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.bracket;
+import static com.github.tonivade.diesel.Combine.bracketCase;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.delayed;
 import static com.github.tonivade.diesel.Combine.recover;
@@ -426,6 +427,101 @@ class ProgramTest {
   }
 
   @Test
+  void bracketCaseReleasesWithSucceeded() {
+    var seen = new AtomicReference<Outcome<?, ?>>();
+    var program = bracketCase(
+        Program.<Void, String, String>success("resource"),
+        r -> success(r + " used"),
+        (_, o) -> record(seen, o));
+
+    assertThat(program.eval()).isEqualTo(Result.success("resource used"));
+    assertThat(seen.get()).isEqualTo(Outcome.succeeded("resource used"));
+  }
+
+  @Test
+  void bracketCaseReleasesWithFailed() {
+    var seen = new AtomicReference<Outcome<?, ?>>();
+    var program = bracketCase(
+        Program.<Void, String, String>success("resource"),
+        _ -> failure("boom"),
+        (_, o) -> record(seen, o));
+
+    assertThat(program.eval()).isEqualTo(Result.failure("boom"));
+    assertThat(seen.get()).isEqualTo(Outcome.failed("boom"));
+  }
+
+  @Test
+  void bracketCaseReleasesWithErrored() {
+    var seen = new AtomicReference<Outcome<?, ?>>();
+    var error = new IllegalStateException();
+    var program = bracketCase(
+        Program.<Void, String, String>success("resource"),
+        _ -> raise(() -> error),
+        (_, o) -> record(seen, o));
+
+    assertThatThrownBy(program::eval).isSameAs(error);
+    assertThat(seen.get()).isEqualTo(Outcome.errored(error));
+  }
+
+  @Test
+  void bracketCaseReleasesWithCanceledWhenTheUseIsCancelled() {
+    var seen = new AtomicReference<Outcome<?, ?>>();
+    var released = new AtomicReference<String>();
+    var started = new CompletableFuture<Void>();
+    var fiber = bracketCase(
+        Program.<Void, String, String>success("resource"),
+        _ -> Program.<Void, String>task(() -> started.complete(null)).andThen(never()),
+        (r, o) -> record(seen, o).andThen(Program.<Void, Void>task(() -> released.set(r))))
+        .fork()
+        .evalOrElseThrow();
+    started.join();
+
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+
+    assertThat(seen.get()).isEqualTo(Outcome.canceled());
+    assertThat(released.get()).isEqualTo("resource");
+  }
+
+  @Test
+  void bracketCaseDoesNotReleaseWhenTheAcquisitionFails() {
+    var seen = new AtomicReference<Outcome<?, ?>>();
+    var program = bracketCase(
+        Program.<Void, String, String>failure("no resource"),
+        r -> success(r + " used"),
+        (_, o) -> record(seen, o));
+
+    assertThat(program.eval()).isEqualTo(Result.failure("no resource"));
+    assertThat(seen.get()).isNull();
+  }
+
+  @Test
+  void bracketCaseReleaseThatThrowsReplacesTheValue() {
+    var program = bracketCase(
+        Program.<Void, String, String>success("resource"),
+        r -> success(r + " used"),
+        (_, _) -> raise(() -> new IllegalStateException("release")));
+
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("release");
+  }
+
+  @Test
+  void bracketCaseReleaseThatThrowsAfterAnExceptionIsSuppressed() {
+    var program = bracketCase(
+        Program.<Void, String, String>success("resource"),
+        _ -> raise(() -> new IllegalArgumentException("use")),
+        (_, _) -> raise(() -> new IllegalStateException("release")));
+
+    assertThatThrownBy(program::eval)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("use")
+        .satisfies(e -> assertThat(e.getSuppressed())
+            .extracting(Throwable::getMessage)
+            .containsExactly("release"));
+  }
+
+  @Test
   void theExceptionsOfChainedFinalizersAreSuppressedInTheFirstOne() {
     var program = raise(() -> new IllegalArgumentException("program"))
         .ensuring(raise(() -> new IllegalStateException("first")))
@@ -831,7 +927,7 @@ class ProgramTest {
         return zip(fib2, fib1, BigInteger::add);
       });
 
-  private static <E, T> Program<Void, Void, Unit> record(AtomicReference<Outcome<E, T>> seen, Outcome<E, T> outcome) {
+  private static <O> Program<Void, Void, Unit> record(AtomicReference<? super O> seen, O outcome) {
     return task(() -> seen.set(outcome));
   }
 }
