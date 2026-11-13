@@ -828,6 +828,48 @@ class CancellationTest {
   }
 
   @Test
+  void anExceptionUnwindingWhenTheProgramIsCancelledIsKeptAsSuppressed() throws Exception {
+    var finalizing = new CompletableFuture<Void>();
+    var release = new CompletableFuture<Void>();
+    var error = new IllegalStateException("use");
+    // the exception unwinds through a slow finalizer, and the program is cancelled meanwhile
+    var program = Program.<Void, String, Unit>raise(() -> error)
+        .ensuring(finalizer(() -> {
+          finalizing.complete(null);
+          release.join();
+        }));
+
+    var fiber = program.fork().evalOrElseThrow();
+    finalizing.get(5, TimeUnit.SECONDS);
+    fiber.future().cancel(true);
+    release.complete(null);
+
+    var thrown = fiber.future().handle((_, e) -> e).get(5, TimeUnit.SECONDS);
+    // it ends cancelled, but the exception isn't lost
+    assertThat(thrown).isInstanceOf(CancellationException.class);
+    assertThat(thrown.getSuppressed()).containsExactly(error);
+  }
+
+  @Test
+  void theExceptionOfAFinalizerIsKeptWhenAnOuterFinalizerRunsDuringTheCancellation() throws Exception {
+    expected = 1;
+    // the inner finalizer throws while the cancellation unwinds, so its exception is added to the
+    // cancellation; then the outer finalizer runs, and the cancellation goes on with it
+    var program = start().andThen(never())
+        .ensuring(Program.<Void, Void, Unit>raise(() -> new IllegalStateException("inner")))
+        .ensuring(finalizer(released::incrementAndGet));
+
+    var fiber = program.fork().evalOrElseThrow();
+    allStarted.get(5, TimeUnit.SECONDS);
+    fiber.future().cancel(true);
+
+    var thrown = fiber.future().handle((_, e) -> e).get(5, TimeUnit.SECONDS);
+    assertThat(thrown).isInstanceOf(CancellationException.class);
+    assertThat(thrown.getSuppressed()).extracting(Throwable::getMessage).containsExactly("inner");
+    assertThat(released).hasValue(1);
+  }
+
+  @Test
   void onExitAroundAPolledProgramSeesTheCancellation() {
     // the shape of bracketCase: the release is installed in the region, around the polled use
     var outcome = new AtomicReference<Outcome<String, Unit>>();

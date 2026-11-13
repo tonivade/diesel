@@ -36,6 +36,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
 
@@ -52,7 +53,7 @@ final class Interpreter {
         // a cancelled program stops at the start of its next step, unwinding the stack like an
         // exception so the finalizers run
         if (shouldStop(token, regions, current)) {
-          throw new CancelToken.Cancelled(token);
+          throw cancellation(token, current);
         }
         switch (current) {
           case null -> {
@@ -261,9 +262,10 @@ final class Interpreter {
    */
   @SuppressWarnings("ReferenceEquality")
   private static <S> void runFinalizer(Deque<Frame<S>> stack, Deque<Region> regions, Throwable e) {
+    // resumes the unwinding once the finalizer is done, marked so the cancellation keeps it
     stack.push(Frame.fold(
-        _ -> Program.raise(() -> e),
-        _ -> Program.raise(() -> e)));
+        _ -> Program.raise(new Resume(e)),
+        _ -> Program.raise(new Resume(e))));
     enterUncancelable(stack, regions);
     // inside the region, so the handler runs even if the program is being cancelled
     stack.push(Frame.catch_(error -> {
@@ -272,6 +274,34 @@ final class Interpreter {
       }
       return Program.raise(() -> e);
     }));
+  }
+
+  /**
+   * The exception that stops a cancelled program at its next step.
+   *
+   * <p>If that step resumes the unwinding of an exception after a finalizer, the cancellation
+   * arrived while the finalizer was running. The program ends cancelled, but the exception isn't
+   * lost: it's added as suppressed, like try-with-resources does. If it was already the
+   * cancellation of this program, it goes on as it is, with the exceptions it already carries.
+   */
+  private static Throwable cancellation(CancelToken token, Program<?, ?, ?> current) {
+    if (current instanceof Raise<?, ?, ?>(Resume(var pending))) {
+      if (pending instanceof CancelToken.Cancelled cancelled && cancelled.isFrom(token)) {
+        return cancelled;
+      }
+      var cancelled = new CancelToken.Cancelled(token);
+      cancelled.addSuppressed(pending);
+      return cancelled;
+    }
+    return new CancelToken.Cancelled(token);
+  }
+
+  // the exception being unwound when a finalizer ran, raised again once the finalizer is done
+  private record Resume(Throwable error) implements Supplier<Throwable> {
+    @Override
+    public Throwable get() {
+      return error;
+    }
   }
 
   // the region ends when the UnmaskFrame is popped
