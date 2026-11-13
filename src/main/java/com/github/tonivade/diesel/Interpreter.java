@@ -154,8 +154,9 @@ final class Interpreter {
             case CatchFrame(var recover) -> {
               // run the handler inside the loop so an exception it throws reaches an outer catchAll.
               // A cancelled program never runs it: shouldStop stops it before the next step, and the
-              // unwinding goes on, so a cancellation can't be caught
-              current = Program.suspend(() -> recover.apply(e));
+              // unwinding goes on, so a cancellation can't be caught. The step is marked, so that
+              // cancellation keeps the exception as suppressed
+              current = new Suspend(new Recover<>(recover, e));
               resumed = true;
             }
             case FinalizerFrame(var finalizer) -> {
@@ -272,28 +273,45 @@ final class Interpreter {
       if (error != e) {
         e.addSuppressed(error);
       }
-      return Program.raise(() -> e);
+      // finishes normally, so the fold below raises e again outside the region, like when the
+      // finalizer succeeds: if the program is being cancelled, the cancellation takes over there
+      // and keeps e as suppressed
+      return Program.unit();
     }));
   }
 
   /**
    * The exception that stops a cancelled program at its next step.
    *
-   * <p>If that step resumes the unwinding of an exception after a finalizer, the cancellation
-   * arrived while the finalizer was running. The program ends cancelled, but the exception isn't
-   * lost: it's added as suppressed, like try-with-resources does. If it was already the
-   * cancellation of this program, it goes on as it is, with the exceptions it already carries.
+   * <p>If that step resumes the unwinding of an exception after a finalizer, or runs the handler
+   * of a {@code catchAll} for it, the program was cancelled while that exception was going on. The
+   * program ends cancelled, but the exception isn't lost: it's added as suppressed, like
+   * try-with-resources does. If it was already the cancellation of this program, it goes on as it
+   * is, with the exceptions it already carries.
    */
   private static Throwable cancellation(CancelToken token, Program<?, ?, ?> current) {
-    if (current instanceof Raise<?, ?, ?>(Resume(var pending))) {
-      if (pending instanceof CancelToken.Cancelled cancelled && cancelled.isFrom(token)) {
-        return cancelled;
-      }
-      var cancelled = new CancelToken.Cancelled(token);
-      cancelled.addSuppressed(pending);
+    var pending = switch (current) {
+      case Raise<?, ?, ?>(Resume(var error)) -> error;
+      case Suspend<?, ?, ?>(Recover<?>(_, var error)) -> error;
+      default -> null;
+    };
+    if (pending instanceof CancelToken.Cancelled cancelled && cancelled.isFrom(token)) {
       return cancelled;
     }
-    return new CancelToken.Cancelled(token);
+    var cancelled = new CancelToken.Cancelled(token);
+    if (pending != null) {
+      cancelled.addSuppressed(pending);
+    }
+    return cancelled;
+  }
+
+  // the handler of a catchAll for an exception that is being unwound
+  private record Recover<S>(Function<Throwable, Program<S, ?, ?>> recover, Throwable error)
+      implements Supplier<Program<S, ?, ?>> {
+    @Override
+    public Program<S, ?, ?> get() {
+      return recover.apply(error);
+    }
   }
 
   // the exception being unwound when a finalizer ran, raised again once the finalizer is done

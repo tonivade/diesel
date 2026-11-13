@@ -851,6 +851,60 @@ class CancellationTest {
   }
 
   @Test
+  void aFinalizerThatFailsDuringTheCancellationKeepsBothExceptions() throws Exception {
+    var finalizing = new CompletableFuture<Void>();
+    var release = new CompletableFuture<Void>();
+    var error = new IllegalStateException("use");
+    var cleanup = new IllegalStateException("cleanup");
+    // the exception unwinds through a finalizer that waits and then fails, and the program is
+    // cancelled while it waits
+    var program = Program.<Void, String, Unit>raise(() -> error)
+        .ensuring(finalizer(() -> {
+          finalizing.complete(null);
+          release.join();
+        }).andThen(Program.<Void, Void, Unit>raise(() -> cleanup)));
+
+    var fiber = program.fork().evalOrElseThrow();
+    finalizing.get(5, TimeUnit.SECONDS);
+    fiber.future().cancel(true);
+    release.complete(null);
+
+    var thrown = fiber.future().handle((_, e) -> e).get(5, TimeUnit.SECONDS);
+    // it ends cancelled, like when the finalizer succeeds, and nothing is lost
+    assertThat(thrown).isInstanceOf(CancellationException.class);
+    assertThat(thrown.getSuppressed()).containsExactly(error);
+    assertThat(error.getSuppressed()).containsExactly(cleanup);
+  }
+
+  @Test
+  void anExceptionReachingACatchAllDuringTheCancellationIsKeptAsSuppressed() throws Exception {
+    var waiting = new CompletableFuture<Void>();
+    var proceed = new CompletableFuture<Void>();
+    var error = new IllegalStateException("thrown");
+    var handled = new AtomicInteger();
+    // the exception is thrown in an uncancelable region while the program is cancelled, and it
+    // reaches the catchAll once the region is over
+    var program = Program.<Void, String, Unit>uncancelable(_ -> pipe(
+            run(() -> {
+              waiting.complete(null);
+              proceed.join();
+            }),
+            _ -> Program.<Void, String, Unit>raise(() -> error)))
+        .catchAll(_ -> run(handled::incrementAndGet));
+
+    var fiber = program.fork().evalOrElseThrow();
+    waiting.get(5, TimeUnit.SECONDS);
+    fiber.future().cancel(true);
+    proceed.complete(null);
+
+    var thrown = fiber.future().handle((_, e) -> e).get(5, TimeUnit.SECONDS);
+    // a cancellation can't be caught, so the handler doesn't run, but the exception isn't lost
+    assertThat(thrown).isInstanceOf(CancellationException.class);
+    assertThat(thrown.getSuppressed()).containsExactly(error);
+    assertThat(handled).hasValue(0);
+  }
+
+  @Test
   void theExceptionOfAFinalizerIsKeptWhenAnOuterFinalizerRunsDuringTheCancellation() throws Exception {
     expected = 1;
     // the inner finalizer throws while the cancellation unwinds, so its exception is added to the
