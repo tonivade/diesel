@@ -40,13 +40,20 @@ import org.pcollections.TreePVector;
  * granted or none of them are.
  *
  * <p>Acquisition operations are cancelable. If a waiting acquisition is
- * canceled, it is removed from the waiting queue. If its permits were already
+ * cancelled, it is removed from the waiting queue. If its permits were already
  * granted concurrently with cancellation, those permits are returned to the
  * semaphore.
  *
  * <p>Releasing permits does not require the semaphore to have previously
  * acquired them. The number of available permits may therefore exceed the
  * initial number of permits.
+ *
+ * <p>The types of the state and the error aren't parameters of the class but of each operation,
+ * so the same semaphore can be used in programs of any state and error type. Java infers them from
+ * where the program is used, which a chained call doesn't tell: in
+ * {@code semaphore.acquire().map(...)} they are inferred as {@code Object}. Pass the program to a
+ * {@link Combine} helper instead, like {@code pipe(semaphore.acquire(), _ -> ...)}, or give the
+ * types, like {@code semaphore.<Void, String>acquire().map(...)}.
  */
 public final class Semaphore {
 
@@ -76,6 +83,8 @@ public final class Semaphore {
    * <p>The semaphore is created when the returned program is evaluated.
    *
    * @param permits the initial number of available permits
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that creates a new semaphore
    * @throws IllegalArgumentException if {@code permits} is negative
    */
@@ -89,10 +98,16 @@ public final class Semaphore {
    * <p>If no permit is immediately available, the operation waits until one
    * can be granted. Waiting acquisitions are served in FIFO order.
    *
-   * <p>The operation is cancelable while waiting. Canceling it removes the
+   * <p>The operation is cancelable while waiting. Cancelling it removes the
    * acquisition request from the waiting queue and ensures that no permit
-   * remains consumed by the canceled operation.
+   * remains consumed by the cancelled operation.
    *
+   * <p>Prefer {@link #withPermit(Program)} or {@link #permit()}: with {@code acquire} and
+   * {@code release} used by hand, a cancellation that arrives between them keeps the permit, like
+   * with any resource acquired by hand.
+   *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that completes when one permit has been acquired
    */
   public <S, E> Program<S, E, Unit> acquire() {
@@ -110,11 +125,17 @@ public final class Semaphore {
    * of the queue may therefore prevent smaller requests behind it from
    * proceeding.
    *
-   * <p>The operation is cancelable while waiting. Canceling it removes the
+   * <p>The operation is cancelable while waiting. Cancelling it removes the
    * request from the waiting queue. If the permits have already been granted
    * concurrently with cancellation, they are returned to the semaphore.
    *
+   * <p>Prefer {@link #withPermits(long, Program)} or {@link #permits(long)}: with {@code acquire}
+   * and {@code release} used by hand, a cancellation that arrives between them keeps the permits,
+   * like with any resource acquired by hand.
+   *
    * @param n the number of permits to acquire
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that completes when all requested permits have been acquired
    * @throws IllegalArgumentException if {@code n} is not positive
    */
@@ -130,6 +151,8 @@ public final class Semaphore {
    * pending acquisition requests. This preserves the FIFO ordering of waiting
    * operations.
    *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that evaluates to {@code true} if the permit was acquired,
    *         or {@code false} otherwise
    */
@@ -145,6 +168,8 @@ public final class Semaphore {
    * the requested permits.
    *
    * @param n the number of permits to acquire
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that evaluates to {@code true} if all permits were acquired,
    *         or {@code false} otherwise
    * @throws IllegalArgumentException if {@code n} is not positive
@@ -164,6 +189,8 @@ public final class Semaphore {
    * <p>Releasing a permit does not require a previous successful acquisition.
    * The number of available permits may exceed the initial number of permits.
    *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that completes when the permit has been released and
    *         eligible waiting acquisitions have been notified
    */
@@ -182,6 +209,8 @@ public final class Semaphore {
    * The number of available permits may exceed the initial number of permits.
    *
    * @param n the number of permits to release
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that completes when the permits have been released and
    *         eligible waiting acquisitions have been notified
    * @throws IllegalArgumentException if {@code n} is not positive
@@ -198,11 +227,11 @@ public final class Semaphore {
    * when that program terminates.
    *
    * <p>The permit is released whether the program succeeds, fails, or is
-   * canceled. Acquisition is cancelable while waiting, and cancellation before
+   * cancelled. Acquisition is cancelable while waiting, and cancellation before
    * the permit is granted does not consume a permit.
    *
    * @param program the program to evaluate while holding the permit
-   * @param <S> the environment type
+   * @param <S> the type of the state
    * @param <E> the error type
    * @param <T> the result type
    * @return a program that evaluates {@code program} while holding one permit
@@ -216,14 +245,14 @@ public final class Semaphore {
    * program, and releases the permits when that program terminates.
    *
    * <p>All requested permits are acquired before the program starts. They are
-   * released whether the program succeeds, fails, or is canceled.
+   * released whether the program succeeds, fails, or is cancelled.
    *
    * <p>Acquisition is cancelable while waiting. If cancellation occurs before
    * the permits are granted, no permits are consumed.
    *
    * @param n the number of permits to acquire
    * @param program the program to evaluate while holding the permits
-   * @param <S> the environment type
+   * @param <S> the type of the state
    * @param <E> the error type
    * @param <T> the result type
    * @return a program that evaluates {@code program} while holding the
@@ -240,6 +269,38 @@ public final class Semaphore {
   }
 
   /**
+   * Returns a resource that holds one permit while it's used.
+   *
+   * <p>Like {@link #withPermit(Program)}, but as a {@link Resource}, so it can be composed with
+   * other resources: the permit is acquired with them, and released after the ones acquired after
+   * it. Only the wait for the permit can be cancelled.
+   *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a resource that holds one permit
+   */
+  public <S, E> Resource<S, E, Unit> permit() {
+    return permits(1);
+  }
+
+  /**
+   * Returns a resource that holds the given number of permits while it's used.
+   *
+   * <p>Like {@link #withPermits(long, Program)}, but as a {@link Resource}. All the permits are
+   * acquired atomically, and only the wait for them can be cancelled.
+   *
+   * @param n the number of permits to hold
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @return a resource that holds the permits
+   * @throws IllegalArgumentException if {@code n} is not positive
+   */
+  public <S, E> Resource<S, E, Unit> permits(long n) {
+    requirePositive(n);
+    return Resource.makeFull(poll -> acquireWith(n, poll), _ -> releaseWith(n));
+  }
+
+  /**
    * Returns the current number of available permits.
    *
    * <p>The returned value is a snapshot and may become outdated immediately
@@ -250,6 +311,8 @@ public final class Semaphore {
    * For example, permits may be available while the first waiting request
    * still requires more permits than are currently available.
    *
+   * @param <S> the type of the state
+   * @param <E> the type of the error
    * @return a program that evaluates to the current number of available permits
    */
   public <S, E> Program<S, E, Long> available() {
@@ -301,7 +364,7 @@ public final class Semaphore {
     }
   }
 
-  // visible for testing
+  // visible for testing: it evaluates a program to read the state, only for the tests
   int waiting() {
     return state.get().evalOrElseThrow().waiters().size();
   }

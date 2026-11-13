@@ -237,6 +237,50 @@ class SemaphoreTest {
     assertThat(semaphore.available().evalOrElseThrow()).isEqualTo(1L);
   }
 
+  @Test
+  void permitHoldsThePermitWhileTheResourceIsUsed() {
+    var semaphore = Semaphore.of(1);
+
+    var result = semaphore.<Void, String>permit()
+        .use(_ -> semaphore.available())
+        .eval();
+
+    assertThat(result).isEqualTo(Result.success(0L));
+    assertThat(semaphore.available().evalOrElseThrow()).isEqualTo(1L);
+  }
+
+  @Test
+  void permitsAreReleasedAfterTheResourcesAcquiredAfterThem() {
+    var semaphore = Semaphore.of(3);
+    var seen = new ConcurrentLinkedQueue<Long>();
+    // the inner resource sees the permits still taken when it's released
+    var inner = Resource.<Void, String, String>make(
+        success("inner"),
+        _ -> task(() -> seen.add(semaphore.available().evalOrElseThrow())));
+
+    var result = semaphore.<Void, String>permits(2)
+        .flatMap(_ -> inner)
+        .use(_ -> failure("boom"))
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("boom"));
+    assertThat(seen).containsExactly(1L);
+    assertThat(semaphore.available().evalOrElseThrow()).isEqualTo(3L);
+  }
+
+  @Test
+  void aCancelledWaitForAPermitResourceLeavesTheQueue() {
+    var semaphore = Semaphore.of(0);
+
+    var program = semaphore.<Void, String>permit()
+        .use(_ -> success("never"))
+        .timeout(PAUSE);
+
+    assertThatThrownBy(program::eval).isInstanceOf(TimeoutException.class);
+    assertThat(semaphore.waiting()).isZero();
+    assertThat(semaphore.available().evalOrElseThrow()).isZero();
+  }
+
   // ---------------------------------------------------------------------------------------------
   // cancellation while waiting (the bug of the Queue based version)
   // ---------------------------------------------------------------------------------------------
