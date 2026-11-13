@@ -7,6 +7,18 @@
 
 A `Program<S, E, T>` describes a computation that uses a context of type `S`, can fail with an error of type `E`, and produces a value of type `T`. Programs are declarative: building a program does not run its effects. Evaluation starts only when you call `eval(...)` or another evaluation method.
 
+## What's new in 0.14
+
+Diesel 0.14 expands the runtime with structured fibers, resource management, synchronization primitives, and composable retry policies. The release also improves cancellation, the interpreter, and compile-time DSL generation.
+
+- **Fibers and concurrency:** `fork()` now exposes a `Fiber` with `join()`, `cancel()`, and `poll()`. Parallel combinators have clearer structured-cancellation behavior and wait for canceled children to finish their finalizers.
+- **Synchronization:** new `Queue` and `Semaphore` primitives provide cancelable, FIFO coordination. Queues can be bounded or unbounded, support non-blocking operations, and can be closed.
+- **Resource management:** `Resource` describes lazy acquisition/use/release lifecycles, supports composition, and releases resources in reverse acquisition order. `makeCase` and `bracketCase` expose the final `Outcome` to cleanup code.
+- **Retry policies and time:** `Schedule` provides reusable policies such as recurrence limits, spaced and exponential delays, jitter, caps, and input predicates. `Delay` represents bounded time intervals, while `Clock` makes time access and measurement available through the program context.
+- **Program lifecycle:** `Outcome` distinguishes success, typed failure, thrown exceptions, and cancellation. `Combine.onExit` and the case-aware resource combinators make exit handling more expressive.
+- **Runtime and DSL generation:** execution has been extracted into the dedicated `Interpreter`; the annotation processor adds support for varargs and methods that declare thrown exceptions, alongside improvements to generic type handling and validation.
+- **Examples and reliability:** new examples cover queues, producer/consumer workflows, background workers, resources, schedules, and semaphores. The release also includes extensive cancellation, resource, queue, and semaphore tests.
+
 > Diesel is under active development. APIs and behavior may change between releases.
 
 ## Contents
@@ -20,6 +32,8 @@ A `Program<S, E, T>` describes a computation that uses a context of type `S`, ca
 - [Validation](#validation)
 - [Concurrency](#concurrency)
 - [Shared state and synchronization](#shared-state-and-synchronization)
+- [Resource management](#resource-management)
+- [Schedules and time](#schedules-and-time)
 - [Asynchronous operations](#asynchronous-operations)
 - [Cancellation and resource safety](#cancellation-and-resource-safety)
 - [Retries, repetition and timing](#retries-repetition-and-timing)
@@ -44,8 +58,8 @@ Add Diesel to both the compile classpath and the annotation processor path:
 
 ```kotlin
 dependencies {
-    implementation("com.github.tonivade:diesel:0.13")
-    annotationProcessor("com.github.tonivade:diesel:0.13")
+    implementation("com.github.tonivade:diesel:0.14")
+    annotationProcessor("com.github.tonivade:diesel:0.14")
 }
 ```
 
@@ -65,7 +79,7 @@ Add the library as a dependency:
 <dependency>
     <groupId>com.github.tonivade</groupId>
     <artifactId>diesel</artifactId>
-    <version>0.13</version>
+    <version>0.14</version>
 </dependency>
 ```
 
@@ -81,7 +95,7 @@ Configure the annotation processor in the Maven Compiler Plugin as well:
       <path>
         <groupId>com.github.tonivade</groupId>
         <artifactId>diesel</artifactId>
-        <version>0.13</version>
+        <version>0.14</version>
       </path>
     </annotationProcessorPaths>
   </configuration>
@@ -319,6 +333,16 @@ The `either` and `race` results are represented by `Either`, distinguishing whic
 
 The parallel collection combinators are fail-fast: when one child fails, the others are cancelled. Diesel waits for cancelled children to stop and run their finalizers before the combined program completes. Cancellation is cooperative: arbitrary code already running inside ordinary `task` or `supply` does not automatically stop in the middle of a blocking call.
 
+### Fibers
+
+`fork()` starts a program asynchronously and returns a `Fiber<E, T>`, rather than exposing its underlying future. A fiber represents the lifecycle of that execution:
+
+- `join()` waits for its result and propagates its typed failure or exception.
+- `cancel()` requests cancellation and waits until the program has stopped and its finalizers have run.
+- `poll()` checks whether it has completed and, if so, returns its `Outcome` without waiting.
+
+If a fiber finishes before it observes cancellation, its completed result is preserved. Canceling a fiber does not turn a successfully completed computation into a canceled one.
+
 To choose a custom executor:
 
 ```java
@@ -387,6 +411,31 @@ The main operations are:
 
 A program waiting in `get()` can be cancelled without cancelling other waiters or changing the deferred value. The value cannot be `null`. Waiting holds a thread, which is inexpensive with virtual threads; avoid waiting forever inside an uncancelable region.
 
+### Concurrent queues: `Queue`
+
+`Queue<A>` is a concurrent FIFO queue. Create a bounded queue with `Queue.bounded(capacity)` or an unbounded one with `Queue.unbounded()`. Use `Queue.makeBounded(capacity)` and `Queue.makeUnbounded()` when the queue should be allocated freshly during program evaluation.
+
+- `offer(value)` waits while a bounded queue is full; `tryOffer(value)` returns immediately with `false` when it is full.
+- `take()` waits for an element; `tryTake()` returns immediately with an `Optional`.
+- `takeOrClosed()` waits for an element or returns an empty `Optional` when a closed queue has been drained.
+- `close()` stops new offers while allowing already queued elements to be consumed.
+- `size()`, `capacity()`, `isEmpty()`, `isFull()`, and `isClosed()` inspect the queue.
+
+Waiting offers and takes are cancelable. Canceling a waiting take does not lose an element that was concurrently handed to it: the element is returned to the queue. Elements cannot be `null`. Operations on a closed queue that cannot complete raise `QueueClosedException` as an exception, not as a typed error.
+
+### Semaphores: `Semaphore`
+
+`Semaphore` controls concurrent access with a number of permits. Acquisition is FIFO and acquiring multiple permits is atomic: a waiter receives all requested permits or none of them. A waiter at the head of the queue can therefore prevent smaller requests behind it from proceeding.
+
+```java
+var semaphore = Semaphore.of(4);
+
+var limited = semaphore.withPermit(callRemoteService());
+var limitedBatch = semaphore.withPermits(2, processBatch());
+```
+
+Use `acquire()` / `acquire(n)` and `release()` / `release(n)` for manual coordination, or `tryAcquire()` when acquisition must not wait. `withPermit` and `withPermits` release their permits even when the protected program fails or is canceled. Acquisitions are cancelable; permits granted concurrently with cancellation are returned.
+
 ## Asynchronous operations
 
 Diesel can wait for external asynchronous work and integrate it into a program.
@@ -442,6 +491,22 @@ var program = Program.bracket(
 
 The release action is protected against cancellation and runs after the use program finishes, fails, throws, or is cancelled. This is the preferred shape for resource lifecycles that must not leak.
 
+## Resource management
+
+`Resource<S, E, A>` describes a value together with the program that acquires it and the action that releases it. Acquisition is lazy: each call to `use` acquires a fresh resource, and release always runs after use, including on typed failure, exception, or cancellation.
+
+```java
+var connection = Resource.make(
+    acquireConnection(),
+    conn -> Program.task(conn::close));
+
+var query = connection.use(conn -> executeQuery(conn));
+```
+
+Resources can be composed with `map`, `evalMap`, `evalTap`, `flatMap`, `combine`, and `either`. When resources are composed, they are released in reverse order of acquisition. `Resource.from(...)` can adapt `AutoCloseable` values or values with an explicit release action, and `Resource.background(program)` manages a background program for the duration of its use.
+
+Use `Resource.makeCase(acquire, release)` when cleanup depends on how the resource was used. The release function receives an `Outcome`, which distinguishes `Succeeded`, `Failed`, `Errored`, and `Canceled`; this is useful for committing a transaction on success and rolling it back otherwise. `Resource.makeFull` and `makeCaseFull` allow selected acquisition waits to be cancelable while keeping the acquisition/release protocol safe.
+
 ### Uncancelable regions
 
 An uncancelable region defers cancellation until the protected computation completes. Use it sparingly, especially around potentially blocking operations, because cancellation must wait for that region to finish.
@@ -473,6 +538,26 @@ var measured = computeReport().timed();
 - **`memoize()`** creates a program that caches its first evaluated success or typed failure for subsequent evaluations.
 
 Retries and repetition re-evaluate the underlying program, so effects in that program can happen more than once.
+
+### Schedules
+
+`Schedule<S, I>` is a reusable policy that decides whether to continue and how long to wait before the next attempt. Use it with `Program.retry(schedule)`, `Program.repeat(schedule)`, or `Resource.retry(schedule)`. Built-in policies include `stop()`, `forever()`, `recurs(n)`, `spaced(delay)`, and `exponential(base, factor)`. Policies can be combined with `and` and `or`, constrained with `whileInput` and `untilInput`, jittered, or capped with a maximum delay.
+
+For example:
+
+```java
+var retryPolicy = Schedule.<Void, MyError>recurs(5)
+    .and(Schedule.exponential(Delay.ofMillis(100), 2.0).capped(Delay.ofSeconds(5)))
+    .jittered(0.2, Program.success(0.5));
+
+var retried = callRemoteService().retry(retryPolicy);
+```
+
+### Delays and clocks
+
+`Delay` is an immutable, non-negative duration value with factories for hours through nanoseconds, conversion from `Duration`, comparison, and scaling. It saturates at one year; `Delay.MAX` represents an unbounded wait for operations such as `sleep` and `timeout`.
+
+`Clock.Service` provides wall-clock time (`currentTime()` and `now()`) and monotonic time (`nanoTime()`). `Clock.currentTime()`, `Clock.now()`, and `Clock.nanoTime()` expose those values as programs. `Clock.timed(program)` and `Clock.timedResult(program)` measure elapsed time using the clock supplied by the context, which makes time-dependent code easier to test.
 
 ## Evaluation
 
