@@ -1,6 +1,6 @@
 //JAVA 25+
 
-//DEPS com.github.tonivade:diesel:0.14-SNAPSHOT
+//DEPS com.github.tonivade:diesel:0.14
 
 import static com.github.tonivade.diesel.Program.*;
 import static com.github.tonivade.diesel.Combine.*;

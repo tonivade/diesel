@@ -1,5 +1,5 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//DEPS com.github.tonivade:diesel:0.14-SNAPSHOT
+//DEPS com.github.tonivade:diesel:0.14
 
 /*
  * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
