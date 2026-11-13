@@ -491,6 +491,16 @@ var program = Program.bracket(
 
 The release action is protected against cancellation and runs after the use program finishes, fails, throws, or is cancelled. This is the preferred shape for resource lifecycles that must not leak.
 
+### Uncancelable regions
+
+An uncancelable region defers cancellation until the protected computation completes. Use it sparingly, especially around potentially blocking operations, because cancellation must wait for that region to finish.
+
+### Interruptible tasks
+
+`Program.interruptibleTask(action)` runs an interruptible action on the common fork-join pool. Its executor overload allows you to choose a different executor, including one backed by virtual threads. When cancellation occurs, the running thread is interrupted and Diesel waits for the action to return before running finalizers. If the action ignores interruption, cancellation waits for it to finish.
+
+Use this for blocking actions that respond correctly to thread interruption. For ordinary tasks, cancellation does not automatically interrupt arbitrary Java code.
+
 ## Resource management
 
 `Resource<S, E, A>` describes a value together with the program that acquires it and the action that releases it. Acquisition is lazy: each call to `use` acquires a fresh resource, and release always runs after use, including on typed failure, exception, or cancellation.
@@ -506,16 +516,6 @@ var query = connection.use(conn -> executeQuery(conn));
 Resources can be composed with `map`, `evalMap`, `evalTap`, `flatMap`, `combine`, and `either`. When resources are composed, they are released in reverse order of acquisition. `Resource.from(...)` can adapt `AutoCloseable` values or values with an explicit release action, and `Resource.background(program)` manages a background program for the duration of its use.
 
 Use `Resource.makeCase(acquire, release)` when cleanup depends on how the resource was used. The release function receives an `Outcome`, which distinguishes `Succeeded`, `Failed`, `Errored`, and `Canceled`; this is useful for committing a transaction on success and rolling it back otherwise. `Resource.makeFull` and `makeCaseFull` allow selected acquisition waits to be cancelable while keeping the acquisition/release protocol safe.
-
-### Uncancelable regions
-
-An uncancelable region defers cancellation until the protected computation completes. Use it sparingly, especially around potentially blocking operations, because cancellation must wait for that region to finish.
-
-### Interruptible tasks
-
-`Program.interruptibleTask(action)` runs an interruptible action on the common fork-join pool. Its executor overload allows you to choose a different executor, including one backed by virtual threads. When cancellation occurs, the running thread is interrupted and Diesel waits for the action to return before running finalizers. If the action ignores interruption, cancellation waits for it to finish.
-
-Use this for blocking actions that respond correctly to thread interruption. For ordinary tasks, cancellation does not automatically interrupt arbitrary Java code.
 
 ## Retries, repetition and timing
 
@@ -539,7 +539,7 @@ var measured = computeReport().timed();
 
 Retries and repetition re-evaluate the underlying program, so effects in that program can happen more than once.
 
-### Schedules
+### Schedules and time
 
 `Schedule<S, I>` is a reusable policy that decides whether to continue and how long to wait before the next attempt. Use it with `Program.retry(schedule)`, `Program.repeat(schedule)`, or `Resource.retry(schedule)`. Built-in policies include `stop()`, `forever()`, `recurs(n)`, `spaced(delay)`, and `exponential(base, factor)`. Policies can be combined with `and` and `or`, constrained with `whileInput` and `untilInput`, jittered, or capped with a maximum delay.
 
