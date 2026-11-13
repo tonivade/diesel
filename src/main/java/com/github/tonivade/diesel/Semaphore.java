@@ -324,7 +324,7 @@ public final class Semaphore {
     return pipe(
         newDone(),
         done -> pipe(
-            state.modify(s -> s.acquire(n, done)),
+            register(n, done),
             granted -> {
               if (granted) {
                 return unit();
@@ -334,6 +334,12 @@ public final class Semaphore {
             }));
   }
 
+  // takes the permits if they fit and nobody is waiting, otherwise queues the waiter.
+  // visible for testing
+  <S, E> Program<S, E, Boolean> register(long n, Deferred<Unit> done) {
+    return state.modify(s -> s.acquire(n, done));
+  }
+
   private <S, E> Program<S, E, Unit> releaseWith(long n) {
     return pipe(
         state.modify(s -> s.release(n)),
@@ -341,8 +347,9 @@ public final class Semaphore {
   }
 
   // a cancelled wait: if it's still queued it leaves (and the ones behind it may now fit),
-  // but if a release already granted it the permits, they are given back
-  private <S, E> Program<S, E, Unit> cancelAcquire(long n, Deferred<Unit> done) {
+  // but if a release already granted it the permits, they are given back.
+  // visible for testing
+  <S, E> Program<S, E, Unit> cancelAcquire(long n, Deferred<Unit> done) {
     return pipe(
         state.modify(s -> s.cancel(done)),
         removal -> removal.removed()

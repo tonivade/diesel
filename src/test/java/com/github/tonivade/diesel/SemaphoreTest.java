@@ -410,6 +410,86 @@ class SemaphoreTest {
   }
 
   @Test
+  void cancellingAWaiterInTheMiddleKeepsTheOrderOfTheOthers() throws Exception {
+    var semaphore = Semaphore.of(0);
+    var order = new ConcurrentLinkedQueue<String>();
+    var first = semaphore.acquire(2).andThen(task(() -> order.add("first"))).fork().evalOrElseThrow();
+    awaitWaiting(semaphore, 1);
+    var middle = semaphore.acquire(3).andThen(task(() -> order.add("middle"))).fork().evalOrElseThrow();
+    awaitWaiting(semaphore, 2);
+    var last = semaphore.acquire(1).andThen(task(() -> order.add("last"))).fork().evalOrElseThrow();
+    awaitWaiting(semaphore, 3);
+
+    middle.cancel().evalOrElseThrow();
+    semaphore.release(3).evalOrElseThrow();
+
+    first.join().evalOrElseThrow();
+    last.join().evalOrElseThrow();
+    assertThat(order).containsExactlyInAnyOrder("first", "last");
+    assertThat(middle.poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(semaphore.waiting()).isZero();
+    assertThat(semaphore.available().evalOrElseThrow()).isZero();
+  }
+
+  @Test
+  void aCancellationAfterTheGrantGivesThePermitsBack() {
+    // the interleaving of a cancellation that arrives once a release has granted the permits to
+    // the waiter: the release takes it out of the queue, and then the cancellation sees it's gone
+    var semaphore = Semaphore.of(0);
+    var done = Deferred.<Unit>create();
+
+    assertThat(semaphore.register(2, done).evalOrElseThrow()).isFalse();
+    semaphore.release(2).evalOrElseThrow();
+    assertThat(semaphore.waiting()).isZero();
+    assertThat(semaphore.available().evalOrElseThrow()).isZero();
+
+    semaphore.cancelAcquire(2, done).evalOrElseThrow();
+
+    assertThat(semaphore.available().evalOrElseThrow()).isEqualTo(2L);
+    assertThat(semaphore.waiting()).isZero();
+  }
+
+  @Test
+  void aCancellationBeforeTheGrantLeavesTheQueueWithoutTakingPermits() {
+    var semaphore = Semaphore.of(1);
+    var done = Deferred.<Unit>create();
+
+    assertThat(semaphore.register(2, done).evalOrElseThrow()).isFalse();
+    semaphore.cancelAcquire(2, done).evalOrElseThrow();
+
+    assertThat(semaphore.waiting()).isZero();
+    assertThat(semaphore.available().evalOrElseThrow()).isEqualTo(1L);
+  }
+
+  @Test
+  void aReleaseThatOverflowsLeavesThePermitsUnchanged() {
+    var semaphore = Semaphore.of(1);
+
+    assertThatThrownBy(() -> semaphore.release(Long.MAX_VALUE).evalOrElseThrow())
+        .isInstanceOf(ArithmeticException.class);
+    assertThat(semaphore.available().evalOrElseThrow()).isEqualTo(1L);
+  }
+
+  @Test
+  void aFailingProgramWithAPermitWakesUpTheNextWaiter() throws Exception {
+    var semaphore = Semaphore.of(1);
+    var holding = new CompletableFuture<Void>();
+    var fail = new CompletableFuture<Void>();
+    var first = semaphore.withPermit(
+            pipe(task(() -> holding.complete(null)), _ -> pipe(task(fail::join), _ -> failure("boom"))))
+        .fork().evalOrElseThrow();
+    holding.get(5, TimeUnit.SECONDS);
+    var second = semaphore.withPermit(success("second")).fork().evalOrElseThrow();
+    awaitWaiting(semaphore, 1);
+
+    fail.complete(null);
+
+    assertThat(first.join().eval()).isEqualTo(Result.failure("boom"));
+    assertThat(second.join().eval()).isEqualTo(Result.success("second"));
+    assertThat(semaphore.available().evalOrElseThrow()).isEqualTo(1L);
+  }
+
+  @Test
   void aReleaseWakesUpSeveralWaitersAtOnce() throws Exception {
     var semaphore = Semaphore.of(0);
     var fibers = new ArrayList<Fiber<Void, Unit>>();
