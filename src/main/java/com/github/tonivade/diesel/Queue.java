@@ -5,10 +5,11 @@
 package com.github.tonivade.diesel;
 
 import static com.github.tonivade.diesel.Combine.branch;
+import static com.github.tonivade.diesel.Combine.catchAll;
 import static com.github.tonivade.diesel.Combine.chain;
+import static com.github.tonivade.diesel.Combine.onCancel;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
-import static com.github.tonivade.diesel.Combine.onCancel;
 import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.supply;
@@ -149,11 +150,14 @@ public final class Queue<A> {
               }
               if (result instanceof Blocked) {
                 return pipe(
-                    poll.apply(done.<S, E>get())
-                        .catchAll(error -> error instanceof CancelToken.Cancelled
+                    catchAll(
+                        poll.apply(done.get()),
+                        error -> error instanceof CancelToken.Cancelled
                             ? cancelOffer(done, error)
                             : raise(() -> error)),
-                    accepted -> accepted ? unit() : closedError());
+                    branch(
+                        Program::unit,
+                        Queue::closedError));
               }
               return unit();
             })));
@@ -226,7 +230,7 @@ public final class Queue<A> {
                 return success(Optional.empty());
               }
               if (result instanceof Waiting) {
-                return poll.apply(onCancel(waiter.get(), releaseTaker(waiter)));
+                return onCancel(poll.apply(waiter.get()), releaseTaker(waiter));
               }
               return raise(IllegalStateException::new);
             })));

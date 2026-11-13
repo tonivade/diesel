@@ -887,9 +887,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    *   <li>Once the polled program finishes, whether it succeeds, fails or throws, the region is
    *   closed again.</li>
    *   <li>The finalizers installed inside a polled program, like {@link #ensuring(Program)} or
-   *   {@link #onCancel(Program)}, run if it is cancelled. An {@code onCancel} placed outside the
-   *   {@code poll}, in the closed part, doesn't run: the program is only cancelled inside the
-   *   {@code poll}.</li>
+   *   {@link #onCancel(Program)}, run if it is cancelled. So do the ones placed in the closed part,
+   *   around the {@code poll}, like the release of {@code bracketCase}: the cancellation of the
+   *   polled program unwinds through them, and they see it as {@link Outcome.Canceled}.</li>
    *   <li>A {@code poll} used outside of the region it comes from, or in a program that isn't in
    *   any uncancelable region, does nothing.</li>
    *   <li>As with {@link #uncancelable()}, the concurrent combinators, like {@code parZip} or
