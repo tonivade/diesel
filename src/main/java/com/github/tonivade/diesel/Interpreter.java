@@ -288,6 +288,11 @@ final class Interpreter {
    * program ends cancelled, but the exception isn't lost: it's added as suppressed, like
    * try-with-resources does. If it was already the cancellation of this program, it goes on as it
    * is, with the exceptions it already carries.
+   *
+   * <p>Only an exception that nobody has handled yet is kept. Once the handler of a
+   * {@code catchAll} has received it, it's handled, like in the body of a {@code catch}: a
+   * cancellation that arrives while the handler runs stops the program it returns, and doesn't
+   * keep the exception.
    */
   private static Throwable cancellation(CancelToken token, Program<?, ?, ?> current) {
     var pending = switch (current) {
@@ -305,7 +310,8 @@ final class Interpreter {
     return cancelled;
   }
 
-  // the handler of a catchAll for an exception that is being unwound
+  // the handler of a catchAll for an exception that is being unwound. It only marks the step before
+  // the handler runs: once the handler has received the exception, it's handled
   private record Recover<S>(Function<Throwable, Program<S, ?, ?>> recover, Throwable error)
       implements Supplier<Program<S, ?, ?>> {
     @Override

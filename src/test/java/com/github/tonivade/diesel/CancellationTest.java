@@ -905,6 +905,30 @@ class CancellationTest {
   }
 
   @Test
+  void anExceptionIsHandledOnceTheCatchAllHandlerHasReceivedIt() throws Exception {
+    var handling = new CompletableFuture<Void>();
+    var proceed = new CompletableFuture<Void>();
+    var error = new IllegalStateException("thrown");
+    // the program is cancelled while the handler runs: the exception was already handled, so
+    // the cancellation doesn't keep it
+    var program = Program.<Void, String, Unit>raise(() -> error)
+        .catchAll(_ -> {
+          handling.complete(null);
+          proceed.join();
+          return Program.unit();
+        });
+
+    var fiber = program.fork().evalOrElseThrow();
+    handling.get(5, TimeUnit.SECONDS);
+    fiber.future().cancel(true);
+    proceed.complete(null);
+
+    var thrown = fiber.future().handle((_, e) -> e).get(5, TimeUnit.SECONDS);
+    assertThat(thrown).isInstanceOf(CancellationException.class);
+    assertThat(thrown.getSuppressed()).isEmpty();
+  }
+
+  @Test
   void theExceptionOfAFinalizerIsKeptWhenAnOuterFinalizerRunsDuringTheCancellation() throws Exception {
     expected = 1;
     // the inner finalizer throws while the cancellation unwinds, so its exception is added to the
