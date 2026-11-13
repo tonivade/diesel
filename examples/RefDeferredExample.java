@@ -19,7 +19,7 @@ import com.github.tonivade.diesel.Source;
 
 import java.util.List;
 
-class Example1 {
+class RefDeferredExample {
 
   public static void main(String... args) {
     var summary = processNumbers().evalOrElseThrow();
