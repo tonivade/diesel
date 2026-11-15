@@ -200,8 +200,8 @@ public final class Fiber<E, T> {
   /**
    * Waits for the work, cancelling it when the timer expires first.
    */
-  static <S, E, T> Program<S, E, T> timeout(Fiber<E, Unit> timer, Fiber<E, T> work) {
-    return Program.join(timeoutFuture(timer.future(), work.future()));
+  static <S, E, T> Program<S, E, T> timeout(Fiber<E, T> work, Delay delay) {
+    return Program.join(timeoutFuture(work.future(), delay));
   }
 
   private static <E> List<CompletableFuture<? extends Result<E, ?>>> futures(
@@ -214,18 +214,14 @@ public final class Fiber<E, T> {
   }
 
   private static <E, T> CompletableFuture<Result<E, T>> timeoutFuture(
-      CompletableFuture<Result<E, Unit>> timer, CompletableFuture<Result<E, T>> work) {
+      CompletableFuture<Result<E, T>> work, Delay delay) {
+
     var timedOut = new AtomicBoolean();
     var result = new CompletableFuture<Result<E, T>>();
 
-    var _ = timer.whenComplete((_, error) -> {
-      if (error == null) {
-        // the timer expired: it only asks the program to stop, the program decides the result
+    var timer = DelayScheduler.schedule(delay, () -> {
+      if (!work.isDone()) {
         timedOut.set(true);
-        work.cancel(true);
-      } else if (!isCancellation(error)) {
-        // the timer itself failed, like a rejected executor: don't leave the program unbounded
-        result.completeExceptionally(error);
         work.cancel(true);
       }
     });
@@ -239,11 +235,12 @@ public final class Fiber<E, T> {
       } else {
         result.completeExceptionally(error);
       }
+
       // the program is done, so the timer isn't needed anymore
-      timer.cancel(true);
+      timer.cancel(false);
     });
 
-    return afterAll(List.of(timer, work), result);
+    return afterAll(List.of(work), result);
   }
 
   private static boolean isCancellation(Throwable error) {

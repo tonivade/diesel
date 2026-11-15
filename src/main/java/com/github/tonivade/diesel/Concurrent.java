@@ -4,10 +4,10 @@
  */
 package com.github.tonivade.diesel;
 
+import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Program.evalAll;
 import static com.github.tonivade.diesel.Program.raise;
-import static com.github.tonivade.diesel.Program.sleep;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.unit;
 import static java.util.function.Function.identity;
@@ -1161,13 +1161,10 @@ public final class Concurrent {
     if (delay.isMax()) {
       return program;
     }
-    // the timer is forked first, like in race: with a single thread executor it expires before
-    // the program starts, which then is cancelled before it runs
-    return zip(
-        fork(sleep(delay), executor),
-        program.fork(executor),
-        Fiber::<S, E, T>timeout)
-        .flatMap(identity());
+
+    return pipe(
+        fork(program, executor),
+        work -> Fiber.timeout(work, delay));
   }
 
   /**
