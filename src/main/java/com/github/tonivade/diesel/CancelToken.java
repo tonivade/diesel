@@ -134,14 +134,14 @@ final class CancelToken {
    * <p>It records the token whose cancellation it signals, so the cancellation of a program can be
    * told apart from the cancellation of a fiber it joins, even when both happen at the same time.
    */
-  static final class Cancelled extends CancellationException {
+  static final class CancelledException extends CancellationException {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
     private final transient CancelToken token;
 
-    Cancelled(CancelToken token) {
+    CancelledException(CancelToken token) {
       super("program cancelled");
       this.token = token;
     }

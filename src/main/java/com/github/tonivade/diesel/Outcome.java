@@ -17,6 +17,8 @@ import static java.util.Objects.requireNonNull;
  */
 public sealed interface Outcome<E, T> {
 
+  static final Canceled<?, ?> CANCELED = new Canceled<>();
+
   /**
    * The program ended with a value.
    *
@@ -83,7 +85,16 @@ public sealed interface Outcome<E, T> {
    * @param <E> the type of the error
    * @param <T> the type of the value
    */
-  record Canceled<E, T>() implements Outcome<E, T> {}
+  final class Canceled<E, T> implements Outcome<E, T> {
+
+    private Canceled() {
+    }
+
+    @Override
+    public String toString() {
+      return "Canceled";
+    }
+  }
 
   /**
    * Creates the outcome of a program that ended with a value.
@@ -128,8 +139,9 @@ public sealed interface Outcome<E, T> {
    * @param <T> the type of the value
    * @return a {@link Canceled} outcome
    */
+  @SuppressWarnings("unchecked")
   static <E, T> Outcome<E, T> canceled() {
-    return new Canceled<>();
+    return (Outcome<E, T>) CANCELED;
   }
 
   /**

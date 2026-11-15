@@ -152,7 +152,7 @@ public final class Queue<A> {
                 return pipe(
                     catchAll(
                         poll.apply(done.get()),
-                        error -> error instanceof CancelToken.Cancelled
+                        error -> error instanceof CancelToken.CancelledException
                             ? cancelOffer(done, error)
                             : raise(() -> error)),
                     branch(

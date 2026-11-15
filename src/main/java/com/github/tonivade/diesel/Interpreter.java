@@ -165,7 +165,7 @@ final class Interpreter {
               // like the release of bracketCase. The cancellation of a joined fiber is recorded
               // with the token of that fiber, so it's Errored even if this program is cancelled
               // while it unwinds
-              var outcome = e instanceof CancelToken.Cancelled cancelled && cancelled.isFrom(token)
+              var outcome = e instanceof CancelToken.CancelledException cancelled && cancelled.isFrom(token)
                   ? Outcome.canceled()
                   : Outcome.errored(e);
               // run the finalizer, then keep unwinding with the same exception
@@ -214,7 +214,7 @@ final class Interpreter {
   private static <S> Result<?, ?> awaitCancelable(
       @Nullable S state, BiConsumer<S, CompletableFuture<?>> async, CancelToken token) {
     var future = new CompletableFuture<Result<?, ?>>();
-    var wakeUpOnCancel = token.onCancel(() -> future.completeExceptionally(new CancelToken.Cancelled(token)));
+    var wakeUpOnCancel = token.onCancel(() -> future.completeExceptionally(new CancelToken.CancelledException(token)));
     try {
       async.accept(state, future);
       return joinOrThrows(future);
@@ -251,7 +251,7 @@ final class Interpreter {
     } catch (CancellationException e) {
       // join wraps a cancellation in a new CancellationException: unwrap the one of the interpreter,
       // which records whose cancellation it is
-      return sneakyThrow(e.getCause() instanceof CancelToken.Cancelled cancelled ? cancelled : e);
+      return sneakyThrow(e.getCause() instanceof CancelToken.CancelledException cancelled ? cancelled : e);
     }
   }
 
@@ -300,10 +300,10 @@ final class Interpreter {
       case Suspend<?, ?, ?>(Recover<?>(_, var error)) -> error;
       default -> null;
     };
-    if (pending instanceof CancelToken.Cancelled cancelled && cancelled.isFrom(token)) {
+    if (pending instanceof CancelToken.CancelledException cancelled && cancelled.isFrom(token)) {
       return cancelled;
     }
-    var cancelled = new CancelToken.Cancelled(token);
+    var cancelled = new CancelToken.CancelledException(token);
     if (pending != null) {
       cancelled.addSuppressed(pending);
     }
