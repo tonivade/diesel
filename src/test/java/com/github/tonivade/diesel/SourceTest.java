@@ -43,7 +43,7 @@ class SourceTest {
 
     @Test
     void concatIsLazy() {
-      var list = Source.<Void, Void, Integer>iterate(0, x -> x + 1).concat(Source.of(-1)).map(x -> x * 2).take(3);
+      var list = Source.iterate(0, x -> x + 1).concat(Source.of(-1)).map(x -> x * 2).take(3);
 
       assertThat(list.toList().evalOrElseThrow()).isEqualTo(List.of(0, 2, 4));
     }
@@ -76,9 +76,9 @@ class SourceTest {
 
     @Test
     void concatWithAnEmptySourceReturnsTheSameSource() {
-      var nonEmpty = Source.<Void, Void, Integer>nonEmpty(success(1), Source.empty());
-      var suspended = Source.<Void, Void, Integer>of(1, 2);
-      var concatenated = nonEmpty.concat(Source.<Void, Void, Integer>of(2));
+      var nonEmpty = Source.nonEmpty(success(1), Source.empty());
+      var suspended = Source.of(1, 2);
+      var concatenated = nonEmpty.concat(Source.of(2));
 
       assertThat(nonEmpty.concat(Source.empty())).isSameAs(nonEmpty);
       assertThat(suspended.concat(Source.empty())).isSameAs(suspended);
@@ -87,7 +87,7 @@ class SourceTest {
 
     @Test
     void concatenatingEmptySourcesInALoopDoesNotAddLayers() {
-      var source = Source.<Void, Void, Integer>nonEmpty(success(1), Source.empty());
+      var source = Source.nonEmpty(success(1), Source.empty());
       var list = source;
       for (int i = 0; i < 100_000; i++) {
         list = list.concat(Source.empty());
@@ -99,7 +99,7 @@ class SourceTest {
 
     @Test
     void concatWithTheOtherSourceEmptyKeepsTheOrder() {
-      var list = Source.<Void, Void, Integer>of(1, 2)
+      var list = Source.of(1, 2)
           .concat(Source.empty())
           .concat(Source.of(3))
           .concat(Source.empty());
@@ -112,8 +112,7 @@ class SourceTest {
     // interrupted, so it would hang the build instead of failing
     @Timeout(value = 10, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     void aLongChainOverAConcatIsLinear() {
-      Source<Void, Void, Integer> source = Source.<Void, Void, Integer>of(0)
-          .concat(Source.iterate(1, x -> x + 1));
+      var source = Source.of(0).concat(Source.iterate(1, x -> x + 1));
       for (int i = 0; i < 10_000; i++) {
         source = source.map(x -> x + 1);
       }
@@ -129,10 +128,10 @@ class SourceTest {
 
     @Test
     void prependKeepsTheOrder() {
-      var source = Source.<Void, Void, Integer>of(2, 3);
+      var source = Source.of(2, 3);
 
       assertThat(source.prepend(success(1)).toList().evalOrElseThrow()).isEqualTo(List.of(1, 2, 3));
-      assertThat(Source.<Void, Void, Integer>empty().prepend(success(1)).toList().evalOrElseThrow())
+      assertThat(Source.empty().prepend(success(1)).toList().evalOrElseThrow())
         .isEqualTo(List.of(1));
       assertThat(source.concat(Source.of(4)).prepend(success(1)).toList().evalOrElseThrow())
         .isEqualTo(List.of(1, 2, 3, 4));
@@ -141,7 +140,7 @@ class SourceTest {
     @Test
     void prependDoesNotEvaluateTheSource() {
       var calls = new AtomicInteger();
-      var source = Source.<Void, Void, Integer>iterate(calls::incrementAndGet);
+      var source = Source.iterate(calls::incrementAndGet);
 
       var result = source.prepend(success(0)).take(1).toList();
 
@@ -156,7 +155,7 @@ class SourceTest {
     @Test
     void takeOnlyEvaluatesTheElementsItTakes() {
       var calls = new AtomicInteger();
-      var source = Source.<Void, Void, Integer>iterate(calls::incrementAndGet);
+      var source = Source.iterate(calls::incrementAndGet);
 
       var result = source.take(2).concat(source.take(3)).toList();
 
@@ -169,14 +168,14 @@ class SourceTest {
     // would hang the build instead of failing
     @Timeout(value = 10, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     void takeStopsAFilterWithNoMoreMatches() {
-      var list = Source.<Void, Void, Integer>iterate(0, x -> x + 1).filter(x -> x < 2).take(2);
+      var list = Source.iterate(0, x -> x + 1).filter(x -> x < 2).take(2);
 
       assertThat(list.toList().evalOrElseThrow()).isEqualTo(List.of(0, 1));
     }
 
     @Test
     void takeWhileStopsAtTheFirstElementThatDoesNotMatch() {
-      var source = Source.<Void, Void, Integer>of(1, 2, 3, 1).takeWhile(x -> x < 3);
+      var source = Source.of(1, 2, 3, 1).takeWhile(x -> x < 3);
 
       assertThat(source.toList().evalOrElseThrow()).isEqualTo(List.of(1, 2));
     }
@@ -184,7 +183,7 @@ class SourceTest {
     @Test
     void takeZeroDoesNotEvaluateAnyElement() {
       var calls = new AtomicInteger();
-      var source = Source.<Void, Void, Integer>iterate(calls::incrementAndGet);
+      var source = Source.iterate(calls::incrementAndGet);
 
       var result = source.take(0).toList().evalOrElseThrow();
 
@@ -195,7 +194,7 @@ class SourceTest {
     @Test
     void takeDoesNotEvaluateTheNextElement() {
       var calls = new AtomicInteger();
-      var source = Source.<Void, Void, Integer>iterate(calls::incrementAndGet);
+      var source = Source.iterate(calls::incrementAndGet);
 
       var result = source.take(3).toList().evalOrElseThrow();
 
@@ -231,7 +230,7 @@ class SourceTest {
 
     @Test
     void takePropagatesExceptionFromRequestedElement() {
-      var source = Source.<Void, Void, Integer>empty()
+      var source = Source.empty()
           .append(Program.success(1))
           .append(Program.raise(() -> new IllegalStateException("boom")));
 
@@ -243,7 +242,7 @@ class SourceTest {
 
     @Test
     void takePropagatesFailureFromRequestedElement() {
-      var source = Source.<Void, Exception, Integer>empty()
+      var source = Source.empty()
           .append(Program.success(1))
           .append(Program.failure(new IllegalStateException("boom")));
 
@@ -257,7 +256,7 @@ class SourceTest {
     void takeOneDoesNotEvaluateFailureInNextElement() {
       var calls = new AtomicInteger();
 
-      var source = Source.<Void, Void, Integer>empty()
+      var source = Source.empty()
           .append(Program.success(1))
           .append(Program.raise(() -> {
             calls.incrementAndGet();
@@ -277,7 +276,7 @@ class SourceTest {
     @Test
     void dropEvaluatesTheDiscardedElements() {
       var executed = new AtomicInteger();
-      var source = Source.<Void, Void, Integer>nonEmpty(
+      var source = Source.nonEmpty(
           supply(() -> {
             executed.incrementAndGet();
             return 1;
@@ -292,7 +291,7 @@ class SourceTest {
 
     @Test
     void dropPropagatesTheFailureOfADiscardedElement() {
-      var source = Source.<Void, String, Integer>nonEmpty(failure("boom"), Source.of(2));
+      var source = Source.nonEmpty(failure("boom"), Source.of(2));
 
       assertThat(source.drop(1).toList().eval())
         .isEqualTo(Result.failure("boom"));
@@ -300,15 +299,15 @@ class SourceTest {
 
     @Test
     void dropMoreThanTheSizeIsEmpty() {
-      assertThat(Source.<Void, Void, Integer>of(1, 2).drop(5).toList().evalOrElseThrow())
+      assertThat(Source.of(1, 2).drop(5).toList().evalOrElseThrow())
         .isEmpty();
-      assertThat(Source.<Void, Void, Integer>of(1, 2).drop(0).toList().evalOrElseThrow())
+      assertThat(Source.of(1, 2).drop(0).toList().evalOrElseThrow())
         .isEqualTo(List.of(1, 2));
     }
 
     @Test
     void dropWhileStartsAtTheFirstElementThatDoesNotMatch() {
-      var source = Source.<Void, Void, Integer>of(1, 2, 3, 1).dropWhile(x -> x < 3);
+      var source = Source.of(1, 2, 3, 1).dropWhile(x -> x < 3);
 
       assertThat(source.toList().evalOrElseThrow()).isEqualTo(List.of(3, 1));
     }
@@ -320,7 +319,7 @@ class SourceTest {
     @Test
     void tailEvaluatesTheDiscardedHead() {
       var executed = new AtomicInteger();
-      var source = Source.<Void, Void, Integer>nonEmpty(
+      var source = Source.nonEmpty(
           supply(() -> {
             executed.incrementAndGet();
             return 1;
@@ -335,7 +334,7 @@ class SourceTest {
 
     @Test
     void tailPropagatesTheFailureOfTheDiscardedHead() {
-      var source = Source.<Void, String, Integer>nonEmpty(failure("boom"), Source.of(2));
+      var source = Source.nonEmpty(failure("boom"), Source.of(2));
 
       assertThat(source.tail().toList().eval())
         .isEqualTo(Result.failure("boom"));
@@ -344,14 +343,14 @@ class SourceTest {
     @Test
     void tailEvaluatesTheDiscardedHeadThroughSuspendAndConcat() {
       var executed = new AtomicInteger();
-      var head = Source.<Void, Void, Integer>nonEmpty(
+      var head = Source.nonEmpty(
           supply(() -> {
             executed.incrementAndGet();
             return 1;
           }),
           Source.of(2, 3));
 
-      var suspended = Source.<Void, Void, Integer>suspend(() -> head).tail().toList();
+      var suspended = Source.suspend(() -> head).tail().toList();
       var concatenated = head.concat(Source.of(4)).tail().toList();
 
       assertThat(suspended.evalOrElseThrow()).isEqualTo(List.of(2, 3));
@@ -361,7 +360,7 @@ class SourceTest {
 
     @Test
     void tailOfAnEmptySourceIsEmpty() {
-      assertThat(Source.<Void, Void, Integer>empty().tail().toList().evalOrElseThrow())
+      assertThat(Source.empty().tail().toList().evalOrElseThrow())
         .isEmpty();
     }
   }
@@ -371,14 +370,14 @@ class SourceTest {
 
     @Test
     void headOptionReturnsTheFirstElement() {
-      assertThat(Source.<Void, Void, Integer>of(1, 2).headOption().evalOrElseThrow()).contains(1);
-      assertThat(Source.<Void, Void, Integer>empty().headOption().evalOrElseThrow()).isEmpty();
+      assertThat(Source.of(1, 2).headOption().evalOrElseThrow()).contains(1);
+      assertThat(Source.empty().headOption().evalOrElseThrow()).isEmpty();
     }
 
     @Test
     void splitDoesNotEvaluateTheHead() {
       var executed = new AtomicInteger();
-      var source = Source.<Void, Void, Integer>nonEmpty(
+      var source = Source.nonEmpty(
           supply(() -> {
             executed.incrementAndGet();
             return 1;
@@ -390,7 +389,7 @@ class SourceTest {
       assertThat(executed).hasValue(0);
       assertThat(split.first().evalOrElseThrow()).isEqualTo(1);
       assertThat(split.second().toList().evalOrElseThrow()).isEqualTo(List.of(2, 3));
-      assertThat(Source.<Void, Void, Integer>empty().split().evalOrElseThrow()).isEmpty();
+      assertThat(Source.empty().split().evalOrElseThrow()).isEmpty();
     }
   }
 
@@ -414,14 +413,14 @@ class SourceTest {
 
     @Test
     void mapEvalEvaluatesTheMappedPrograms() {
-      var source = Source.<Void, Void, Integer>of(1, 2).mapEval(x -> success(x + 1));
+      var source = Source.of(1, 2).mapEval(x -> success(x + 1));
 
       assertThat(source.toList().evalOrElseThrow()).isEqualTo(List.of(2, 3));
     }
 
     @Test
     void mapEvalPropagatesTheFailureOfAMappedProgram() {
-      var source = Source.<Void, String, Integer>of(1, 2, 3)
+      var source = Source.of(1, 2, 3)
           .mapEval(x -> x == 2 ? failure("boom") : success(x));
 
       assertThat(source.toList().eval()).isEqualTo(Result.failure("boom"));
@@ -429,21 +428,21 @@ class SourceTest {
 
     @Test
     void flatMapConcatenatesTheMappedSources() {
-      var source = Source.<Void, Void, Integer>of(1, 2).flatMap(x -> Source.of(x, x * 10));
+      var source = Source.of(1, 2).flatMap(x -> Source.of(x, x * 10));
 
       assertThat(source.toList().evalOrElseThrow()).isEqualTo(List.of(1, 10, 2, 20));
     }
 
     @Test
     void collectKeepsAndTransformsTheMatchingElements() {
-      var source = Source.<Void, Void, Integer>of(1, 2, 3, 4).collect(x -> x % 2 == 0, x -> x * 10);
+      var source = Source.of(1, 2, 3, 4).collect(x -> x % 2 == 0, x -> x * 10);
 
       assertThat(source.toList().evalOrElseThrow()).isEqualTo(List.of(20, 40));
     }
 
     @Test
     void filterNotRemovesTheMatchingElements() {
-      var source = Source.<Void, Void, Integer>of(1, 2, 3, 4).filterNot(x -> x % 2 == 0);
+      var source = Source.of(1, 2, 3, 4).filterNot(x -> x % 2 == 0);
 
       assertThat(source.toList().evalOrElseThrow()).isEqualTo(List.of(1, 3));
     }
@@ -482,7 +481,7 @@ class SourceTest {
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
     void foldRightStopsEarlyOnAnInfiniteSource() {
       var calls = new AtomicInteger();
-      var source = Source.<Void, Void, Integer>iterate(calls::incrementAndGet);
+      var source = Source.iterate(calls::incrementAndGet);
 
       var exists = source.foldRight(
           success(false),
@@ -495,7 +494,7 @@ class SourceTest {
     @Test
     void foldRightDoesNotEvaluateRestWhenItIsNotNeeded() {
       var calls = new AtomicInteger();
-      var source = Source.<Void, Void, Integer>iterate(calls::incrementAndGet);
+      var source = Source.iterate(calls::incrementAndGet);
 
       var result = source.foldRight(
           success(false),
@@ -507,7 +506,7 @@ class SourceTest {
 
     @Test
     void foldRightCanUseTheRestMoreThanOnce() {
-      var source = Source.<Void, Void, Integer>from(List.of(1, 2, 3));
+      var source = Source.from(List.of(1, 2, 3));
 
       // the combinator evaluates rest twice: without memoized cells, the second time would find the
       // iterator exhausted and the fold would not see the elements
@@ -522,7 +521,7 @@ class SourceTest {
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
     void foldRightIsStackSafe() {
-      var source = Source.<Void, Void, Integer>iterate(0, x -> x + 1).take(500_000);
+      var source = Source.iterate(0, x -> x + 1).take(500_000);
 
       var sum = source.foldRight(success(0L), (x, rest) -> rest.map(acc -> acc + x));
 
@@ -556,13 +555,13 @@ class SourceTest {
     void zipWithAnEmptySourceDoesNotEvaluateTheOther() {
       var calls = new AtomicInteger();
       // searching for the first element never ends, so a regression hangs: hence the separate thread
-      var stuck = Source.<Void, Void, Integer>iterate(0, x -> x + 1)
+      var stuck = Source.iterate(0, x -> x + 1)
           .filter(_ -> {
             calls.incrementAndGet();
             return false;
           });
 
-      var result = Source.zip(Source.<Void, Void, Integer>empty(), stuck).toList();
+      var result = Source.zip(Source.empty(), stuck).toList();
 
       assertThat(result.evalOrElseThrow()).isEmpty();
       assertThat(calls).hasValue(0);
@@ -571,9 +570,9 @@ class SourceTest {
     @Test
     void zipDoesNotEvaluateTheRightSideOnceTheLeftEnds() {
       var calls = new AtomicInteger();
-      var right = Source.<Void, Void, Integer>iterate(calls::incrementAndGet);
+      var right = Source.iterate(calls::incrementAndGet);
 
-      var result = Source.zip(Source.<Void, Void, Integer>of(1, 2), right).toList();
+      var result = Source.zip(Source.of(1, 2), right).toList();
 
       assertThat(result.evalOrElseThrow())
         .isEqualTo(List.of(tuple(1, 1), tuple(2, 2)));
@@ -628,10 +627,10 @@ class SourceTest {
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     void interleaveEmitsTheFirstElementWithoutWaitingForTheSecondSource() {
-      var stuck = Source.<Void, Void, Integer>iterate(0, x -> x + 1)
+      var stuck = Source.iterate(0, x -> x + 1)
           .filter(_ -> false);
 
-      var result = Source.interleave(Source.<Void, Void, Integer>of(1, 2), stuck)
+      var result = Source.interleave(Source.of(1, 2), stuck)
           .take(1).toList();
 
       assertThat(result.evalOrElseThrow()).isEqualTo(List.of(1));
@@ -648,7 +647,7 @@ class SourceTest {
         calls.incrementAndGet();
         return List.of(1, 2).iterator();
       };
-      var program = Source.<Void, Void, Integer>from(iterable).toList();
+      var program = Source.from(iterable).toList();
 
       assertThat(program.evalOrElseThrow()).isEqualTo(List.of(1, 2));
       assertThat(program.evalOrElseThrow()).isEqualTo(List.of(1, 2));
@@ -658,7 +657,7 @@ class SourceTest {
     @Test
     void fromIteratorCallsTheSupplierWhenTraversed() {
       var calls = new AtomicInteger();
-      var program = Source.<Void, Void, Integer>fromIterator(() -> {
+      var program = Source.fromIterator(() -> {
         calls.incrementAndGet();
         return List.of(1, 2).iterator();
       }).toList();
@@ -671,7 +670,7 @@ class SourceTest {
 
     @Test
     void tailOfFromCanBeTraversedMoreThanOnce() {
-      var source = Source.<Void, Void, Integer>from(List.of(1, 2, 3));
+      var source = Source.from(List.of(1, 2, 3));
       var tail = source.split().evalOrElseThrow().orElseThrow().second();
 
       assertThat(tail.toList().evalOrElseThrow()).isEqualTo(List.of(2, 3));
@@ -741,7 +740,7 @@ class SourceTest {
       var empty = Source.<Void, Void, Integer>empty();
 
       assertThat(empty.map(x -> x + 1).filter(x -> x > 0).take(3).drop(1).toList().evalOrElseThrow()).isEmpty();
-      assertThat(empty.flatMap(x -> Source.of(x)).mapEval(Program::<Void, Void, Integer>success).toList().evalOrElseThrow())
+      assertThat(empty.flatMap(x -> Source.of(x)).mapEval(Program::success).toList().evalOrElseThrow())
         .isEmpty();
       assertThat(empty.foldLeft(0, Integer::sum).evalOrElseThrow()).isZero();
     }
@@ -752,7 +751,7 @@ class SourceTest {
 
     @Test
     void toStringShowsTheTypesOfTheParts() {
-      var source = Source.<Void, Void, Integer>of(1).prepend(success(0));
+      var source = Source.of(1).prepend(success(0));
 
       assertThat(source).hasToString("NonEmpty(head=Pure, tail=NonEmpty)");
       assertThat(source.concat(Source.of(2))).hasToString("Concat(left=NonEmpty, right=NonEmpty)");
@@ -785,7 +784,7 @@ class SourceTest {
     @Test
     @SuppressWarnings("NullAway") // NullAway already rejects it at compile time, but not every caller uses it
     void aNullElementFromAnIteratorFailsWhenItIsTraversed() {
-      var source = Source.<Void, Void, String>fromIterator(() -> Arrays.asList("a", null).iterator());
+      var source = Source.fromIterator(() -> Arrays.asList("a", null).iterator());
 
       assertThatThrownBy(() -> source.toList().evalOrElseThrow()).isInstanceOf(NullPointerException.class);
     }
@@ -793,14 +792,14 @@ class SourceTest {
     @Test
     @SuppressWarnings("NullAway") // NullAway already rejects it at compile time, but not every caller uses it
     void aNullElementFromAProgramFailsWhenItIsTraversed() {
-      var source = Source.<Void, Void, String>eval(supply(() -> null));
+      var source = Source.eval(supply(() -> null));
 
       assertThatThrownBy(() -> source.toList().evalOrElseThrow()).isInstanceOf(NullPointerException.class);
     }
 
     @Test
     void catchAllRecoversFromAnElementThatThrows() {
-      var source = Source.<Void, Void, Integer>nonEmpty(
+      var source = Source.nonEmpty(
           Program.raise(IllegalStateException::new), Source.of(2));
 
       var result = source.toList().catchAll(_ -> success(List.of(-1)));
@@ -826,7 +825,7 @@ class SourceTest {
         }
       };
 
-      var result = Source.<Void, Void, Integer>fromIterator(() -> iterator).toList()
+      var result = Source.fromIterator(() -> iterator).toList()
           .catchAll(_ -> success(List.of(-1)));
 
       assertThat(result.evalOrElseThrow()).isEqualTo(List.of(-1));
@@ -835,7 +834,7 @@ class SourceTest {
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     void timeoutStopsTheTraversalOfAnInfiniteSource() {
-      var program = Source.<Void, Void, Long>iterate(0L, x -> x + 1)
+      var program = Source.iterate(0L, x -> x + 1)
           .foldLeft(0L, Long::sum)
           .timeout(Delay.ofMillis(100));
 
