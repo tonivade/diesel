@@ -874,6 +874,24 @@ class ProgramTest {
     assertThat(attempts).hasValue(2);
   }
 
+  @Test
+  void discardPreservesFailure() {
+    var result = Program.failure("error")
+        .discard()
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+  }
+
+  @Test
+  void discardReplacesSuccessWithUnit() {
+    var result = Program.success(1)
+        .discard()
+        .eval();
+
+    assertThat(result).isEqualTo(Result.unit());
+  }
+
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
   static Program<TestDsl.Service, TestDsl.TestError, Integer> newOperation() {

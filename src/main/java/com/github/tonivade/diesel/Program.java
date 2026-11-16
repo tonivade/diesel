@@ -1151,7 +1151,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return the program with the result discarded
    */
   default Program<S, E, Unit> discard() {
-    return transform(_ -> Result.unit());
+    return transform(result -> result.flatMap(_ -> Result.unit()));
   }
 
   /**
