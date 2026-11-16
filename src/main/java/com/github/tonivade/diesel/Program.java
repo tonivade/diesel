@@ -200,16 +200,20 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     }
   }
 
-  record Mapped<S, E, T, R>(Program<S, E, T> current, Function<? super T, ? extends R> mapper) implements Program<S, E, R> {
+  record Fold<S, E, F, T, R>(
+      Program<S, E, T> current,
+      Function<? super E, ? extends F> onFailure,
+      Function<? super T, ? extends R> onSuccess) implements Program<S, F, R> {
 
-    public Mapped {
+    public Fold {
       requireNonNull(current);
-      requireNonNull(mapper);
+      requireNonNull(onFailure);
+      requireNonNull(onSuccess);
     }
 
     @Override
     public final String toString() {
-      return "Map[current=%s, mapper=...]".formatted(current);
+      return "Fold[current=%s, onFailure=..., onSuccess=...]".formatted(current);
     }
   }
 
@@ -1104,7 +1108,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <R> Program<S, E, R> map(Function<? super T, ? extends R> mapper) {
-    return new Mapped<>(this, mapper);
+    return new Fold<>(this, identity(), mapper);
   }
 
   /**
@@ -1115,7 +1119,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <F> Program<S, F, T> mapError(Function<? super E, ? extends F> mapper) {
-    return flatMapError(mapper.andThen(Program::failure));
+    return new Fold<>(this, mapper, identity());
   }
 
   /**

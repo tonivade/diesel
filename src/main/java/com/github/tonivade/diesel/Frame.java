@@ -14,11 +14,14 @@ sealed interface Frame<S> {
   final class Region {}
 
   record FoldFrame<S>(
+    Function<Object, Object> onFailure,
+    Function<Object, Object> onSuccess) implements Frame<S> {
+  }
+
+  record FoldMapFrame<S>(
     Function<Object, Program<S, ?, ?>> onFailure,
     Function<Object, Program<S, ?, ?>> onSuccess) implements Frame<S> {
   }
-
-  record MapFrame<S>(Function<Object, Object> mapper) implements Frame<S> {}
 
   record CatchFrame<S>(Function<Throwable, Program<S, ?, ?>> recover) implements Frame<S> {}
 
@@ -29,14 +32,16 @@ sealed interface Frame<S> {
 
   record RemaskFrame<S>(Region region) implements Frame<S> {}
 
-  static <S> MapFrame<S> map(Function<Object, Object> mapper) {
-    return new MapFrame<>(mapper);
+  static <S> FoldFrame<S> fold(
+      Function<Object, Object> onFailure,
+      Function<Object, Object> onSuccess) {
+    return new FoldFrame<>(onFailure, onSuccess);
   }
 
-  static <S> FoldFrame<S> fold(
+  static <S> FoldMapFrame<S> foldMap(
       Function<Object, Program<S, ?, ?>> onFailure,
       Function<Object, Program<S, ?, ?>> onSuccess) {
-    return new FoldFrame<>(onFailure, onSuccess);
+    return new FoldMapFrame<>(onFailure, onSuccess);
   }
 
   static <S> CatchFrame<S> catch_(Function<Throwable, Program<S, ?, ?>> recover) {

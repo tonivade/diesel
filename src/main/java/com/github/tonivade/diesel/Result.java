@@ -457,6 +457,11 @@ public sealed interface Result<F, S> {
     return flatMapError(mapper.andThen(Result::failure));
   }
 
+  default <E, R> Result<E, R> bimap(
+      Function<? super F, ? extends E> onFailure, Function<? super S, ? extends R> onSuccess) {
+    return fold(onFailure.andThen(Result::failure), onSuccess.andThen(Result::success));
+  }
+
   /**
    * Maps the success value of this result using the provided mapper function and returns a new result.
    *

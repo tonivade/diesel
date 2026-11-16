@@ -9,8 +9,8 @@ import static com.github.tonivade.diesel.Fatal.sneakyThrow;
 
 import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
+import com.github.tonivade.diesel.Frame.FoldMapFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
-import com.github.tonivade.diesel.Frame.MapFrame;
 import com.github.tonivade.diesel.Frame.Region;
 import com.github.tonivade.diesel.Frame.RemaskFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
@@ -18,9 +18,9 @@ import com.github.tonivade.diesel.Program.Access;
 import com.github.tonivade.diesel.Program.Async;
 import com.github.tonivade.diesel.Program.Catch;
 import com.github.tonivade.diesel.Program.Finalize;
+import com.github.tonivade.diesel.Program.Fold;
 import com.github.tonivade.diesel.Program.FoldMap;
 import com.github.tonivade.diesel.Program.Forked;
-import com.github.tonivade.diesel.Program.Mapped;
 import com.github.tonivade.diesel.Program.Memoized;
 import com.github.tonivade.diesel.Program.Poll;
 import com.github.tonivade.diesel.Program.Polled;
@@ -77,18 +77,18 @@ final class Interpreter {
                 case null -> {
                   return (Result<E, T>) currentResult;
                 }
-                case MapFrame(var mapper) -> {
-                  currentResult = currentResult.map(mapper);
+                case FoldFrame(var onFailure, var onSuccess) -> {
+                  currentResult = currentResult.bimap(onFailure, onSuccess);
                   checkCancellation = true;
                 }
-                case FoldFrame(var onFailure, var onSuccess) -> {
+                case FoldMapFrame(var onFailure, var onSuccess) -> {
                   current = currentResult.fold(onFailure, onSuccess);
                   resumed = true;
                 }
                 case FinalizerFrame(var finalizer) -> {
                   var finalResult = currentResult;
                   // run the finalizer and then continue with the result, unless the finalizer throws
-                  stack.push(Frame.fold(Program::failure, _ -> Program.from(finalResult)));
+                  stack.push(Frame.foldMap(Program::failure, _ -> Program.from(finalResult)));
                   enterUncancelable(stack, regions);
                   current = Program.suspend(() -> finalizer.apply(Outcome.from(finalResult)));
                   resumed = true;
@@ -137,13 +137,15 @@ final class Interpreter {
             current = Program.success(new Fiber<>(startFork(state, parent, forked.current(), forked.executor())));
           }
           case FoldMap(var source, var onFailure, var onSuccess) -> {
-            stack.push(Frame.fold(
+            stack.push(Frame.foldMap(
                 (Function<Object, Program<S, ?, ?>>) onFailure,
                 (Function<Object, Program<S, ?, ?>>) onSuccess));
             current = source;
           }
-          case Mapped(var source, var mapper) -> {
-            stack.push(Frame.map((Function<Object, Object>) mapper));
+          case Fold(var source, var onFailure, var onSuccess) -> {
+            stack.push(Frame.fold(
+                (Function<Object, Object>) onFailure,
+                (Function<Object, Object>) onSuccess));
             current = source;
           }
           case Raise(var throwable) -> {
@@ -195,10 +197,10 @@ final class Interpreter {
             }
             case UnmaskFrame(var region) -> regions.remove(region);
             case RemaskFrame(var region) -> regions.push(region);
-            case FoldFrame<S> _ -> {
+            case FoldMapFrame<S> _ -> {
               // a continuation inside the catchAll scope, discarded
             }
-            case MapFrame<S> _ -> {
+            case FoldFrame<S> _ -> {
               // a continuation inside the catchAll scope, discarded
             }
           }
@@ -287,7 +289,7 @@ final class Interpreter {
   @SuppressWarnings("ReferenceEquality")
   private static <S> void runFinalizer(Deque<Frame<S>> stack, Deque<Region> regions, Throwable e) {
     // resumes the unwinding once the finalizer is done, marked so the cancellation keeps it
-    stack.push(Frame.fold(
+    stack.push(Frame.foldMap(
         _ -> Program.raise(new Resume(e)),
         _ -> Program.raise(new Resume(e))));
     enterUncancelable(stack, regions);
