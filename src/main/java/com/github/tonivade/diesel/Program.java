@@ -94,7 +94,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {
-    
+
     /**
      * Creates the program, rejecting null components.
      *
@@ -197,6 +197,19 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     @Override
     public final String toString() {
       return "FoldMap[current=%s, onFailure=..., onSuccess=...]".formatted(current);
+    }
+  }
+
+  record Mapped<S, E, T, R>(Program<S, E, T> current, Function<? super T, ? extends R> mapper) implements Program<S, E, R> {
+
+    public Mapped {
+      requireNonNull(current);
+      requireNonNull(mapper);
+    }
+
+    @Override
+    public final String toString() {
+      return "Map[current=%s, mapper=...]".formatted(current);
     }
   }
 
@@ -1091,7 +1104,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <R> Program<S, E, R> map(Function<? super T, ? extends R> mapper) {
-    return flatMap(mapper.andThen(Program::success));
+    return new Mapped<>(this, mapper);
   }
 
   /**

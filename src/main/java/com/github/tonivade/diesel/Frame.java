@@ -18,6 +18,8 @@ sealed interface Frame<S> {
     Function<Object, Program<S, ?, ?>> onSuccess) implements Frame<S> {
   }
 
+  record MapFrame<S>(Function<Object, Object> mapper) implements Frame<S> {}
+
   record CatchFrame<S>(Function<Throwable, Program<S, ?, ?>> recover) implements Frame<S> {}
 
   record FinalizerFrame<S>(Function<Outcome<?, ?>, Program<S, Void, ?>> finalizer) implements Frame<S> {}
@@ -26,6 +28,10 @@ sealed interface Frame<S> {
   record UnmaskFrame<S>(Region region) implements Frame<S> {}
 
   record RemaskFrame<S>(Region region) implements Frame<S> {}
+
+  static <S> MapFrame<S> map(Function<Object, Object> mapper) {
+    return new MapFrame<>(mapper);
+  }
 
   static <S> FoldFrame<S> fold(
       Function<Object, Program<S, ?, ?>> onFailure,

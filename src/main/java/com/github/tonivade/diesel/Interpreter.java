@@ -10,6 +10,7 @@ import static com.github.tonivade.diesel.Fatal.sneakyThrow;
 import com.github.tonivade.diesel.Frame.CatchFrame;
 import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Frame.MapFrame;
 import com.github.tonivade.diesel.Frame.Region;
 import com.github.tonivade.diesel.Frame.RemaskFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
@@ -19,6 +20,7 @@ import com.github.tonivade.diesel.Program.Catch;
 import com.github.tonivade.diesel.Program.Finalize;
 import com.github.tonivade.diesel.Program.FoldMap;
 import com.github.tonivade.diesel.Program.Forked;
+import com.github.tonivade.diesel.Program.Mapped;
 import com.github.tonivade.diesel.Program.Memoized;
 import com.github.tonivade.diesel.Program.Poll;
 import com.github.tonivade.diesel.Program.Polled;
@@ -60,21 +62,35 @@ final class Interpreter {
             return sneakyThrow(new NullPointerException("program cannot be null"));
           }
           case Pure(var result) -> {
+            var currentResult = result;
             var resumed = false;
+            var checkCancellation = false;
+
             while (!resumed) {
+              if (checkCancellation) {
+                if (shouldStop(token, regions, current)) {
+                  throw cancellation(token, current);
+                }
+                checkCancellation = false;
+              }
               switch (stack.poll()) {
                 case null -> {
-                  return (Result<E, T>) result;
+                  return (Result<E, T>) currentResult;
+                }
+                case MapFrame(var mapper) -> {
+                  currentResult = currentResult.map(mapper);
+                  checkCancellation = true;
                 }
                 case FoldFrame(var onFailure, var onSuccess) -> {
-                  current = result.fold(onFailure, onSuccess);
+                  current = currentResult.fold(onFailure, onSuccess);
                   resumed = true;
                 }
                 case FinalizerFrame(var finalizer) -> {
+                  var finalResult = currentResult;
                   // run the finalizer and then continue with the result, unless the finalizer throws
-                  stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
+                  stack.push(Frame.fold(Program::failure, _ -> Program.from(finalResult)));
                   enterUncancelable(stack, regions);
-                  current = Program.suspend(() -> finalizer.apply(Outcome.from(result)));
+                  current = Program.suspend(() -> finalizer.apply(Outcome.from(finalResult)));
                   resumed = true;
                 }
                 case UnmaskFrame(var region) -> regions.remove(region);
@@ -124,6 +140,10 @@ final class Interpreter {
             stack.push(Frame.fold(
                 (Function<Object, Program<S, ?, ?>>) onFailure,
                 (Function<Object, Program<S, ?, ?>>) onSuccess));
+            current = source;
+          }
+          case Mapped(var source, var mapper) -> {
+            stack.push(Frame.map((Function<Object, Object>) mapper));
             current = source;
           }
           case Raise(var throwable) -> {
@@ -176,6 +196,9 @@ final class Interpreter {
             case UnmaskFrame(var region) -> regions.remove(region);
             case RemaskFrame(var region) -> regions.push(region);
             case FoldFrame<S> _ -> {
+              // a continuation inside the catchAll scope, discarded
+            }
+            case MapFrame<S> _ -> {
               // a continuation inside the catchAll scope, discarded
             }
           }
