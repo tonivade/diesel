@@ -1106,7 +1106,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <R> Program<S, E, R> map(Function<? super T, ? extends R> mapper) {
-    return new Transformed<>(this, result -> result.map(mapper));
+    return transform(result -> result.map(mapper));
   }
 
   /**
@@ -1117,7 +1117,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <F> Program<S, F, T> mapError(Function<? super E, ? extends F> mapper) {
-    return new Transformed<>(this, result -> result.mapError(mapper));
+    return transform(result -> result.mapError(mapper));
   }
 
   /**
@@ -1131,7 +1131,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   default <R, F> Program<S, F, R> bimap(
       Function<? super E, ? extends F> mapFailure, Function<? super T, ? extends R> mapSuccess) {
-    return new Transformed<>(this, result -> result.bimap(mapFailure, mapSuccess));
+    return transform(result -> result.bimap(mapFailure, mapSuccess));
   }
 
   /**
@@ -1151,7 +1151,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return the program with the result discarded
    */
   default Program<S, E, Unit> discard() {
-    return andThen(unit());
+    return transform(_ -> Result.unit());
   }
 
   /**
@@ -1277,7 +1277,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default <R> Program<S, Void, R> fold(
       Function<? super E, ? extends R> onFailure,
       Function<? super T, ? extends R> onSuccess) {
-    return new Transformed<>(this,
+    return transform(
         result -> result.fold(onFailure.andThen(Result::success), onSuccess.andThen(Result::success)));
   }
 
@@ -1848,6 +1848,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record ElapsedTime<T>(Duration duration, T value) {}
+
+  private <F, R> Program<S, F, R> transform(
+      Function<? super Result<E, T>, ? extends Result<F, R>> transform) {
+    return new Transformed<>(this, transform);
+  }
 
   private static <E, T, A> void completeWith(CompletableFuture<Result<E, T>> callback,
       CompletableFuture<? extends A> future, Function<? super A, ? extends Result<E, T>> adapter) {
