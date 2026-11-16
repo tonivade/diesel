@@ -7,6 +7,5 @@ import static com.github.tonivade.diesel.Combine.*;
 import static com.github.tonivade.diesel.Concurrent.*;
 
 import com.github.tonivade.diesel.*;
-import java.time.Duration;
 
 IO.println("Welcome to Diesel Playground!");
