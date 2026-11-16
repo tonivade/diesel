@@ -200,20 +200,18 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     }
   }
 
-  record Fold<S, E, F, T, R>(
+  record Transformed<S, E, F, T, R>(
       Program<S, E, T> current,
-      Function<? super E, ? extends F> onFailure,
-      Function<? super T, ? extends R> onSuccess) implements Program<S, F, R> {
+      Function<? super Result<E, T>, ? extends Result<F, R>> transform) implements Program<S, F, R> {
 
-    public Fold {
+    public Transformed {
       requireNonNull(current);
-      requireNonNull(onFailure);
-      requireNonNull(onSuccess);
+      requireNonNull(transform);
     }
 
     @Override
     public final String toString() {
-      return "Fold[current=%s, onFailure=..., onSuccess=...]".formatted(current);
+      return "Transform[current=%s, transform=...]".formatted(current);
     }
   }
 
@@ -1108,7 +1106,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <R> Program<S, E, R> map(Function<? super T, ? extends R> mapper) {
-    return new Fold<>(this, identity(), mapper);
+    return new Transformed<>(this, result -> result.map(mapper));
   }
 
   /**
@@ -1119,7 +1117,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <F> Program<S, F, T> mapError(Function<? super E, ? extends F> mapper) {
-    return new Fold<>(this, mapper, identity());
+    return new Transformed<>(this, result -> result.mapError(mapper));
   }
 
   /**
@@ -1133,9 +1131,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   default <R, F> Program<S, F, R> bimap(
       Function<? super E, ? extends F> mapFailure, Function<? super T, ? extends R> mapSuccess) {
-    return foldMap(
-        mapFailure.andThen(Program::failure),
-        mapSuccess.andThen(Program::success));
+    return new Transformed<>(this, result -> result.bimap(mapFailure, mapSuccess));
   }
 
   /**
@@ -1281,7 +1277,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default <R> Program<S, Void, R> fold(
       Function<? super E, ? extends R> onFailure,
       Function<? super T, ? extends R> onSuccess) {
-    return foldMap(onFailure.andThen(Program::success), onSuccess.andThen(Program::success));
+    return new Transformed<>(this,
+        result -> result.fold(onFailure.andThen(Result::success), onSuccess.andThen(Result::success)));
   }
 
   /**
