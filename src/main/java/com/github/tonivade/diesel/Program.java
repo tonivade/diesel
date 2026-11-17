@@ -209,9 +209,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       requireNonNull(transform);
     }
 
+    <G, U> Transformed<S, E, G, T, U> andThen(
+        Function<? super Result<F, R>, ? extends Result<G, U>> next) {
+      return new Transformed<>(current, transform.andThen(next));
+    }
+
     @Override
     public final String toString() {
-      return "Transform[current=%s, transform=...]".formatted(current);
+      return "Transformed[current=%s, transform=...]".formatted(current);
     }
   }
 
@@ -1165,10 +1170,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a program that runs the side effect and keeps the value
    */
   default Program<S, E, T> peek(Consumer<? super T> insert) {
-    return flatMap(value -> {
-      insert.accept(value);
-      return success(value);
-    });
+    return transform(
+        result -> result.map(value -> {
+          insert.accept(value);
+          return value;
+        }));
   }
 
   /**
@@ -1181,10 +1187,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a program that runs the side effect and keeps the error
    */
   default Program<S, E, T> peekError(Consumer<? super E> insert) {
-    return flatMapError(error -> {
-      insert.accept(error);
-      return failure(error);
-    });
+    return transform(
+        result -> result.mapError(error -> {
+          insert.accept(error);
+          return error;
+        }));
   }
 
   /**
@@ -1851,6 +1858,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private <F, R> Program<S, F, R> transform(
       Function<? super Result<E, T>, ? extends Result<F, R>> transform) {
+    if (this instanceof Transformed<S, ?, E, ?, T> transformed) {
+      return transformed.andThen(transform);
+    }
     return new Transformed<>(this, transform);
   }
 
