@@ -6,6 +6,8 @@ package com.github.tonivade.diesel;
 
 import java.util.function.Function;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Continuation frames used by {@link Interpreter#run(Program, Object, CancelToken)}.
  */
@@ -17,9 +19,11 @@ sealed interface Frame<S> {
     Function<Result<?, ?>, Result<?, ?>> transform) implements Frame<S> {
   }
 
+  // a null branch means that side isn't handled: the result goes on as it is, like a flatMap with a
+  // failure or a flatMapError with a success, without wrapping it again in a new program
   record FoldFrame<S>(
-    Function<Object, Program<S, ?, ?>> onFailure,
-    Function<Object, Program<S, ?, ?>> onSuccess) implements Frame<S> {
+    @Nullable Function<Object, Program<S, ?, ?>> onFailure,
+    @Nullable Function<Object, Program<S, ?, ?>> onSuccess) implements Frame<S> {
   }
 
   record CatchFrame<S>(Function<Throwable, Program<S, ?, ?>> recover) implements Frame<S> {}
@@ -36,8 +40,8 @@ sealed interface Frame<S> {
   }
 
   static <S> FoldFrame<S> fold(
-      Function<Object, Program<S, ?, ?>> onFailure,
-      Function<Object, Program<S, ?, ?>> onSuccess) {
+      @Nullable Function<Object, Program<S, ?, ?>> onFailure,
+      @Nullable Function<Object, Program<S, ?, ?>> onSuccess) {
     return new FoldFrame<>(onFailure, onSuccess);
   }
 

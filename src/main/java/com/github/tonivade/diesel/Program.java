@@ -164,6 +164,72 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
+   * Represents a computation that continues with another program when the program succeeds, like
+   * {@link #flatMap(Function)}. A failure goes on as it is.
+   *
+   * @param current the current program
+   * @param next the function that creates the next program from the value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the value of the program
+   * @param <R> the type of the value of the next program
+   */
+  record FlatMap<S, E, T, R>(
+      Program<S, E, T> current,
+      Function<? super T, ? extends Program<S, E, R>> next) implements Program<S, E, R> {
+
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param next the function that creates the next program from the value
+     * @throws NullPointerException if any component is {@code null}
+     */
+    public FlatMap {
+      requireNonNull(current);
+      requireNonNull(next);
+    }
+
+    @Override
+    public final String toString() {
+      return "FlatMap[current=%s, next=...]".formatted(current);
+    }
+  }
+
+  /**
+   * Represents a computation that continues with another program when the program fails with an
+   * error, like {@link #flatMapError(Function)}. A success goes on as it is.
+   *
+   * @param current the current program
+   * @param next the function that creates the next program from the error
+   * @param <S> the type of the state
+   * @param <E> the type of the error of the program
+   * @param <F> the type of the error of the next program
+   * @param <T> the type of the value
+   */
+  record FlatMapError<S, E, F, T>(
+      Program<S, E, T> current,
+      Function<? super E, ? extends Program<S, F, T>> next) implements Program<S, F, T> {
+
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param next the function that creates the next program from the error
+     * @throws NullPointerException if any component is {@code null}
+     */
+    public FlatMapError {
+      requireNonNull(current);
+      requireNonNull(next);
+    }
+
+    @Override
+    public final String toString() {
+      return "FlatMapError[current=%s, next=...]".formatted(current);
+    }
+  }
+
+  /**
    * Represents a computation that folds over the result of the program.
    *
    * @param current the current program
@@ -1244,7 +1310,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <R> Program<S, E, R> flatMap(Function<? super T, ? extends Program<S, E, R>> next) {
-    return foldMap(Program::failure, next);
+    return new FlatMap<>(this, next);
   }
 
   /**
@@ -1258,7 +1324,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <F> Program<S, F, T> flatMapError(Function<? super E, ? extends Program<S, F, T>> next) {
-    return foldMap(next, Program::success);
+    return new FlatMapError<>(this, next);
   }
 
   /**

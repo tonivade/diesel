@@ -18,6 +18,8 @@ import com.github.tonivade.diesel.Program.Access;
 import com.github.tonivade.diesel.Program.Async;
 import com.github.tonivade.diesel.Program.Catch;
 import com.github.tonivade.diesel.Program.Finalize;
+import com.github.tonivade.diesel.Program.FlatMap;
+import com.github.tonivade.diesel.Program.FlatMapError;
 import com.github.tonivade.diesel.Program.FoldMap;
 import com.github.tonivade.diesel.Program.Forked;
 import com.github.tonivade.diesel.Program.Memoized;
@@ -29,6 +31,8 @@ import com.github.tonivade.diesel.Program.Suspend;
 import com.github.tonivade.diesel.Program.Transformed;
 import com.github.tonivade.diesel.Program.Uncancelable;
 import com.github.tonivade.diesel.Program.UncancelableWith;
+import com.github.tonivade.diesel.Result.Failure;
+import com.github.tonivade.diesel.Result.Success;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -82,8 +86,18 @@ final class Interpreter {
                   checkCancellation = true;
                 }
                 case FoldFrame(var onFailure, var onSuccess) -> {
-                  current = currentResult.fold(onFailure, onSuccess);
-                  resumed = true;
+                  var next = currentResult instanceof Success ? onSuccess : onFailure;
+                  if (next == null) {
+                    // nobody handles this side: the result goes on as it is, and like any other
+                    // step, it's a point where a cancellation can stop the program
+                    checkCancellation = true;
+                  } else {
+                    current = next.apply(switch (currentResult) {
+                      case Success<?, ?>(var value) -> value;
+                      case Failure<?, ?>(var error) -> error;
+                    });
+                    resumed = true;
+                  }
                 }
                 case FinalizerFrame(var finalizer) -> {
                   var finalResult = currentResult;
@@ -140,6 +154,14 @@ final class Interpreter {
             stack.push(Frame.fold(
                 (Function<Object, Program<S, ?, ?>>) onFailure,
                 (Function<Object, Program<S, ?, ?>>) onSuccess));
+            current = source;
+          }
+          case FlatMap(var source, var next) -> {
+            stack.push(Frame.fold(null, (Function<Object, Program<S, ?, ?>>) next));
+            current = source;
+          }
+          case FlatMapError(var source, var next) -> {
+            stack.push(Frame.fold((Function<Object, Program<S, ?, ?>>) next, null));
             current = source;
           }
           case Transformed(var source, var transform) -> {

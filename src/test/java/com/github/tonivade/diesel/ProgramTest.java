@@ -936,6 +936,48 @@ class ProgramTest {
     assertThat(seen.get()).isEqualTo(Outcome.succeeded(2));
   }
 
+  @Test
+  void aFailureGoesThroughFlatMapsWithoutRunningThem() {
+    var called = new AtomicInteger();
+    var program = Program.<Void, String, Integer>failure("boom")
+        .flatMap(x -> success(called.incrementAndGet() + x))
+        .flatMap(x -> success(called.incrementAndGet() + x));
+
+    assertThat(program.eval()).isEqualTo(Result.failure("boom"));
+    assertThat(called).hasValue(0);
+  }
+
+  @Test
+  void aSuccessGoesThroughFlatMapErrorsWithoutRunningThem() {
+    var called = new AtomicInteger();
+    var program = Program.<Void, String, Integer>success(1)
+        .flatMapError(e -> failure(called.incrementAndGet() + e))
+        .flatMapError(e -> failure(called.incrementAndGet() + e));
+
+    assertThat(program.eval()).isEqualTo(Result.success(1));
+    assertThat(called).hasValue(0);
+  }
+
+  @Test
+  void aFailureThroughALongChainOfFlatMapsIsStackSafe() {
+    Program<Void, String, Integer> program = failure("boom");
+    for (int i = 0; i < 100_000; i++) {
+      program = program.flatMap(x -> success(x + 1));
+    }
+
+    assertThat(program.eval()).isEqualTo(Result.failure("boom"));
+  }
+
+  @Test
+  void aSuccessThroughALongChainOfFlatMapErrorsIsStackSafe() {
+    Program<Void, String, Integer> program = success(1);
+    for (int i = 0; i < 100_000; i++) {
+      program = program.flatMapError(e -> failure(e + "!"));
+    }
+
+    assertThat(program.eval()).isEqualTo(Result.success(1));
+  }
+
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
   static Program<TestDsl.Service, TestDsl.TestError, Integer> newOperation() {
