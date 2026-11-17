@@ -209,11 +209,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       requireNonNull(transform);
     }
 
-    <G, U> Transformed<S, E, G, T, U> andThen(
-        Function<? super Result<F, R>, ? extends Result<G, U>> next) {
-      return new Transformed<>(current, transform.andThen(next));
-    }
-
     @Override
     public final String toString() {
       return "Transformed[current=%s, transform=...]".formatted(current);
@@ -1858,9 +1853,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
   private <F, R> Program<S, F, R> transform(
       Function<? super Result<E, T>, ? extends Result<F, R>> transform) {
-    if (this instanceof Transformed<S, ?, E, ?, T> transformed) {
-      return transformed.andThen(transform);
-    }
     return new Transformed<>(this, transform);
   }
 
@@ -1879,6 +1871,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       }
     });
   }
+
 
   private static <T> ElapsedTime<T> elapsedTime(Long start, Long end, T value) {
     return new ElapsedTime<>(Duration.ofNanos(end - start), value);
