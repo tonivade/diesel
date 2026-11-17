@@ -200,10 +200,31 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     }
   }
 
+  /**
+   * Represents a computation that transforms the result of the program, its value or its error,
+   * without running another program, like {@link #map(Function)} or {@link #mapError(Function)}.
+   *
+   * <p>An exception of the program isn't transformed: it goes on as it is.
+   *
+   * @param current the current program
+   * @param transform the function used to transform the result of the program
+   * @param <S> the type of the state
+   * @param <E> the type of the error of the program
+   * @param <F> the type of the error of the transformed result
+   * @param <T> the type of the value of the program
+   * @param <R> the type of the value of the transformed result
+   */
   record Transformed<S, E, F, T, R>(
       Program<S, E, T> current,
       Function<? super Result<E, T>, ? extends Result<F, R>> transform) implements Program<S, F, R> {
 
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param transform the function used to transform the result of the program
+     * @throws NullPointerException if any component is {@code null}
+     */
     public Transformed {
       requireNonNull(current);
       requireNonNull(transform);
@@ -1871,7 +1892,6 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       }
     });
   }
-
 
   private static <T> ElapsedTime<T> elapsedTime(Long start, Long end, T value) {
     return new ElapsedTime<>(Duration.ofNanos(end - start), value);

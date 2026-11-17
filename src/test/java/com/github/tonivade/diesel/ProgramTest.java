@@ -892,6 +892,50 @@ class ProgramTest {
     assertThat(result).isEqualTo(Result.unit());
   }
 
+  @Test
+  void aLongChainOfMapsIsStackSafe() {
+    Program<Void, String, Integer> program = success(0);
+    for (int i = 0; i < 100_000; i++) {
+      program = program.map(x -> x + 1).mapError(e -> e);
+    }
+
+    assertThat(program.eval()).isEqualTo(Result.success(100_000));
+  }
+
+  @Test
+  void anExceptionOfAMapperCanBeCaught() {
+    var program = Program.<Void, String, Integer>success(1)
+        .<Integer>map(_ -> {
+          throw new IllegalStateException();
+        })
+        .catchAll(_ -> success(-1));
+
+    assertThat(program.eval()).isEqualTo(Result.success(-1));
+  }
+
+  @Test
+  void mapDoesNotTransformAnException() {
+    var mapped = new AtomicInteger();
+    var program = Program.<Void, String, Integer>raise(IllegalStateException::new)
+        .map(x -> mapped.incrementAndGet() + x)
+        .mapError(e -> e + "!");
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(mapped).hasValue(0);
+  }
+
+  @Test
+  void aFinalizerBetweenTwoMapsSeesTheValueOfTheFirstOne() {
+    var seen = new AtomicReference<Outcome<?, ?>>();
+    var program = Program.<Void, String, Integer>success(1)
+        .map(x -> x + 1)
+        .onExit(o -> record(seen, o))
+        .map(x -> x * 10);
+
+    assertThat(program.eval()).isEqualTo(Result.success(20));
+    assertThat(seen.get()).isEqualTo(Outcome.succeeded(2));
+  }
+
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
   static Program<TestDsl.Service, TestDsl.TestError, Integer> newOperation() {

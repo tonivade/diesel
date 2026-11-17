@@ -17,8 +17,6 @@ import static java.util.Objects.requireNonNull;
  */
 public sealed interface Outcome<E, T> {
 
-  static final Canceled<?, ?> CANCELED = new Canceled<>();
-
   /**
    * The program ended with a value.
    *
@@ -87,6 +85,9 @@ public sealed interface Outcome<E, T> {
    */
   final class Canceled<E, T> implements Outcome<E, T> {
 
+    // the only instance: a cancellation carries nothing
+    private static final Canceled<?, ?> INSTANCE = new Canceled<>();
+
     private Canceled() {
     }
 
@@ -141,7 +142,7 @@ public sealed interface Outcome<E, T> {
    */
   @SuppressWarnings("unchecked")
   static <E, T> Outcome<E, T> canceled() {
-    return (Outcome<E, T>) CANCELED;
+    return (Outcome<E, T>) Canceled.INSTANCE;
   }
 
   /**

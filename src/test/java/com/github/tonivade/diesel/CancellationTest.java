@@ -828,6 +828,28 @@ class CancellationTest {
   }
 
   @Test
+  void aLongChainOfMapsCanBeCancelledBetweenSteps() throws Exception {
+    var count = new AtomicInteger();
+    var started = new CompletableFuture<Void>();
+    // the transforms run without going back to the main loop, but each one is a cancellation point
+    Program<Void, String, Integer> program = Program.success(0);
+    for (int i = 0; i < 2_000_000; i++) {
+      program = program.map(x -> {
+        started.complete(null);
+        count.incrementAndGet();
+        return x + 1;
+      });
+    }
+
+    var fiber = program.fork().evalOrElseThrow();
+    started.get(5, TimeUnit.SECONDS);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(count.get()).isLessThan(2_000_000);
+  }
+
+  @Test
   void anExceptionUnwindingWhenTheProgramIsCancelledIsKeptAsSuppressed() throws Exception {
     var finalizing = new CompletableFuture<Void>();
     var release = new CompletableFuture<Void>();
