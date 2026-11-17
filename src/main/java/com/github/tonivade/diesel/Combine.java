@@ -929,7 +929,7 @@ public final class Combine {
    */
   public static <S, E, T> Program<S, E, T> attempt(
       CheckedSupplier<? extends T> supplier, Function<? super Throwable, ? extends E> mapError) {
-    return recover(Program.attempt(supplier), mapError.andThen(Program::failure));
+    return Program.<S, T>attempt(supplier).mapError(mapError);
   }
 
   /**

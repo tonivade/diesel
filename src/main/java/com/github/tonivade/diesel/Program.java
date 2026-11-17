@@ -1858,9 +1858,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   @SafeVarargs
   static <S, E, T> Program<S, Collection<E>, T> validate(T value, Validator<S, E, T>... validators) {
     return traverse(v -> v.apply(value), validators)
-        .foldMap(
-            _ -> success(value),
-            result -> Validation.combine(result).fold(() -> success(value), Program::failure));
+        .transform(validations -> validations.fold(
+            _ -> Result.success(value),
+            result -> Validation.combine(result).fold(() -> Result.success(value), Result::failure)));
   }
 
   /**

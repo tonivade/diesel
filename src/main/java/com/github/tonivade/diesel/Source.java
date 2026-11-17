@@ -528,7 +528,8 @@ public sealed interface Source<S, E, T> extends Kind<Source<S, E, ?>, T> {
 
     @Override
     public <R> Source<S, E, R> map(Function<? super T, ? extends R> mapper) {
-      return mapEval(mapper.andThen(Program::success));
+      // like mapEval, but without a program for each element
+      return suspend(() -> nonEmpty(head.map(mapper), tail.map(mapper)));
     }
 
     @Override
