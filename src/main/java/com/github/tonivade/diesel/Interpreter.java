@@ -61,6 +61,8 @@ final class Interpreter {
         if (shouldStop(token, regions, current)) {
           throw cancellation(token, current);
         }
+        // the order of the cases matters: the switch is compiled as a chain of type checks in this
+        // order, so the most frequent steps go first and the rare ones at the end
         switch (current) {
           case null -> {
             return sneakyThrow(new NullPointerException("program cannot be null"));
@@ -115,6 +117,38 @@ final class Interpreter {
               }
             }
           }
+          case FlatMap(var source, var next) -> {
+            stack.push(Frame.fold(null, (Function<Object, Program<S, ?, ?>>) next));
+            current = source;
+          }
+          case Transformed(var source, var transform) -> {
+            stack.push(Frame.transform((Function<Result<?, ?>, Result<?, ?>>) transform));
+            current = source;
+          }
+          case FoldMap(var source, var onFailure, var onSuccess) -> {
+            stack.push(Frame.fold(
+                (Function<Object, Program<S, ?, ?>>) onFailure,
+                (Function<Object, Program<S, ?, ?>>) onSuccess));
+            current = source;
+          }
+          case FlatMapError(var source, var next) -> {
+            stack.push(Frame.fold((Function<Object, Program<S, ?, ?>>) next, null));
+            current = source;
+          }
+          case Suspend(var supplier) -> {
+            current = supplier.get();
+          }
+          case Catch(var source, var recover) -> {
+            stack.push(Frame.catch_((Function<Throwable, Program<S, ?, ?>>) recover));
+            current = source;
+          }
+          case Raise(var throwable) -> {
+            return sneakyThrow(throwable.get());
+          }
+          case Finalize(var source, var finalizer) -> {
+            stack.push(Frame.finalizer((Function<Outcome<?, ?>, Program<S, Void, ?>>) finalizer));
+            current = source;
+          }
           case Access(var mapper) -> {
             current = mapper.apply(state);
           }
@@ -123,10 +157,6 @@ final class Interpreter {
             var result = regions.isEmpty() ?
                 awaitCancelable(state, async, token) : awaitUncancelable(state, async);
             current = Program.from(result);
-          }
-          case Finalize(var source, var finalizer) -> {
-            stack.push(Frame.finalizer((Function<Outcome<?, ?>, Program<S, Void, ?>>) finalizer));
-            current = source;
           }
           case Uncancelable(var source) -> {
             enterUncancelable(stack, regions);
@@ -149,34 +179,6 @@ final class Interpreter {
             // programs that wait for their forks, like timeout or par*, are not affected
             var parent = regions.isEmpty() ? token : CancelToken.NONE;
             current = Program.success(new Fiber<>(startFork(state, parent, forked.current(), forked.executor())));
-          }
-          case FoldMap(var source, var onFailure, var onSuccess) -> {
-            stack.push(Frame.fold(
-                (Function<Object, Program<S, ?, ?>>) onFailure,
-                (Function<Object, Program<S, ?, ?>>) onSuccess));
-            current = source;
-          }
-          case FlatMap(var source, var next) -> {
-            stack.push(Frame.fold(null, (Function<Object, Program<S, ?, ?>>) next));
-            current = source;
-          }
-          case FlatMapError(var source, var next) -> {
-            stack.push(Frame.fold((Function<Object, Program<S, ?, ?>>) next, null));
-            current = source;
-          }
-          case Transformed(var source, var transform) -> {
-            stack.push(Frame.transform((Function<Result<?, ?>, Result<?, ?>>) transform));
-            current = source;
-          }
-          case Raise(var throwable) -> {
-            return sneakyThrow(throwable.get());
-          }
-          case Catch(var source, var recover) -> {
-            stack.push(Frame.catch_((Function<Throwable, Program<S, ?, ?>>) recover));
-            current = source;
-          }
-          case Suspend(var supplier) -> {
-            current = supplier.get();
           }
           case Memoized memoized -> {
             current = memoized.run();
