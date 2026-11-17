@@ -3,9 +3,14 @@
 
 //DEPS org.openjdk.jmh:jmh-core:1.37
 //DEPS org.openjdk.jmh:jmh-generator-annprocess:1.37
-//DEPS com.github.tonivade:diesel:0.14
+//DEPS com.github.tonivade:diesel:${diesel.version:0.14}
+//REPOS mavenlocal,mavencentral
 
-//JAVA 27+
+// Runs against the diesel version given with -Ddiesel.version, the last release by default. To
+// measure the working copy: ./gradlew publishToMavenLocal, and then
+//   jbang run -Ddiesel.version=0.15-SNAPSHOT benchmarks/<Benchmark>.java
+
+//JAVA 25+
 
 //JAVAC_OPTIONS -processor org.openjdk.jmh.generators.BenchmarkProcessor
 
@@ -13,6 +18,7 @@
  * Copyright (c) 2025-2026, Antonio Gabriel Muñoz Conejo <me at tonivade dot es>
  * Distributed under the terms of the MIT License
  */
+// the cost of diesel compared with the same work in plain Java
 package test;
 
 import static com.github.tonivade.diesel.Combine.chain;
@@ -23,6 +29,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.runner.*;
@@ -35,7 +43,7 @@ import com.github.tonivade.diesel.Program;
 @Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 5, time = 1)
 @Fork(3)
-public class DieselPerformance {
+public class DieselOverheadBenchmark {
 
   /*
    * Runtime benchmarks
@@ -44,7 +52,8 @@ public class DieselPerformance {
   @State(Scope.Thread)
   public static class RuntimeState {
 
-    @Param({ "1000", "10000" })
+    // a small amount of work shows the fixed cost of evaluating a program
+    @Param({ "10", "1000", "10000" })
     public int work;
 
     private Program<Void, Void, Long> program;
@@ -76,10 +85,16 @@ public class DieselPerformance {
     public int n;
 
     private Program<Void, Void, Integer> program;
+    // the same functions composed directly, so the JIT can't fold the loop into a constant
+    private Function<Integer, Integer> composed;
 
     @Setup(Level.Trial)
     public void setup() {
       program = buildComposition(n);
+      composed = Function.identity();
+      for (int i = 0; i < n; i++) {
+        composed = composed.andThen(value -> value + 1);
+      }
     }
   }
 
@@ -102,11 +117,7 @@ public class DieselPerformance {
 
   @Benchmark
   public int javaCompositionEvaluation(CompositionState state) {
-    int value = 0;
-    for (int i = 0; i < state.n; i++) {
-      value++;
-    }
-    return value;
+    return state.composed.apply(0);
   }
 
   /*
@@ -118,6 +129,11 @@ public class DieselPerformance {
 
     private Program<Void, Integer, Integer> typedFailure;
     private Program<Void, Void, Integer> exceptionFailure;
+
+    // read from the state, so the JIT can't turn the baselines into constants
+    private Integer error = 1;
+    private int value = 0;
+    private Supplier<IllegalStateException> exception = IllegalStateException::new;
 
     @Setup(Level.Trial)
     public void setup() {
@@ -143,118 +159,21 @@ public class DieselPerformance {
   }
 
   @Benchmark
-  public int javaTypedFailureRecovery() {
-    Integer error = 1;
-    int value = 0;
-
-    if (error != null) {
+  public int javaTypedFailureRecovery(ErrorState state) {
+    if (state.error != null) {
       return 42;
     }
-    return value;
+    return state.value;
   }
 
+  // the exception is created like in the diesel version, with its stack trace
   @Benchmark
-  public int javaExceptionRecovery() {
+  public int javaExceptionRecovery(ErrorState state) {
     try {
-      throw new IllegalStateException();
+      throw state.exception.get();
     } catch (IllegalStateException error) {
       return 42;
     }
-  }
-
-  /*
-   * Fiber benchmarks
-   */
-
-  @State(Scope.Thread)
-  public static class FiberState {
-
-    @Param({ "1000", "10000", "100000" })
-    public int work;
-
-    private Program<Void, Void, Long> program;
-
-    @Setup(Level.Trial)
-    public void setup() {
-      program = Program.supply(() -> cpuWork(work));
-    }
-  }
-
-  @Benchmark
-  public long dieselForkJoin(FiberState state) {
-    return pipe(
-        state.program.fork(),
-        fiber -> fiber.<Void>join())
-        .evalOrElseThrow();
-  }
-
-  /*
-   * Parallel execution benchmarks
-   */
-
-  @State(Scope.Thread)
-  public static class ParallelState {
-
-    @Param({ "1000", "10000", "100000", "1000000" })
-    public int work;
-
-    private Program<Void, Void, Long> first;
-    private Program<Void, Void, Long> second;
-    private Program<Void, Void, Long> sequential;
-    private Program<Void, Void, Long> parallel;
-
-    private ExecutorService javaExecutor;
-
-    @Setup(Level.Trial)
-    public void setup() {
-      first = Program.supply(() -> cpuWork(work));
-      second = Program.supply(() -> cpuWork(work));
-
-      sequential = pipe(
-          first,
-          left -> pipe(
-              second,
-              right -> Program.success(left + right)));
-
-      parallel = parZip(
-          first,
-          second,
-          Long::sum);
-
-      javaExecutor = Executors.newVirtualThreadPerTaskExecutor();
-    }
-
-    @TearDown(Level.Trial)
-    public void tearDown() throws InterruptedException {
-      javaExecutor.close();
-    }
-  }
-
-  @Benchmark
-  public long javaSequential(ParallelState state) {
-    long left = cpuWork(state.work);
-    long right = cpuWork(state.work);
-    return left + right;
-  }
-
-  @Benchmark
-  public long javaParallel(ParallelState state) throws Exception {
-    Future<Long> first = state.javaExecutor.submit(
-        () -> cpuWork(state.work));
-    Future<Long> second = state.javaExecutor.submit(
-        () -> cpuWork(state.work));
-
-    return first.get() + second.get();
-  }
-
-  @Benchmark
-  public long dieselSequential(ParallelState state) {
-    return state.sequential.evalOrElseThrow();
-  }
-
-  @Benchmark
-  public long dieselParallel(ParallelState state) {
-    return state.parallel.evalOrElseThrow();
   }
 
   /*
@@ -283,7 +202,7 @@ public class DieselPerformance {
 
   public static void main(String[] args) throws Exception {
     Options opt = new OptionsBuilder()
-        .include(DieselPerformance.class.getSimpleName())
+        .include(DieselOverheadBenchmark.class.getSimpleName())
         .addProfiler("gc")
         .build();
 

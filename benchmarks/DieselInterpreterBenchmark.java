@@ -1,7 +1,12 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //DEPS org.openjdk.jmh:jmh-core:1.37
 //DEPS org.openjdk.jmh:jmh-generator-annprocess:1.37
-//DEPS com.github.tonivade:diesel:0.14
+//DEPS com.github.tonivade:diesel:${diesel.version:0.14}
+//REPOS mavenlocal,mavencentral
+
+// Runs against the diesel version given with -Ddiesel.version, the last release by default. To
+// measure the working copy: ./gradlew publishToMavenLocal, and then
+//   jbang run -Ddiesel.version=0.15-SNAPSHOT benchmarks/<Benchmark>.java
 //JAVA 25+
 //JAVAC_OPTIONS -processor org.openjdk.jmh.generators.BenchmarkProcessor
 
@@ -31,7 +36,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.runner.Runner;
-import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @BenchmarkMode(Mode.AverageTime)
@@ -45,24 +49,38 @@ public class DieselInterpreterBenchmark {
   @Param({"0", "1", "10", "100", "500", "1000"})
   public int depth;
 
-  private Program<Void, Integer, Integer> pure;
+  // thrown without a stack trace, so the benchmark measures the unwinding, not creating it
+  private static final RuntimeException ERROR = new BenchmarkError();
+
+  private static final class BenchmarkError extends RuntimeException {
+    BenchmarkError() {
+      super("error", null, false, false);
+    }
+  }
+
   private Program<Void, Integer, Integer> map;
   private Program<Void, Integer, Integer> flatMap;
   private Program<Void, Integer, Integer> foldMapSuccess;
   private Program<Void, Integer, Integer> foldMapFailure;
+  private Program<Void, Integer, Integer> failureThroughFlatMap;
+  private Program<Void, Integer, Integer> successThroughFlatMapError;
+  private Program<Void, Integer, Integer> mapErrorFailure;
+  private Program<Void, Integer, Integer> peek;
+  private Program<Void, Integer, Integer> exceptionUnwinding;
+  private Program<Void, Integer, Integer> finalizers;
 
   @Setup(Level.Trial)
   public void setup() {
-    pure = Program.success(0);
     map = buildMap(depth);
     flatMap = buildFlatMap(depth);
     foldMapSuccess = buildFoldMapSuccess(depth);
     foldMapFailure = buildFoldMapFailure(depth);
-  }
-
-  @Benchmark
-  public Object pure() {
-    return pure.eval();
+    failureThroughFlatMap = buildFailureThroughFlatMap(depth);
+    successThroughFlatMapError = buildSuccessThroughFlatMapError(depth);
+    mapErrorFailure = buildMapErrorFailure(depth);
+    peek = buildPeek(depth);
+    exceptionUnwinding = buildExceptionUnwinding(depth);
+    finalizers = buildFinalizers(depth);
   }
 
   @Benchmark
@@ -83,6 +101,100 @@ public class DieselInterpreterBenchmark {
   @Benchmark
   public Object foldMapFailure() {
     return foldMapFailure.eval();
+  }
+
+  // a failure that goes through flatMaps that don't handle it
+  @Benchmark
+  public Object failureThroughFlatMap() {
+    return failureThroughFlatMap.eval();
+  }
+
+  // a success that goes through flatMapErrors that don't handle it, like recover over programs that
+  // don't fail
+  @Benchmark
+  public Object successThroughFlatMapError() {
+    return successThroughFlatMapError.eval();
+  }
+
+  @Benchmark
+  public Object mapErrorFailure() {
+    return mapErrorFailure.eval();
+  }
+
+  @Benchmark
+  public Object peek() {
+    return peek.eval();
+  }
+
+  // an exception raised under a chain of flatMaps and caught on top
+  @Benchmark
+  public Object exceptionUnwinding() {
+    return exceptionUnwinding.eval();
+  }
+
+  @Benchmark
+  public Object finalizers() {
+    return finalizers.eval();
+  }
+
+  private static Program<Void, Integer, Integer> buildFailureThroughFlatMap(int depth) {
+    Program<Void, Integer, Integer> program = Program.failure(0);
+
+    for (int i = 0; i < depth; i++) {
+      program = program.flatMap(value -> Program.<Void, Integer, Integer>success(value + 1));
+    }
+
+    return program;
+  }
+
+  private static Program<Void, Integer, Integer> buildSuccessThroughFlatMapError(int depth) {
+    Program<Void, Integer, Integer> program = Program.success(0);
+
+    for (int i = 0; i < depth; i++) {
+      program = program.flatMapError(error -> Program.<Void, Integer, Integer>failure(error + 1));
+    }
+
+    return program;
+  }
+
+  private static Program<Void, Integer, Integer> buildMapErrorFailure(int depth) {
+    Program<Void, Integer, Integer> program = Program.failure(0);
+
+    for (int i = 0; i < depth; i++) {
+      program = program.mapError(error -> error + 1);
+    }
+
+    return program;
+  }
+
+  private static Program<Void, Integer, Integer> buildPeek(int depth) {
+    Program<Void, Integer, Integer> program = Program.success(0);
+
+    for (int i = 0; i < depth; i++) {
+      program = program.peek(_ -> {});
+    }
+
+    return program;
+  }
+
+  private static Program<Void, Integer, Integer> buildExceptionUnwinding(int depth) {
+    Program<Void, Integer, Integer> program = Program.raise(() -> ERROR);
+
+    for (int i = 0; i < depth; i++) {
+      program = program.flatMap(value -> Program.<Void, Integer, Integer>success(value + 1));
+    }
+
+    return program.catchAll(_ -> Program.success(-1));
+  }
+
+  private static Program<Void, Integer, Integer> buildFinalizers(int depth) {
+    Program<Void, Integer, Integer> program = Program.success(0);
+
+    for (int i = 0; i < depth; i++) {
+      program = program.ensuring(Program.<Void, Void>unit());
+    }
+
+    return program;
   }
 
   private static Program<Void, Integer, Integer> buildMap(int depth) {
@@ -131,12 +243,14 @@ public class DieselInterpreterBenchmark {
   }
 
   public static void main(String[] args) throws Exception {
-    Options opt = new OptionsBuilder()
+    var builder = new OptionsBuilder()
         .include(DieselInterpreterBenchmark.class.getSimpleName())
-        .addProfiler("gc")
-        .addProfiler("jfr")
-        .build();
+        .addProfiler("gc");
+    // to investigate, not for comparing runs: jbang run -Djfr=true ...
+    if (Boolean.getBoolean("jfr")) {
+      builder.addProfiler("jfr");
+    }
 
-    new Runner(opt).run();
+    new Runner(builder.build()).run();
   }
 }
