@@ -483,13 +483,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     }
 
     private Program<S, E, T> lead(Running<E, T> running) {
-      return current.foldMap(
-          error -> pipe(
-              publish(running, Result.failure(error)),
-              _ -> failure(error)),
-          value -> pipe(
-              publish(running, Result.success(value)),
-              _ -> success(value)))
+      return pipe(
+          Program.<S, E, Result<E, T>>widen(current.materialize()),
+          result -> pipe(
+              publish(running, result),
+              _ -> from(result)))
           // always runs, also on exception or cancellation. After a normal publish it does nothing
           .ensuring(suspend(() -> release(running)));
     }
@@ -1418,10 +1416,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default Program<S, Void, ElapsedTime<Result<E, T>>> timedResult(Program<S, Void, Long> nanoTime) {
     return pipe(
         nanoTime,
-        start -> foldMap(
-            error -> chain(nanoTime, end -> elapsedTime(start, end, Result.failure(error))),
-            value -> chain(nanoTime, end -> elapsedTime(start, end, Result.success(value))))
-        );
+        start -> pipe(
+            materialize(),
+            result -> chain(nanoTime, end -> elapsedTime(start, end, result))));
   }
 
   /**
@@ -1941,6 +1938,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   private <F, R> Program<S, F, R> transform(
       Function<? super Result<E, T>, ? extends Result<F, R>> transform) {
     return new Transformed<>(this, transform);
+  }
+
+  // the result of the program as its value, a typed error included: it can't fail with an error,
+  // but an exception still goes on as it is
+  private Program<S, Void, Result<E, T>> materialize() {
+    return transform(Result::success);
   }
 
   private static <E, T, A> void completeWith(CompletableFuture<Result<E, T>> callback,
