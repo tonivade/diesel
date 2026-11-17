@@ -60,6 +60,7 @@ public class DieselInterpreterBenchmark {
 
   private Program<Void, Integer, Integer> map;
   private Program<Void, Integer, Integer> flatMap;
+  private Program<Void, Integer, Integer> mixedMapFlatMap;
   private Program<Void, Integer, Integer> foldMapSuccess;
   private Program<Void, Integer, Integer> foldMapFailure;
   private Program<Void, Integer, Integer> failureThroughFlatMap;
@@ -73,6 +74,7 @@ public class DieselInterpreterBenchmark {
   public void setup() {
     map = buildMap(depth);
     flatMap = buildFlatMap(depth);
+    mixedMapFlatMap = buildMixedMapFlatMap(depth);
     foldMapSuccess = buildFoldMapSuccess(depth);
     foldMapFailure = buildFoldMapFailure(depth);
     failureThroughFlatMap = buildFailureThroughFlatMap(depth);
@@ -91,6 +93,13 @@ public class DieselInterpreterBenchmark {
   @Benchmark
   public Object flatMap() {
     return flatMap.eval();
+  }
+
+  // map and flatMap alternated, as in real code: the interpreter sees both kinds of frames mixed,
+  // unlike map and flatMap, which only see one
+  @Benchmark
+  public Object mixedMapFlatMap() {
+    return mixedMapFlatMap.eval();
   }
 
   @Benchmark
@@ -213,6 +222,18 @@ public class DieselInterpreterBenchmark {
     for (int i = 0; i < depth; i++) {
       program = pipe(program,
           value -> Program.<Void, Integer, Integer>success(value + 1));
+    }
+
+    return program;
+  }
+
+  private static Program<Void, Integer, Integer> buildMixedMapFlatMap(int depth) {
+    Program<Void, Integer, Integer> program = Program.success(0);
+
+    for (int i = 0; i < depth; i++) {
+      program = i % 2 == 0
+          ? chain(program, value -> value + 1)
+          : pipe(program, value -> Program.<Void, Integer, Integer>success(value + 1));
     }
 
     return program;
