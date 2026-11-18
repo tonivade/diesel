@@ -21,6 +21,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
+import org.jspecify.annotations.Nullable;
 import org.pcollections.PSequence;
 import org.pcollections.TreePVector;
 
@@ -237,7 +238,7 @@ public sealed interface Source<S, E, T> extends Kind<Source<S, E, ?>, T> {
    * @return a source that traverses the iterator
    */
   static <S, E, T> Source<S, E, T> fromIterator(Supplier<? extends Iterator<? extends T>> iterator) {
-    return suspend(() -> step(iterator.get()));
+    return suspend(() -> Step.source(iterator.get()));
   }
 
   /**
@@ -1075,14 +1076,36 @@ public sealed interface Source<S, E, T> extends Kind<Source<S, E, ?>, T> {
   private static <S, E, T> Source<S, E, T> defer(Supplier<Program<S, E, Source<S, E, T>>> program) {
     return new Suspend<>(Program.suspend(program));
   }
+}
 
-  private static <S, E, T> Source<S, E, T> step(Iterator<? extends T> iterator) {
-    // memoized: the iterator advances once per cell, however many times the cell is evaluated
-    return new Suspend<>(Program.<S, E, Source<S, E, T>>supply(() -> {
-      if (iterator.hasNext()) {
-        return nonEmpty(success(iterator.next()), step(iterator));
-      }
-      return empty();
-    }).memoized());
+// a cell of a source read from an iterator. It reads the next element once, the first time it's
+// evaluated, and keeps it, so the iterator advances once per cell however many times the cell is
+// evaluated. Reading is synchronous, so a lock is enough, without the machinery of
+// Program.memoized for programs that can be asynchronous or cancelled. If the iterator throws,
+// nothing is kept, and the next evaluation tries again. The one difference with Program.memoized:
+// if the iterator blocks while a fiber reads it, other fibers waiting for the same cell can't be
+// cancelled until the read ends
+final class Step<S, E, T> {
+
+  private final Iterator<? extends T> iterator;
+  private @Nullable Source<S, E, T> next;
+
+  private Step(Iterator<? extends T> iterator) {
+    this.iterator = iterator;
+  }
+
+  static <S, E, T> Source<S, E, T> source(Iterator<? extends T> iterator) {
+    return new Source.Suspend<>(Program.supply(new Step<S, E, T>(iterator)::next));
+  }
+
+  private synchronized Source<S, E, T> next() {
+    var current = next;
+    if (current == null) {
+      current = iterator.hasNext()
+          ? Source.nonEmpty(success(iterator.next()), source(iterator))
+          : Source.empty();
+      next = current;
+    }
+    return current;
   }
 }

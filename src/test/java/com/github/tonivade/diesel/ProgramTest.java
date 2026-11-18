@@ -875,6 +875,56 @@ class ProgramTest {
   }
 
   @Test
+  void aCancelledWaiterDoesNotAffectTheOthers() throws InterruptedException {
+    var calls = new AtomicInteger();
+    var started = new CountDownLatch(1);
+    var release = new CompletableFuture<Void>();
+    var program = Program.<Void, Void, Integer>supply(() -> {
+      calls.incrementAndGet();
+      started.countDown();
+      release.join();
+      return 42;
+    }).memoized();
+
+    var leader = program.fork().evalOrElseThrow();
+    started.await();
+    var waiter = program.fork().evalOrElseThrow();
+    // gives the waiter time to start waiting for the leader
+    Thread.sleep(50);
+    waiter.cancel().evalOrElseThrow();
+    release.complete(null);
+
+    assertThat(waiter.poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(leader.join().evalOrElseThrow()).isEqualTo(42);
+    assertThat(program.evalOrElseThrow()).isEqualTo(42);
+    assertThat(calls).hasValue(1);
+  }
+
+  @Test
+  void aCancelledLeaderLetsAWaiterRunItAgain() throws InterruptedException {
+    var attempts = new AtomicInteger();
+    var started = new CountDownLatch(1);
+    var program = Program.<Void, Void, Integer>suspend(() -> {
+      if (attempts.incrementAndGet() == 1) {
+        started.countDown();
+        return never();
+      }
+      return success(42);
+    }).memoized();
+
+    var leader = program.fork().evalOrElseThrow();
+    started.await();
+    var waiter = program.fork().evalOrElseThrow();
+    // gives the waiter time to start waiting for the leader
+    Thread.sleep(50);
+    leader.cancel().evalOrElseThrow();
+
+    assertThat(waiter.join().evalOrElseThrow()).isEqualTo(42);
+    assertThat(program.evalOrElseThrow()).isEqualTo(42);
+    assertThat(attempts).hasValue(2);
+  }
+
+  @Test
   void discardPreservesFailure() {
     var result = Program.failure("error")
         .discard()

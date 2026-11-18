@@ -8,9 +8,7 @@ import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.delayed;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
-import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Fatal.sneakyThrow;
-import static com.github.tonivade.diesel.function.Finisher2.first;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 
@@ -455,11 +453,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
     private sealed interface State<E, T> {}
     private record Idle<E, T>() implements State<E, T> {}
-    private record Running<E, T>(Deferred<Optional<Result<E, T>>> done) implements State<E, T> {}
+    // done completes with the result, or empty if the evaluation that runs the program gives up
+    private record Running<E, T>(CompletableFuture<Optional<Result<E, T>>> done) implements State<E, T> {}
     private record Done<E, T>(Result<E, T> result) implements State<E, T> {}
 
+    private static final Idle<?, ?> IDLE = new Idle<>();
+
     private final Program<S, E, T> current;
-    private final AtomicReference<State<E, T>> state = new AtomicReference<>(new Idle<>());
+    private final AtomicReference<State<E, T>> state = new AtomicReference<>(idle());
 
     Memoized(Program<S, E, T> current) {
       this.current = requireNonNull(current);
@@ -474,7 +475,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           case Done<E, T>(var result) -> from(result);
           case Running<E, T>(var done) -> await(done);
           case Idle<E, T> _ -> {
-            var running = new Running<E, T>(Deferred.create());
+            var running = new Running<E, T>(new CompletableFuture<>());
             // if another evaluation claimed it first, look at the state again
             yield state.compareAndSet(observed, running) ? lead(running) : run();
           }
@@ -486,33 +487,32 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       return pipe(
           Program.<S, E, Result<E, T>>widen(current.materialize()),
           result -> pipe(
-              publish(running, result),
+              task(() -> {
+                state.set(new Done<>(result));
+                running.done().complete(Optional.of(result));
+              }),
               _ -> from(result)))
           // always runs, also on exception or cancellation. After a normal publish it does nothing
-          .ensuring(suspend(() -> release(running)));
+          .ensuring(task(() -> {
+            if (state.compareAndSet(running, idle())) {
+              running.done().complete(Optional.empty());
+            }
+          }));
     }
 
-    private Program<S, E, T> await(Deferred<Optional<Result<E, T>>> done) {
-      // the wait is cancelable, and a cancelled waiter doesn't affect the others
+    private Program<S, E, T> await(CompletableFuture<Optional<Result<E, T>>> done) {
+      // the wait is cancelable, and a cancelled waiter doesn't affect the others: join doesn't
+      // cancel the future
       return pipe(
-          done.get(),
+          join(done.thenApply(Result::success)),
           outcome -> outcome
               .map(result -> Program.<S, E, T>from(result))
               .orElseGet(this::run)); // the leader gave up: try again
     }
 
-    private <F> Program<S, F, Unit> publish(Running<E, T> running, Result<E, T> result) {
-      return zip(
-          task(() -> state.set(new Done<>(result))),
-          running.done().complete(Optional.of(result)),
-          first());
-    }
-
-    private Program<S, Void, Unit> release(Running<E, T> running) {
-      return zip(
-          task(() -> state.compareAndSet(running, new Idle<>())),
-          running.done().complete(Optional.empty()),
-          first());
+    @SuppressWarnings("unchecked")
+    private static <E, T> Idle<E, T> idle() {
+      return (Idle<E, T>) IDLE;
     }
 
     @Override
