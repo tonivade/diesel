@@ -2,9 +2,14 @@
 
 //DEPS org.openjdk.jmh:jmh-core:1.37
 //DEPS org.openjdk.jmh:jmh-generator-annprocess:1.37
-//DEPS com.github.tonivade:diesel:0.14
+//DEPS com.github.tonivade:diesel:${diesel.version:0.14}
+//REPOS mavenlocal,mavencentral
 
-//JAVA 27+
+// Runs against the diesel version given with -Ddiesel.version, the last release by default. To
+// measure the working copy: ./gradlew publishToMavenLocal, and then
+//   jbang run -Ddiesel.version=0.15-SNAPSHOT benchmarks/<Benchmark>.java
+
+//JAVA 25+
 
 //JAVAC_OPTIONS -processor org.openjdk.jmh.generators.BenchmarkProcessor
 
@@ -29,8 +34,8 @@ import com.github.tonivade.diesel.Result;
 @State(Scope.Thread)
 @Warmup(iterations = 3, time = 2)
 @Measurement(iterations = 5, time = 2)
-@Fork(1)
-public class DieselBenchmark {
+@Fork(3)
+public class DieselMemoizeBenchmark {
 
   @Param({ "10", "20", "30" })
   public int n;
@@ -60,7 +65,7 @@ public class DieselBenchmark {
 
   public static void main(String[] args) throws Exception {
     Options opt = new OptionsBuilder()
-        .include(DieselBenchmark.class.getSimpleName())
+        .include(DieselMemoizeBenchmark.class.getSimpleName())
         .addProfiler("gc")
         .build();
 

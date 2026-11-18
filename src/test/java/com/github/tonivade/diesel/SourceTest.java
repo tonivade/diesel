@@ -18,12 +18,16 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -675,6 +679,61 @@ class SourceTest {
 
       assertThat(tail.toList().evalOrElseThrow()).isEqualTo(List.of(2, 3));
       assertThat(tail.toList().evalOrElseThrow()).isEqualTo(List.of(2, 3));
+    }
+
+    @Test
+    void aCellWhoseIteratorThrowsReadsTheElementAgainOnTheNextEvaluation() {
+      var fail = new AtomicBoolean(true);
+      var reads = new AtomicInteger();
+      Iterator<Integer> iterator = new Iterator<>() {
+        @Override
+        public boolean hasNext() {
+          return reads.get() < 3;
+        }
+
+        @Override
+        public Integer next() {
+          if (reads.get() == 1 && fail.getAndSet(false)) {
+            throw new IllegalStateException("broken");
+          }
+          return reads.incrementAndGet();
+        }
+      };
+      var tail = Source.<Void, Void, Integer>fromIterator(() -> iterator)
+          .split().evalOrElseThrow().orElseThrow().second();
+
+      assertThatThrownBy(() -> tail.toList().evalOrElseThrow())
+          .isInstanceOf(IllegalStateException.class);
+      assertThat(tail.toList().evalOrElseThrow()).isEqualTo(List.of(2, 3));
+    }
+
+    @Test
+    void aTailTraversedInParallelReadsEachElementOnce() throws InterruptedException {
+      var reads = new AtomicInteger();
+      Iterator<Integer> iterator = new Iterator<>() {
+        @Override
+        public boolean hasNext() {
+          return reads.get() < 1000;
+        }
+
+        @Override
+        public Integer next() {
+          return reads.incrementAndGet();
+        }
+      };
+      var tail = Source.<Void, Void, Integer>fromIterator(() -> iterator)
+          .split().evalOrElseThrow().orElseThrow().second();
+      var expected = IntStream.rangeClosed(2, 1000).boxed().toList();
+
+      try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        var results = IntStream.range(0, 8)
+            .mapToObj(_ -> executor.submit(() -> tail.toList().evalOrElseThrow()))
+            .toList();
+        for (var result : results) {
+          assertThat(result).succeedsWithin(Duration.ofSeconds(10)).isEqualTo(expected);
+        }
+      }
+      assertThat(reads).hasValue(1000);
     }
 
     @Test

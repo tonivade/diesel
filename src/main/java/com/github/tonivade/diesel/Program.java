@@ -8,9 +8,7 @@ import static com.github.tonivade.diesel.Combine.chain;
 import static com.github.tonivade.diesel.Combine.delayed;
 import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Combine.traverse;
-import static com.github.tonivade.diesel.Combine.zip;
 import static com.github.tonivade.diesel.Fatal.sneakyThrow;
-import static com.github.tonivade.diesel.function.Finisher2.first;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 
@@ -94,7 +92,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record Pure<S, E, T>(Result<E, T> result) implements Program<S, E, T> {
-    
+
     /**
      * Creates the program, rejecting null components.
      *
@@ -164,6 +162,72 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   }
 
   /**
+   * Represents a computation that continues with another program when the program succeeds, like
+   * {@link #flatMap(Function)}. A failure goes on as it is.
+   *
+   * @param current the current program
+   * @param next the function that creates the next program from the value
+   * @param <S> the type of the state
+   * @param <E> the type of the error
+   * @param <T> the type of the value of the program
+   * @param <R> the type of the value of the next program
+   */
+  record FlatMap<S, E, T, R>(
+      Program<S, E, T> current,
+      Function<? super T, ? extends Program<S, E, R>> next) implements Program<S, E, R> {
+
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param next the function that creates the next program from the value
+     * @throws NullPointerException if any component is {@code null}
+     */
+    public FlatMap {
+      requireNonNull(current);
+      requireNonNull(next);
+    }
+
+    @Override
+    public final String toString() {
+      return "FlatMap[current=%s, next=...]".formatted(current);
+    }
+  }
+
+  /**
+   * Represents a computation that continues with another program when the program fails with an
+   * error, like {@link #flatMapError(Function)}. A success goes on as it is.
+   *
+   * @param current the current program
+   * @param next the function that creates the next program from the error
+   * @param <S> the type of the state
+   * @param <E> the type of the error of the program
+   * @param <F> the type of the error of the next program
+   * @param <T> the type of the value
+   */
+  record FlatMapError<S, E, F, T>(
+      Program<S, E, T> current,
+      Function<? super E, ? extends Program<S, F, T>> next) implements Program<S, F, T> {
+
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param next the function that creates the next program from the error
+     * @throws NullPointerException if any component is {@code null}
+     */
+    public FlatMapError {
+      requireNonNull(current);
+      requireNonNull(next);
+    }
+
+    @Override
+    public final String toString() {
+      return "FlatMapError[current=%s, next=...]".formatted(current);
+    }
+  }
+
+  /**
    * Represents a computation that folds over the result of the program.
    *
    * @param current the current program
@@ -197,6 +261,42 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     @Override
     public final String toString() {
       return "FoldMap[current=%s, onFailure=..., onSuccess=...]".formatted(current);
+    }
+  }
+
+  /**
+   * Represents a computation that transforms the result of the program, its value or its error,
+   * without running another program, like {@link #map(Function)} or {@link #mapError(Function)}.
+   *
+   * <p>An exception of the program isn't transformed: it goes on as it is.
+   *
+   * @param current the current program
+   * @param transform the function used to transform the result of the program
+   * @param <S> the type of the state
+   * @param <E> the type of the error of the program
+   * @param <F> the type of the error of the transformed result
+   * @param <T> the type of the value of the program
+   * @param <R> the type of the value of the transformed result
+   */
+  record Transformed<S, E, F, T, R>(
+      Program<S, E, T> current,
+      Function<? super Result<E, T>, ? extends Result<F, R>> transform) implements Program<S, F, R> {
+
+    /**
+     * Creates the program, rejecting null components.
+     *
+     * @param current the current program
+     * @param transform the function used to transform the result of the program
+     * @throws NullPointerException if any component is {@code null}
+     */
+    public Transformed {
+      requireNonNull(current);
+      requireNonNull(transform);
+    }
+
+    @Override
+    public final String toString() {
+      return "Transformed[current=%s, transform=...]".formatted(current);
     }
   }
 
@@ -353,11 +453,14 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
 
     private sealed interface State<E, T> {}
     private record Idle<E, T>() implements State<E, T> {}
-    private record Running<E, T>(Deferred<Optional<Result<E, T>>> done) implements State<E, T> {}
+    // done completes with the result, or empty if the evaluation that runs the program gives up
+    private record Running<E, T>(CompletableFuture<Optional<Result<E, T>>> done) implements State<E, T> {}
     private record Done<E, T>(Result<E, T> result) implements State<E, T> {}
 
+    private static final Idle<?, ?> IDLE = new Idle<>();
+
     private final Program<S, E, T> current;
-    private final AtomicReference<State<E, T>> state = new AtomicReference<>(new Idle<>());
+    private final AtomicReference<State<E, T>> state = new AtomicReference<>(idle());
 
     Memoized(Program<S, E, T> current) {
       this.current = requireNonNull(current);
@@ -372,7 +475,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
           case Done<E, T>(var result) -> from(result);
           case Running<E, T>(var done) -> await(done);
           case Idle<E, T> _ -> {
-            var running = new Running<E, T>(Deferred.create());
+            var running = new Running<E, T>(new CompletableFuture<>());
             // if another evaluation claimed it first, look at the state again
             yield state.compareAndSet(observed, running) ? lead(running) : run();
           }
@@ -381,38 +484,35 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     }
 
     private Program<S, E, T> lead(Running<E, T> running) {
-      return current.foldMap(
-          error -> pipe(
-              publish(running, Result.failure(error)),
-              _ -> failure(error)),
-          value -> pipe(
-              publish(running, Result.success(value)),
-              _ -> success(value)))
+      return pipe(
+          Program.<S, E, Result<E, T>>widen(current.materialize()),
+          result -> pipe(
+              task(() -> {
+                state.set(new Done<>(result));
+                running.done().complete(Optional.of(result));
+              }),
+              _ -> from(result)))
           // always runs, also on exception or cancellation. After a normal publish it does nothing
-          .ensuring(suspend(() -> release(running)));
+          .ensuring(task(() -> {
+            if (state.compareAndSet(running, idle())) {
+              running.done().complete(Optional.empty());
+            }
+          }));
     }
 
-    private Program<S, E, T> await(Deferred<Optional<Result<E, T>>> done) {
-      // the wait is cancelable, and a cancelled waiter doesn't affect the others
+    private Program<S, E, T> await(CompletableFuture<Optional<Result<E, T>>> done) {
+      // the wait is cancelable, and a cancelled waiter doesn't affect the others: join doesn't
+      // cancel the future
       return pipe(
-          done.get(),
+          join(done.thenApply(Result::success)),
           outcome -> outcome
               .map(result -> Program.<S, E, T>from(result))
               .orElseGet(this::run)); // the leader gave up: try again
     }
 
-    private <F> Program<S, F, Unit> publish(Running<E, T> running, Result<E, T> result) {
-      return zip(
-          task(() -> state.set(new Done<>(result))),
-          running.done().complete(Optional.of(result)),
-          first());
-    }
-
-    private Program<S, Void, Unit> release(Running<E, T> running) {
-      return zip(
-          task(() -> state.compareAndSet(running, new Idle<>())),
-          running.done().complete(Optional.empty()),
-          first());
+    @SuppressWarnings("unchecked")
+    private static <E, T> Idle<E, T> idle() {
+      return (Idle<E, T>) IDLE;
     }
 
     @Override
@@ -1091,7 +1191,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <R> Program<S, E, R> map(Function<? super T, ? extends R> mapper) {
-    return flatMap(mapper.andThen(Program::success));
+    return transform(result -> result.map(mapper));
   }
 
   /**
@@ -1102,7 +1202,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <F> Program<S, F, T> mapError(Function<? super E, ? extends F> mapper) {
-    return flatMapError(mapper.andThen(Program::failure));
+    return transform(result -> result.mapError(mapper));
   }
 
   /**
@@ -1116,9 +1216,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   default <R, F> Program<S, F, R> bimap(
       Function<? super E, ? extends F> mapFailure, Function<? super T, ? extends R> mapSuccess) {
-    return foldMap(
-        mapFailure.andThen(Program::failure),
-        mapSuccess.andThen(Program::success));
+    return transform(result -> result.bimap(mapFailure, mapSuccess));
   }
 
   /**
@@ -1138,7 +1236,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return the program with the result discarded
    */
   default Program<S, E, Unit> discard() {
-    return andThen(unit());
+    return transform(result -> result.flatMap(_ -> Result.unit()));
   }
 
   /**
@@ -1152,10 +1250,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a program that runs the side effect and keeps the value
    */
   default Program<S, E, T> peek(Consumer<? super T> insert) {
-    return flatMap(value -> {
-      insert.accept(value);
-      return success(value);
-    });
+    return transform(
+        result -> result.map(value -> {
+          insert.accept(value);
+          return value;
+        }));
   }
 
   /**
@@ -1168,10 +1267,11 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a program that runs the side effect and keeps the error
    */
   default Program<S, E, T> peekError(Consumer<? super E> insert) {
-    return flatMapError(error -> {
-      insert.accept(error);
-      return failure(error);
-    });
+    return transform(
+        result -> result.mapError(error -> {
+          insert.accept(error);
+          return error;
+        }));
   }
 
   /**
@@ -1208,7 +1308,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <R> Program<S, E, R> flatMap(Function<? super T, ? extends Program<S, E, R>> next) {
-    return foldMap(Program::failure, next);
+    return new FlatMap<>(this, next);
   }
 
   /**
@@ -1222,7 +1322,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @return a new program representing the mapped computation
    */
   default <F> Program<S, F, T> flatMapError(Function<? super E, ? extends Program<S, F, T>> next) {
-    return foldMap(next, Program::success);
+    return new FlatMapError<>(this, next);
   }
 
   /**
@@ -1264,7 +1364,8 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default <R> Program<S, Void, R> fold(
       Function<? super E, ? extends R> onFailure,
       Function<? super T, ? extends R> onSuccess) {
-    return foldMap(onFailure.andThen(Program::success), onSuccess.andThen(Program::success));
+    return transform(
+        result -> result.fold(onFailure.andThen(Result::success), onSuccess.andThen(Result::success)));
   }
 
   /**
@@ -1315,10 +1416,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   default Program<S, Void, ElapsedTime<Result<E, T>>> timedResult(Program<S, Void, Long> nanoTime) {
     return pipe(
         nanoTime,
-        start -> foldMap(
-            error -> chain(nanoTime, end -> elapsedTime(start, end, Result.failure(error))),
-            value -> chain(nanoTime, end -> elapsedTime(start, end, Result.success(value))))
-        );
+        start -> pipe(
+            materialize(),
+            result -> chain(nanoTime, end -> elapsedTime(start, end, result))));
   }
 
   /**
@@ -1821,9 +1921,9 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   @SafeVarargs
   static <S, E, T> Program<S, Collection<E>, T> validate(T value, Validator<S, E, T>... validators) {
     return traverse(v -> v.apply(value), validators)
-        .foldMap(
-            _ -> success(value),
-            result -> Validation.combine(result).fold(() -> success(value), Program::failure));
+        .transform(validations -> validations.fold(
+            _ -> Result.success(value),
+            result -> Validation.combine(result).fold(() -> Result.success(value), Result::failure)));
   }
 
   /**
@@ -1834,6 +1934,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <T> the type of the result
    */
   record ElapsedTime<T>(Duration duration, T value) {}
+
+  private <F, R> Program<S, F, R> transform(
+      Function<? super Result<E, T>, ? extends Result<F, R>> transform) {
+    return new Transformed<>(this, transform);
+  }
+
+  // the result of the program as its value, a typed error included: it can't fail with an error,
+  // but an exception still goes on as it is
+  private Program<S, Void, Result<E, T>> materialize() {
+    return transform(Result::success);
+  }
 
   private static <E, T, A> void completeWith(CompletableFuture<Result<E, T>> callback,
       CompletableFuture<? extends A> future, Function<? super A, ? extends Result<E, T>> adapter) {

@@ -12,11 +12,14 @@ import com.github.tonivade.diesel.Frame.FinalizerFrame;
 import com.github.tonivade.diesel.Frame.FoldFrame;
 import com.github.tonivade.diesel.Frame.Region;
 import com.github.tonivade.diesel.Frame.RemaskFrame;
+import com.github.tonivade.diesel.Frame.TransformFrame;
 import com.github.tonivade.diesel.Frame.UnmaskFrame;
 import com.github.tonivade.diesel.Program.Access;
 import com.github.tonivade.diesel.Program.Async;
 import com.github.tonivade.diesel.Program.Catch;
 import com.github.tonivade.diesel.Program.Finalize;
+import com.github.tonivade.diesel.Program.FlatMap;
+import com.github.tonivade.diesel.Program.FlatMapError;
 import com.github.tonivade.diesel.Program.FoldMap;
 import com.github.tonivade.diesel.Program.Forked;
 import com.github.tonivade.diesel.Program.Memoized;
@@ -25,8 +28,11 @@ import com.github.tonivade.diesel.Program.Polled;
 import com.github.tonivade.diesel.Program.Pure;
 import com.github.tonivade.diesel.Program.Raise;
 import com.github.tonivade.diesel.Program.Suspend;
+import com.github.tonivade.diesel.Program.Transformed;
 import com.github.tonivade.diesel.Program.Uncancelable;
 import com.github.tonivade.diesel.Program.UncancelableWith;
+import com.github.tonivade.diesel.Result.Failure;
+import com.github.tonivade.diesel.Result.Success;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -55,26 +61,52 @@ final class Interpreter {
         if (shouldStop(token, regions, current)) {
           throw cancellation(token, current);
         }
+        // the order of the cases matters: the switch is compiled as a chain of type checks in this
+        // order, so the most frequent steps go first and the rare ones at the end
         switch (current) {
           case null -> {
             return sneakyThrow(new NullPointerException("program cannot be null"));
           }
           case Pure(var result) -> {
+            var currentResult = result;
             var resumed = false;
+            var checkCancellation = false;
+
             while (!resumed) {
+              if (checkCancellation) {
+                if (shouldStop(token, regions, current)) {
+                  throw cancellation(token, current);
+                }
+                checkCancellation = false;
+              }
               switch (stack.poll()) {
                 case null -> {
-                  return (Result<E, T>) result;
+                  return (Result<E, T>) currentResult;
+                }
+                case TransformFrame(var transform) -> {
+                  currentResult = transform.apply(currentResult);
+                  checkCancellation = true;
                 }
                 case FoldFrame(var onFailure, var onSuccess) -> {
-                  current = result.fold(onFailure, onSuccess);
-                  resumed = true;
+                  var next = currentResult instanceof Success ? onSuccess : onFailure;
+                  if (next == null) {
+                    // nobody handles this side: the result goes on as it is, and like any other
+                    // step, it's a point where a cancellation can stop the program
+                    checkCancellation = true;
+                  } else {
+                    current = next.apply(switch (currentResult) {
+                      case Success<?, ?>(var value) -> value;
+                      case Failure<?, ?>(var error) -> error;
+                    });
+                    resumed = true;
+                  }
                 }
                 case FinalizerFrame(var finalizer) -> {
+                  var finalResult = currentResult;
                   // run the finalizer and then continue with the result, unless the finalizer throws
-                  stack.push(Frame.fold(Program::failure, _ -> Program.from(result)));
+                  stack.push(Frame.fold(Program::failure, _ -> Program.from(finalResult)));
                   enterUncancelable(stack, regions);
-                  current = Program.suspend(() -> finalizer.apply(Outcome.from(result)));
+                  current = Program.suspend(() -> finalizer.apply(Outcome.from(finalResult)));
                   resumed = true;
                 }
                 case UnmaskFrame(var region) -> regions.remove(region);
@@ -85,6 +117,38 @@ final class Interpreter {
               }
             }
           }
+          case FlatMap(var source, var next) -> {
+            stack.push(Frame.fold(null, (Function<Object, Program<S, ?, ?>>) next));
+            current = source;
+          }
+          case Transformed(var source, var transform) -> {
+            stack.push(Frame.transform((Function<Result<?, ?>, Result<?, ?>>) transform));
+            current = source;
+          }
+          case FoldMap(var source, var onFailure, var onSuccess) -> {
+            stack.push(Frame.fold(
+                (Function<Object, Program<S, ?, ?>>) onFailure,
+                (Function<Object, Program<S, ?, ?>>) onSuccess));
+            current = source;
+          }
+          case FlatMapError(var source, var next) -> {
+            stack.push(Frame.fold((Function<Object, Program<S, ?, ?>>) next, null));
+            current = source;
+          }
+          case Suspend(var supplier) -> {
+            current = supplier.get();
+          }
+          case Catch(var source, var recover) -> {
+            stack.push(Frame.catch_((Function<Throwable, Program<S, ?, ?>>) recover));
+            current = source;
+          }
+          case Raise(var throwable) -> {
+            return sneakyThrow(throwable.get());
+          }
+          case Finalize(var source, var finalizer) -> {
+            stack.push(Frame.finalizer((Function<Outcome<?, ?>, Program<S, Void, ?>>) finalizer));
+            current = source;
+          }
           case Access(var mapper) -> {
             current = mapper.apply(state);
           }
@@ -93,10 +157,6 @@ final class Interpreter {
             var result = regions.isEmpty() ?
                 awaitCancelable(state, async, token) : awaitUncancelable(state, async);
             current = Program.from(result);
-          }
-          case Finalize(var source, var finalizer) -> {
-            stack.push(Frame.finalizer((Function<Outcome<?, ?>, Program<S, Void, ?>>) finalizer));
-            current = source;
           }
           case Uncancelable(var source) -> {
             enterUncancelable(stack, regions);
@@ -119,22 +179,6 @@ final class Interpreter {
             // programs that wait for their forks, like timeout or par*, are not affected
             var parent = regions.isEmpty() ? token : CancelToken.NONE;
             current = Program.success(new Fiber<>(startFork(state, parent, forked.current(), forked.executor())));
-          }
-          case FoldMap(var source, var onFailure, var onSuccess) -> {
-            stack.push(Frame.fold(
-                (Function<Object, Program<S, ?, ?>>) onFailure,
-                (Function<Object, Program<S, ?, ?>>) onSuccess));
-            current = source;
-          }
-          case Raise(var throwable) -> {
-            return sneakyThrow(throwable.get());
-          }
-          case Catch(var source, var recover) -> {
-            stack.push(Frame.catch_((Function<Throwable, Program<S, ?, ?>>) recover));
-            current = source;
-          }
-          case Suspend(var supplier) -> {
-            current = supplier.get();
           }
           case Memoized memoized -> {
             current = memoized.run();
@@ -176,6 +220,9 @@ final class Interpreter {
             case UnmaskFrame(var region) -> regions.remove(region);
             case RemaskFrame(var region) -> regions.push(region);
             case FoldFrame<S> _ -> {
+              // a continuation inside the catchAll scope, discarded
+            }
+            case TransformFrame<S> _ -> {
               // a continuation inside the catchAll scope, discarded
             }
           }

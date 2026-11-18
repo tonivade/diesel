@@ -442,8 +442,12 @@ public sealed interface Result<F, S> {
    * @param <R> The type of the mapped success value.
    * @return A new result with the mapped success value.
    */
+  @SuppressWarnings("unchecked")
   default <R> Result<F, R> map(Function<? super S, ? extends R> mapper) {
-    return flatMap(mapper.andThen(Result::success));
+    return switch (this) {
+      case Failure<F, S> _ -> (Result<F, R>) this;
+      case Success<F, S>(S value) -> success(mapper.apply(value));
+    };
   }
 
   /**
@@ -453,8 +457,26 @@ public sealed interface Result<F, S> {
    * @param <R> The type of the mapped failure value.
    * @return A new result with the mapped failure value.
    */
+  @SuppressWarnings("unchecked")
   default <R> Result<R, S> mapError(Function<? super F, ? extends R> mapper) {
-    return flatMapError(mapper.andThen(Result::failure));
+    return switch (this) {
+      case Failure<F, S>(F error) -> failure(mapper.apply(error));
+      case Success<F, S> _ -> (Result<R, S>) this;
+    };
+  }
+
+  /**
+   * Maps the failure value or the success value of this result, whichever it holds.
+   *
+   * @param onFailure The function used to map the failure value.
+   * @param onSuccess The function used to map the success value.
+   * @param <E> The type of the mapped failure value.
+   * @param <R> The type of the mapped success value.
+   * @return A new result with the mapped value.
+   */
+  default <E, R> Result<E, R> bimap(
+      Function<? super F, ? extends E> onFailure, Function<? super S, ? extends R> onSuccess) {
+    return fold(onFailure.andThen(Result::failure), onSuccess.andThen(Result::success));
   }
 
   /**

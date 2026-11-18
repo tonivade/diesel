@@ -874,6 +874,160 @@ class ProgramTest {
     assertThat(attempts).hasValue(2);
   }
 
+  @Test
+  void aCancelledWaiterDoesNotAffectTheOthers() throws InterruptedException {
+    var calls = new AtomicInteger();
+    var started = new CountDownLatch(1);
+    var release = new CompletableFuture<Void>();
+    var program = Program.<Void, Void, Integer>supply(() -> {
+      calls.incrementAndGet();
+      started.countDown();
+      release.join();
+      return 42;
+    }).memoized();
+
+    var leader = program.fork().evalOrElseThrow();
+    started.await();
+    var waiter = program.fork().evalOrElseThrow();
+    // gives the waiter time to start waiting for the leader
+    Thread.sleep(50);
+    waiter.cancel().evalOrElseThrow();
+    release.complete(null);
+
+    assertThat(waiter.poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(leader.join().evalOrElseThrow()).isEqualTo(42);
+    assertThat(program.evalOrElseThrow()).isEqualTo(42);
+    assertThat(calls).hasValue(1);
+  }
+
+  @Test
+  void aCancelledLeaderLetsAWaiterRunItAgain() throws InterruptedException {
+    var attempts = new AtomicInteger();
+    var started = new CountDownLatch(1);
+    var program = Program.<Void, Void, Integer>suspend(() -> {
+      if (attempts.incrementAndGet() == 1) {
+        started.countDown();
+        return never();
+      }
+      return success(42);
+    }).memoized();
+
+    var leader = program.fork().evalOrElseThrow();
+    started.await();
+    var waiter = program.fork().evalOrElseThrow();
+    // gives the waiter time to start waiting for the leader
+    Thread.sleep(50);
+    leader.cancel().evalOrElseThrow();
+
+    assertThat(waiter.join().evalOrElseThrow()).isEqualTo(42);
+    assertThat(program.evalOrElseThrow()).isEqualTo(42);
+    assertThat(attempts).hasValue(2);
+  }
+
+  @Test
+  void discardPreservesFailure() {
+    var result = Program.failure("error")
+        .discard()
+        .eval();
+
+    assertThat(result).isEqualTo(Result.failure("error"));
+  }
+
+  @Test
+  void discardReplacesSuccessWithUnit() {
+    var result = Program.success(1)
+        .discard()
+        .eval();
+
+    assertThat(result).isEqualTo(Result.unit());
+  }
+
+  @Test
+  void aLongChainOfMapsIsStackSafe() {
+    Program<Void, String, Integer> program = success(0);
+    for (int i = 0; i < 100_000; i++) {
+      program = program.map(x -> x + 1).mapError(e -> e);
+    }
+
+    assertThat(program.eval()).isEqualTo(Result.success(100_000));
+  }
+
+  @Test
+  void anExceptionOfAMapperCanBeCaught() {
+    var program = Program.<Void, String, Integer>success(1)
+        .<Integer>map(_ -> {
+          throw new IllegalStateException();
+        })
+        .catchAll(_ -> success(-1));
+
+    assertThat(program.eval()).isEqualTo(Result.success(-1));
+  }
+
+  @Test
+  void mapDoesNotTransformAnException() {
+    var mapped = new AtomicInteger();
+    var program = Program.<Void, String, Integer>raise(IllegalStateException::new)
+        .map(x -> mapped.incrementAndGet() + x)
+        .mapError(e -> e + "!");
+
+    assertThatThrownBy(program::eval).isInstanceOf(IllegalStateException.class);
+    assertThat(mapped).hasValue(0);
+  }
+
+  @Test
+  void aFinalizerBetweenTwoMapsSeesTheValueOfTheFirstOne() {
+    var seen = new AtomicReference<Outcome<?, ?>>();
+    var program = Program.<Void, String, Integer>success(1)
+        .map(x -> x + 1)
+        .onExit(o -> record(seen, o))
+        .map(x -> x * 10);
+
+    assertThat(program.eval()).isEqualTo(Result.success(20));
+    assertThat(seen.get()).isEqualTo(Outcome.succeeded(2));
+  }
+
+  @Test
+  void aFailureGoesThroughFlatMapsWithoutRunningThem() {
+    var called = new AtomicInteger();
+    var program = Program.<Void, String, Integer>failure("boom")
+        .flatMap(x -> success(called.incrementAndGet() + x))
+        .flatMap(x -> success(called.incrementAndGet() + x));
+
+    assertThat(program.eval()).isEqualTo(Result.failure("boom"));
+    assertThat(called).hasValue(0);
+  }
+
+  @Test
+  void aSuccessGoesThroughFlatMapErrorsWithoutRunningThem() {
+    var called = new AtomicInteger();
+    var program = Program.<Void, String, Integer>success(1)
+        .flatMapError(e -> failure(called.incrementAndGet() + e))
+        .flatMapError(e -> failure(called.incrementAndGet() + e));
+
+    assertThat(program.eval()).isEqualTo(Result.success(1));
+    assertThat(called).hasValue(0);
+  }
+
+  @Test
+  void aFailureThroughALongChainOfFlatMapsIsStackSafe() {
+    Program<Void, String, Integer> program = failure("boom");
+    for (int i = 0; i < 100_000; i++) {
+      program = program.flatMap(x -> success(x + 1));
+    }
+
+    assertThat(program.eval()).isEqualTo(Result.failure("boom"));
+  }
+
+  @Test
+  void aSuccessThroughALongChainOfFlatMapErrorsIsStackSafe() {
+    Program<Void, String, Integer> program = success(1);
+    for (int i = 0; i < 100_000; i++) {
+      program = program.flatMapError(e -> failure(e + "!"));
+    }
+
+    assertThat(program.eval()).isEqualTo(Result.success(1));
+  }
+
   record Tuple<A, B>(@Nullable A a, @Nullable B b) {}
 
   static Program<TestDsl.Service, TestDsl.TestError, Integer> newOperation() {

@@ -828,6 +828,57 @@ class CancellationTest {
   }
 
   @Test
+  void aLongChainOfMapsCanBeCancelledBetweenSteps() throws Exception {
+    var count = new AtomicInteger();
+    var started = new CompletableFuture<Void>();
+    // the transforms run without going back to the main loop, but each one is a cancellation point
+    Program<Void, String, Integer> program = Program.success(0);
+    for (int i = 0; i < 2_000_000; i++) {
+      program = program.map(x -> {
+        started.complete(null);
+        count.incrementAndGet();
+        return x + 1;
+      });
+    }
+
+    var fiber = program.fork().evalOrElseThrow();
+    started.get(5, TimeUnit.SECONDS);
+    fiber.<Void, Void>cancel().evalOrElseThrow();
+
+    assertThat(fiber.<Void, Void>poll().evalOrElseThrow()).contains(Outcome.canceled());
+    assertThat(count.get()).isLessThan(2_000_000);
+  }
+
+  @Test
+  void aFailureThroughALongChainOfFlatMapsCanBeCancelled() throws Exception {
+    // the failure goes through the flatMaps without wrapping it again, but each one is still a
+    // cancellation point: a finalizer between them sees the cancellation
+    var outcome = new AtomicReference<Outcome<String, Integer>>();
+    var started = new CompletableFuture<Void>();
+    var gate = new CompletableFuture<Void>();
+    // the failure is produced in an uncancelable region, so it's already there when the program
+    // is cancelled, and it has to go through the flatMaps
+    Program<Void, String, Integer> program = Program.<Void, String>task(() -> {
+          started.complete(null);
+          gate.join();
+        })
+        .andThen(Program.<Void, String, Integer>failure("boom"))
+        .uncancelable();
+    for (int i = 0; i < 1_000; i++) {
+      program = program.flatMap(x -> Program.success(x + 1));
+    }
+    program = program.onExit(o -> finalizer(() -> outcome.set(o)));
+
+    var fiber = program.fork().evalOrElseThrow();
+    started.get(5, TimeUnit.SECONDS);
+    fiber.future().cancel(true);
+    gate.complete(null);
+
+    assertThatThrownBy(() -> fiber.future().get(5, TimeUnit.SECONDS)).isInstanceOf(CancellationException.class);
+    assertThat(outcome.get()).isEqualTo(Outcome.canceled());
+  }
+
+  @Test
   void anExceptionUnwindingWhenTheProgramIsCancelledIsKeptAsSuppressed() throws Exception {
     var finalizing = new CompletableFuture<Void>();
     var release = new CompletableFuture<Void>();
