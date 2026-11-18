@@ -35,7 +35,7 @@ sealed interface Frame<S> {
   }
 
   // marks the end of an uncancelable region
-  record UnmaskFrame<S>() implements Frame<S>, Region {}
+  final class UnmaskFrame<S> implements Frame<S>, Region {}
 
   non-sealed interface RemaskFrame<S> extends Frame<S> {
     Region region();

@@ -104,7 +104,7 @@ final class Interpreter {
                 case FinalizerFrame frame -> {
                   var finalResult = currentResult;
                   // run the finalizer and then continue with the result, unless the finalizer throws
-                  stack.push(new FoldMap(current, Program::failure, _ -> Program.from(finalResult)));
+                  stack.push(new FoldMap(Program.unit(), Program::failure, _ -> Program.from(finalResult)));
                   enterUncancelable(stack, regions);
                   current = Program.suspend(() -> (Program<S, Void, ?>) frame.frameFinalizer().apply(Outcome.from(finalResult)));
                   resumed = true;
