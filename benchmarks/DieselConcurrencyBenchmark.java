@@ -1,4 +1,3 @@
-
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 
 //DEPS org.openjdk.jmh:jmh-core:1.37
