@@ -12,7 +12,11 @@ import static com.github.tonivade.diesel.Fatal.sneakyThrow;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 
-import com.github.tonivade.diesel.Frame.Region;
+import com.github.tonivade.diesel.Frame.CatchFrame;
+import com.github.tonivade.diesel.Frame.FinalizerFrame;
+import com.github.tonivade.diesel.Frame.FoldFrame;
+import com.github.tonivade.diesel.Frame.RemaskFrame;
+import com.github.tonivade.diesel.Frame.TransformFrame;
 import com.github.tonivade.diesel.function.CheckedRunnable;
 import com.github.tonivade.diesel.function.CheckedSupplier;
 import com.github.tonivade.purefun.Kind;
@@ -115,7 +119,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Catch<S, E, T>(
       Program<S, E, T> current,
-      Function<? super Throwable, ? extends Program<S, E, T>> recover) implements Program<S, E, T> {
+      Function<? super Throwable, ? extends Program<S, E, T>> recover) implements Program<S, E, T>, CatchFrame<S> {
 
     /**
      * Creates the program, rejecting null components.
@@ -127,6 +131,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     public Catch {
       requireNonNull(current);
       requireNonNull(recover);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Function<Throwable, Program<S, ?, ?>> frameRecover() {
+      return (Function<Throwable, Program<S, ?, ?>>) (Function<?, ?>) recover;
     }
 
     @Override
@@ -174,7 +184,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record FlatMap<S, E, T, R>(
       Program<S, E, T> current,
-      Function<? super T, ? extends Program<S, E, R>> next) implements Program<S, E, R> {
+      Function<? super T, ? extends Program<S, E, R>> next) implements Program<S, E, R>, FoldFrame<S> {
 
     /**
      * Creates the program, rejecting null components.
@@ -186,6 +196,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     public FlatMap {
       requireNonNull(current);
       requireNonNull(next);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public @Nullable Function<Object, Program<S, ?, ?>> frameOnSuccess() {
+      return (Function<Object, Program<S, ?, ?>>) (Function<?, ?>) next;
+    }
+
+    @Override
+    public @Nullable Function<Object, Program<S, ?, ?>> frameOnFailure() {
+      return null;
     }
 
     @Override
@@ -207,7 +228,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record FlatMapError<S, E, F, T>(
       Program<S, E, T> current,
-      Function<? super E, ? extends Program<S, F, T>> next) implements Program<S, F, T> {
+      Function<? super E, ? extends Program<S, F, T>> next) implements Program<S, F, T>, FoldFrame<S> {
 
     /**
      * Creates the program, rejecting null components.
@@ -219,6 +240,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     public FlatMapError {
       requireNonNull(current);
       requireNonNull(next);
+    }
+
+    @Override
+    public @Nullable Function<Object, Program<S, ?, ?>> frameOnSuccess() {
+      return null;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public @Nullable Function<Object, Program<S, ?, ?>> frameOnFailure() {
+      return (Function<Object, Program<S, ?, ?>>) (Function<?, ?>) next;
     }
 
     @Override
@@ -242,7 +274,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
   record FoldMap<S, E, F, T, R>(
       Program<S, E, T> current,
       Function<? super E, ? extends Program<S, F, R>> onFailure,
-      Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R> {
+      Function<? super T, ? extends Program<S, F, R>> onSuccess) implements Program<S, F, R>, FoldFrame<S> {
 
     /**
      * Creates the program, rejecting null components.
@@ -256,6 +288,18 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
       requireNonNull(current);
       requireNonNull(onFailure);
       requireNonNull(onSuccess);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public @Nullable Function<Object, Program<S, ?, ?>> frameOnFailure() {
+      return (Function<Object, Program<S, ?, ?>>) (Function<?, ?>) onFailure;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public @Nullable Function<Object, Program<S, ?, ?>> frameOnSuccess() {
+      return (Function<Object, Program<S, ?, ?>>) (Function<?, ?>) onSuccess;
     }
 
     @Override
@@ -280,7 +324,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Transformed<S, E, F, T, R>(
       Program<S, E, T> current,
-      Function<? super Result<E, T>, ? extends Result<F, R>> transform) implements Program<S, F, R> {
+      Function<? super Result<E, T>, ? extends Result<F, R>> transform) implements Program<S, F, R>, TransformFrame<S> {
 
     /**
      * Creates the program, rejecting null components.
@@ -292,6 +336,12 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     public Transformed {
       requireNonNull(current);
       requireNonNull(transform);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Function<Result<?, ?>, Result<?, ?>> frameTransform() {
+      return (Function<Result<?, ?>, Result<?, ?>>) (Function<?, ?>) transform;
     }
 
     @Override
@@ -415,7 +465,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    */
   record Finalize<S, E, T>(
       Program<S, E, T> current,
-      Function<? super Outcome<E, T>, ? extends Program<S, Void, ?>> finalizer) implements Program<S, E, T> {
+      Function<? super Outcome<E, T>, ? extends Program<S, Void, ?>> finalizer) implements Program<S, E, T>, FinalizerFrame<S> {
 
     /**
      * Creates the program, rejecting null components.
@@ -427,6 +477,17 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
     public Finalize {
       requireNonNull(current);
       requireNonNull(finalizer);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Function<Outcome<?, ?>, Program<S, Void, ?>> frameFinalizer() {
+      return (Function<Outcome<?, ?>, Program<S, Void, ?>>) (Function<?, ?>) finalizer;
+    }
+
+    @Override
+    public final String toString() {
+      return "Finalize[current=%s, finalizer=...]".formatted(current);
     }
   }
 
@@ -582,7 +643,7 @@ public sealed interface Program<S, E, T> extends Kind<Program<S, E, ?>, T> {
    * @param <E> the type of the error
    * @param <T> the type of the result
    */
-  record Polled<S, E, T>(Program<S, E, T> current, Region region) implements Program<S, E, T> {
+  record Polled<S, E, T>(Program<S, E, T> current, Region region) implements Program<S, E, T>, RemaskFrame<S> {
 
     /**
      * Creates the program, rejecting null components.

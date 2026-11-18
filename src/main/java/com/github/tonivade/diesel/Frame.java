@@ -13,51 +13,31 @@ import org.jspecify.annotations.Nullable;
  */
 sealed interface Frame<S> {
 
-  final class Region {}
+  sealed interface Region {}
 
-  record TransformFrame<S>(
-    Function<Result<?, ?>, Result<?, ?>> transform) implements Frame<S> {
+  non-sealed interface TransformFrame<S> extends Frame<S> {
+    Function<Result<?, ?>, Result<?, ?>> frameTransform();
   }
 
   // a null branch means that side isn't handled: the result goes on as it is, like a flatMap with a
   // failure or a flatMapError with a success, without wrapping it again in a new program
-  record FoldFrame<S>(
-    @Nullable Function<Object, Program<S, ?, ?>> onFailure,
-    @Nullable Function<Object, Program<S, ?, ?>> onSuccess) implements Frame<S> {
+  non-sealed interface FoldFrame<S> extends Frame<S> {
+    @Nullable Function<Object, Program<S, ?, ?>> frameOnFailure();
+    @Nullable Function<Object, Program<S, ?, ?>> frameOnSuccess();
   }
 
-  record CatchFrame<S>(Function<Throwable, Program<S, ?, ?>> recover) implements Frame<S> {}
+  non-sealed interface CatchFrame<S> extends Frame<S> {
+    Function<Throwable, Program<S, ?, ?>> frameRecover();
+  }
 
-  record FinalizerFrame<S>(Function<Outcome<?, ?>, Program<S, Void, ?>> finalizer) implements Frame<S> {}
+  non-sealed interface FinalizerFrame<S> extends Frame<S> {
+    Function<Outcome<?, ?>, Program<S, Void, ?>> frameFinalizer();
+  }
 
   // marks the end of an uncancelable region
-  record UnmaskFrame<S>(Region region) implements Frame<S> {}
+  record UnmaskFrame<S>() implements Frame<S>, Region {}
 
-  record RemaskFrame<S>(Region region) implements Frame<S> {}
-
-  static <S> TransformFrame<S> transform(Function<Result<?, ?>, Result<?, ?>> transform) {
-    return new TransformFrame<>(transform);
-  }
-
-  static <S> FoldFrame<S> fold(
-      @Nullable Function<Object, Program<S, ?, ?>> onFailure,
-      @Nullable Function<Object, Program<S, ?, ?>> onSuccess) {
-    return new FoldFrame<>(onFailure, onSuccess);
-  }
-
-  static <S> CatchFrame<S> catch_(Function<Throwable, Program<S, ?, ?>> recover) {
-    return new CatchFrame<>(recover);
-  }
-
-  static <S> FinalizerFrame<S> finalizer(Function<Outcome<?, ?>, Program<S, Void, ?>> finalizer) {
-    return new FinalizerFrame<>(finalizer);
-  }
-
-  static <S> UnmaskFrame<S> unmask(Region region) {
-    return new UnmaskFrame<>(region);
-  }
-
-  static <S> RemaskFrame<S> remask(Region region) {
-    return new RemaskFrame<>(region);
+  non-sealed interface RemaskFrame<S> extends Frame<S> {
+    Region region();
   }
 }

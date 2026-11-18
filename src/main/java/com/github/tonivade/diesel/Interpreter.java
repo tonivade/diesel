@@ -83,12 +83,12 @@ final class Interpreter {
                 case null -> {
                   return (Result<E, T>) currentResult;
                 }
-                case TransformFrame(var transform) -> {
-                  currentResult = transform.apply(currentResult);
+                case TransformFrame<S> frame -> {
+                  currentResult = frame.frameTransform().apply(currentResult);
                   checkCancellation = true;
                 }
-                case FoldFrame(var onFailure, var onSuccess) -> {
-                  var next = currentResult instanceof Success ? onSuccess : onFailure;
+                case FoldFrame<S> frame -> {
+                  var next = currentResult instanceof Success ? frame.frameOnSuccess() : frame.frameOnFailure();
                   if (next == null) {
                     // nobody handles this side: the result goes on as it is, and like any other
                     // step, it's a point where a cancellation can stop the program
@@ -101,53 +101,51 @@ final class Interpreter {
                     resumed = true;
                   }
                 }
-                case FinalizerFrame(var finalizer) -> {
+                case FinalizerFrame frame -> {
                   var finalResult = currentResult;
                   // run the finalizer and then continue with the result, unless the finalizer throws
-                  stack.push(Frame.fold(Program::failure, _ -> Program.from(finalResult)));
+                  stack.push(new FoldMap(current, Program::failure, _ -> Program.from(finalResult)));
                   enterUncancelable(stack, regions);
-                  current = Program.suspend(() -> finalizer.apply(Outcome.from(finalResult)));
+                  current = Program.suspend(() -> (Program<S, Void, ?>) frame.frameFinalizer().apply(Outcome.from(finalResult)));
                   resumed = true;
                 }
-                case UnmaskFrame(var region) -> regions.remove(region);
-                case RemaskFrame(var region) -> regions.push(region);
+                case UnmaskFrame frame -> regions.remove(frame);
+                case RemaskFrame frame -> regions.push(frame.region());
                 case CatchFrame<S> _ -> {
                   // leaving a catchAll scope normally, its handler no longer applies
                 }
               }
             }
           }
-          case FlatMap(var source, var next) -> {
-            stack.push(Frame.fold(null, (Function<Object, Program<S, ?, ?>>) next));
-            current = source;
+          case FlatMap flatMap -> {
+            stack.push(flatMap);
+            current = flatMap.current();
           }
-          case Transformed(var source, var transform) -> {
-            stack.push(Frame.transform((Function<Result<?, ?>, Result<?, ?>>) transform));
-            current = source;
+          case Transformed transformed -> {
+            stack.push(transformed);
+            current = transformed.current();
           }
-          case FoldMap(var source, var onFailure, var onSuccess) -> {
-            stack.push(Frame.fold(
-                (Function<Object, Program<S, ?, ?>>) onFailure,
-                (Function<Object, Program<S, ?, ?>>) onSuccess));
-            current = source;
+          case FoldMap foldMap -> {
+            stack.push(foldMap);
+            current = foldMap.current();
           }
-          case FlatMapError(var source, var next) -> {
-            stack.push(Frame.fold((Function<Object, Program<S, ?, ?>>) next, null));
-            current = source;
+          case FlatMapError flatMapError -> {
+            stack.push(flatMapError);
+            current = flatMapError.current();
           }
           case Suspend(var supplier) -> {
             current = supplier.get();
           }
-          case Catch(var source, var recover) -> {
-            stack.push(Frame.catch_((Function<Throwable, Program<S, ?, ?>>) recover));
-            current = source;
+          case Catch catch_ -> {
+            stack.push(catch_);
+            current = catch_.current();
           }
           case Raise(var throwable) -> {
             return sneakyThrow(throwable.get());
           }
-          case Finalize(var source, var finalizer) -> {
-            stack.push(Frame.finalizer((Function<Outcome<?, ?>, Program<S, Void, ?>>) finalizer));
-            current = source;
+          case Finalize finalize -> {
+            stack.push(finalize);
+            current = finalize.current();
           }
           case Access(var mapper) -> {
             current = mapper.apply(state);
@@ -166,12 +164,12 @@ final class Interpreter {
             var region = enterUncancelable(stack, regions);
             current = body.apply(createPoll(region));
           }
-          case Polled(var source, var region) -> {
-            if (regions.peek() == region) {
+          case Polled polled -> {
+            if (regions.peek() == polled.region()) {
               regions.pop();
-              stack.push(Frame.remask(region));
+              stack.push(polled);
             }
-            current = source;
+            current = polled.current();
           }
           case Forked forked -> {
             // a fork started in an uncancelable region, like a finalizer, can't be cancelled either.
@@ -195,15 +193,15 @@ final class Interpreter {
             case null -> {
               return sneakyThrow(e);
             }
-            case CatchFrame(var recover) -> {
+            case CatchFrame frame -> {
               // run the handler inside the loop so an exception it throws reaches an outer catchAll.
               // A cancelled program never runs it: shouldStop stops it before the next step, and the
               // unwinding goes on, so a cancellation can't be caught. The step is marked, so that
               // cancellation keeps the exception as suppressed
-              current = new Suspend(new Recover<>(recover, e));
+              current = new Suspend(new Recover<>(frame.frameRecover(), e));
               resumed = true;
             }
-            case FinalizerFrame(var finalizer) -> {
+            case FinalizerFrame frame -> {
               // cancelled if this program's own cancellation is what is unwinding, also when the
               // finalizer was installed inside an uncancelable region around a polled program,
               // like the release of bracketCase. The cancellation of a joined fiber is recorded
@@ -214,11 +212,11 @@ final class Interpreter {
                   : Outcome.errored(e);
               // run the finalizer, then keep unwinding with the same exception
               runFinalizer(stack, regions, e);
-              current = Program.suspend(() -> finalizer.apply(outcome));
+              current = Program.suspend(() -> (Program<S, Void, ?>) frame.frameFinalizer().apply(outcome));
               resumed = true;
             }
-            case UnmaskFrame(var region) -> regions.remove(region);
-            case RemaskFrame(var region) -> regions.push(region);
+            case UnmaskFrame frame -> regions.remove(frame);
+            case RemaskFrame frame -> regions.push(frame.region());
             case FoldFrame<S> _ -> {
               // a continuation inside the catchAll scope, discarded
             }
@@ -308,23 +306,25 @@ final class Interpreter {
    * exception is added as suppressed to the one being unwound, like try-with-resources does, so
    * neither is lost. It compares the instances because an exception can't suppress itself.
    */
-  @SuppressWarnings("ReferenceEquality")
   private static <S> void runFinalizer(Deque<Frame<S>> stack, Deque<Region> regions, Throwable e) {
     // resumes the unwinding once the finalizer is done, marked so the cancellation keeps it
-    stack.push(Frame.fold(
+    stack.push(new FoldMap<>(
+        Program.unit(),
         _ -> Program.raise(new Resume(e)),
         _ -> Program.raise(new Resume(e))));
     enterUncancelable(stack, regions);
     // inside the region, so the handler runs even if the program is being cancelled
-    stack.push(Frame.catch_(error -> {
-      if (error != e) {
-        e.addSuppressed(error);
-      }
-      // finishes normally, so the fold below raises e again outside the region, like when the
-      // finalizer succeeds: if the program is being cancelled, the cancellation takes over there
-      // and keeps e as suppressed
-      return Program.unit();
-    }));
+    stack.push(new Catch<>(
+        Program.unit(),
+        error -> {
+          if (error != e) {
+            e.addSuppressed(error);
+          }
+          // finishes normally, so the fold below raises e again outside the region, like when the
+          // finalizer succeeds: if the program is being cancelled, the cancellation takes over there
+          // and keeps e as suppressed
+          return Program.unit();
+        }));
   }
 
   /**
@@ -377,9 +377,9 @@ final class Interpreter {
 
   // the region ends when the UnmaskFrame is popped
   private static <S> Region enterUncancelable(Deque<Frame<S>> stack, Deque<Region> regions) {
-    var region = new Region();
+    var region = new UnmaskFrame<S>();
     regions.push(region);
-    stack.push(Frame.unmask(region));
+    stack.push(region);
     return region;
   }
 
