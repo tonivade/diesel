@@ -37,8 +37,9 @@ public class BackgroundWorker {
   }
 
   static Program<Console.Service, Void, Integer> program() {
-    return Ref.<Console.Service, Void, Integer>make(0)
-        .flatMap(processed ->
+    return pipe(
+        Ref.<Console.Service, Void, Integer>make(0),
+        processed ->
             Resource.<Console.Service, Void, Queue<Integer>>make(
                 Queue.makeBounded(3),
                 Queue::close
