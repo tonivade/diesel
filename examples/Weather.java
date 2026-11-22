@@ -90,12 +90,13 @@ interface Weather {
   }
 
   static Program<WeatherContext, WeatherError, Unit> askAndFetchAndPrint() {
-    return askCity()
-        .tapError(error -> warn("Error: " + error))
-        .tap(city -> info("getting city forecast: " + city))
-        .flatMap(Weather::fetchForecast)
-        .tap(cityForecast -> info("forecast received: " + cityForecast))
-        .flatMap(Weather::printForecastAndPersist);
+    return pipe(
+        askCity()
+          .tapError(error -> warn("Error: " + error))
+          .tap(city -> info("getting city forecast: " + city)),
+        city -> fetchForecast(city)
+          .tap(cityForecast -> info("forecast received: " + cityForecast)),
+        Weather::printForecastAndPersist);
   }
 
   static Program<WeatherContext, WeatherError, Unit> printHottestCity() {
