@@ -7,7 +7,9 @@ package com.github.tonivade.diesel;
 import static com.github.tonivade.diesel.Combine.delayed;
 import static com.github.tonivade.diesel.Combine.ensuring;
 import static com.github.tonivade.diesel.Combine.pipe;
+import static com.github.tonivade.diesel.Program.failure;
 import static com.github.tonivade.diesel.Program.never;
+import static com.github.tonivade.diesel.Program.raise;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.task;
 import static java.util.Objects.requireNonNull;
@@ -101,6 +103,45 @@ class SupervisorTest {
   }
 
   @Test
+  void errorsOfSupervisedProgramsDontAffectTheSupervisorNorTheOtherPrograms() {
+    var failed = new AtomicReference<Fiber<String, Unit>>();
+    var errored = new AtomicReference<Fiber<String, Unit>>();
+    Program<Void, String, Unit> failing = failure("error");
+    Program<Void, String, Unit> throwing = raise(IllegalStateException::new);
+
+    // with await, the release waits for the failing programs, so they have finished when it ends
+    var program = Supervisor.<Void, String>make(true).use(
+        supervisor -> pipe(
+            supervisor.supervise(failing),
+            first -> pipe(task(() -> failed.set(first)), _ -> supervisor.supervise(throwing)),
+            second -> pipe(task(() -> errored.set(second)), _ -> supervisor.supervise(success(42))),
+            Fiber::join));
+
+    assertThat(program.evalOrElseThrow()).isEqualTo(42);
+    assertThat(requireNonNull(failed.get()).poll().evalOrElseThrow())
+        .isEqualTo(Optional.of(Outcome.failed("error")));
+    assertThat(requireNonNull(errored.get()).poll().evalOrElseThrow())
+        .hasValueSatisfying(outcome -> assertThat(outcome).isInstanceOfSatisfying(
+            Outcome.Errored.class, e -> assertThat(e.exception()).isInstanceOf(IllegalStateException.class)));
+  }
+
+  @Test
+  void releaseWithAwaitRunsInFullWhenTheProgramThatUsesTheSupervisorIsCancelled() {
+    var started = new CountDownLatch(1);
+    var done = new AtomicBoolean();
+    var work = pipe(task(started::countDown), _ -> delayed(Delay.ofMillis(200), task(() -> done.set(true))));
+
+    var program = pipe(
+        Supervisor.make(true).use(supervisor -> pipe(supervisor.supervise(work), _ -> never())).fork(),
+        user -> pipe(task(() -> await(started)), _ -> user.cancel()));
+
+    program.evalOrElseThrow();
+
+    // cancel waits until the cancelled program has stopped, release included
+    assertThat(done).isTrue();
+  }
+
+  @Test
   void superviseFailsAfterTheRelease() {
     var leaked = new AtomicReference<Supervisor>();
     Supervisor.make().use(supervisor -> task(() -> leaked.set(supervisor))).evalOrElseThrow();
@@ -142,6 +183,7 @@ class SupervisorTest {
       var cancelled = new AtomicInteger();
       var supervising = new AtomicReference<Thread>();
       var unexpected = new AtomicReference<Throwable>();
+      var firstAdmitted = new CountDownLatch(1);
       var work = Combine.onCancel(
           delayed(Delay.ofMillis(1), task(completed::incrementAndGet)),
           task(cancelled::incrementAndGet));
@@ -153,13 +195,19 @@ class SupervisorTest {
             while (true) {
               supervisor.supervise(work).evalOrElseThrow();
               admitted.incrementAndGet();
+              firstAdmitted.countDown();
             }
           } catch (SupervisorClosedException e) {
             // released: no more admissions
           } catch (Throwable e) {
             unexpected.set(e);
+          } finally {
+            // never leaves the release waiting, even if the first admission fails
+            firstAdmitted.countDown();
           }
         }));
+        // the release starts only once the loop is admitting programs
+        await(firstAdmitted);
       })).evalOrElseThrow();
       requireNonNull(supervising.get()).join();
 
