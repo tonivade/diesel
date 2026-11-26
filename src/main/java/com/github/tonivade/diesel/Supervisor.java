@@ -108,9 +108,10 @@ public final class Supervisor {
    * <p>The programs forked by the supervised program follow the rules of {@link Program#fork()}:
    * if the supervised program is cancelled, by its fiber or by the release of the supervisor, they
    * are cancelled too and the release waits for them; but if it finishes on its own, the ones still
-   * running are left running, and the supervisor doesn't cancel them or wait for them. To keep them
-   * under the supervisor, start them with {@code supervise} instead of {@code fork}, or join them
-   * before the supervised program finishes.
+   * running are left running, and the supervisor doesn't cancel them or wait for them. To keep
+   * them under control, fork them with a supervisor of its own, so they don't outlive the
+   * supervised program; with this supervisor, so they live as long as it; or join them before the
+   * supervised program finishes.
    *
    * @param program the program to run in the background
    * @param <S> the type of the state
