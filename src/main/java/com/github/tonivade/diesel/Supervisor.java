@@ -61,6 +61,16 @@ public final class Supervisor {
    * Creates a supervisor that, when released, waits for the programs still running if
    * {@code await} is true, or cancels them otherwise.
    *
+   * <p>With {@code await}, the release waits forever if a supervised program never finishes. The
+   * release always runs in full, even when the program that uses the supervisor is cancelled. So a
+   * supervisor with {@code await} created inside a program supervised by another one keeps its
+   * policy: cancelling the outer supervisor doesn't cancel its programs, and the outer release
+   * waits until they finish.
+   *
+   * <p>While the release waits, the supervisor is already closed: a supervised program that tries
+   * to start another one in the same supervisor, like a loop that keeps spawning work, fails with
+   * a {@link SupervisorClosedException}.
+   *
    * @param await whether the release waits for the supervised programs instead of cancelling them
    * @param <S> the type of the state
    * @param <E> the type of the error

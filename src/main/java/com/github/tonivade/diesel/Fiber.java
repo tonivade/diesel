@@ -27,7 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
- * A program running concurrently, started by {@link Program#fork()}.
+ * A program running concurrently, started by {@link Program#fork()} or
+ * {@link Supervisor#supervise(Program)}.
  *
  * <p>A fiber can be joined, to wait for its result, cancelled, or polled, to look at its result
  * without waiting.
