@@ -10,16 +10,20 @@ import static com.github.tonivade.diesel.Combine.pipe;
 import static com.github.tonivade.diesel.Program.never;
 import static com.github.tonivade.diesel.Program.success;
 import static com.github.tonivade.diesel.Program.task;
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Objects;
+import com.github.tonivade.diesel.Supervisor.SupervisorClosedException;
+
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
@@ -53,6 +57,18 @@ class SupervisorTest {
   }
 
   @Test
+  void pollReturnsCanceledWhenTheReleaseCancelsTheProgram() {
+    var started = new CountDownLatch(1);
+    var fiber = Supervisor.make().use(
+        supervisor -> pipe(
+            supervisor.supervise(pipe(task(started::countDown), _ -> never())),
+            running -> pipe(task(() -> await(started)), _ -> success(running))))
+        .evalOrElseThrow();
+
+    assertThat(fiber.poll().evalOrElseThrow()).isEqualTo(Optional.of(Outcome.canceled()));
+  }
+
+  @Test
   void releaseWaitsForTheRunningProgramsWithAwait() {
     var done = new AtomicBoolean();
     var running = delayed(Delay.ofMillis(200), task(() -> done.set(true)));
@@ -68,21 +84,20 @@ class SupervisorTest {
   @Test
   void aSupervisedProgramOutlivesTheCancelledProgramThatStartedIt() {
     var started = new CountDownLatch(1);
-    var stillRunning = new CountDownLatch(1);
-    var running = pipe(task(started::countDown), _ -> task(() -> await(stillRunning)));
+    var supervised = new AtomicReference<Fiber<Void, Unit>>();
+    Program<Void, Void, Unit> running = never();
 
-    var program = Supervisor.make(true).use(
+    var program = Supervisor.<Void, Void>make().use(
         supervisor -> pipe(
-            pipe(supervisor.supervise(running), _ -> never()).fork(),
+            pipe(
+                supervisor.supervise(running),
+                fiber -> pipe(task(() -> supervised.set(fiber)), _ -> task(started::countDown), _ -> never())).fork(),
             caller -> pipe(
                 task(() -> await(started)),
-                _ -> pipe(
-                    caller.cancel(),
-                    _ -> pipe(
-                        task(stillRunning::countDown),
-                        _ -> success(true))))));
+                _ -> caller.cancel(),
+                _ -> requireNonNull(supervised.get()).poll())));
 
-    assertThat(program.evalOrElseThrow()).isTrue();
+    assertThat(program.evalOrElseThrow()).isEmpty();
   }
 
   @Test
@@ -90,9 +105,9 @@ class SupervisorTest {
     var leaked = new AtomicReference<Supervisor>();
     Supervisor.make().use(supervisor -> task(() -> leaked.set(supervisor))).evalOrElseThrow();
 
-    var program = Objects.requireNonNull(leaked.get()).supervise(Program.unit());
+    var program = requireNonNull(leaked.get()).supervise(Program.unit());
 
-    assertThatThrownBy(program::evalOrElseThrow).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(program::evalOrElseThrow).isInstanceOf(SupervisorClosedException.class);
   }
 
   @Test
@@ -117,6 +132,42 @@ class SupervisorTest {
         supervisor -> pipe(supervisor.supervise(Program.unit(), rejecting), Fiber::join));
 
     assertThatThrownBy(program::evalOrElseThrow).isInstanceOf(RejectedExecutionException.class);
+  }
+
+  @Test
+  void releaseWithAwaitWaitsForEveryProgramAdmittedWhileItCloses() throws InterruptedException {
+    for (int i = 0; i < 200; i++) {
+      var admitted = new AtomicInteger();
+      var completed = new AtomicInteger();
+      var cancelled = new AtomicInteger();
+      var supervising = new AtomicReference<Thread>();
+      var unexpected = new AtomicReference<Throwable>();
+      var work = Combine.onCancel(
+          delayed(Delay.ofMillis(1), task(completed::incrementAndGet)),
+          task(cancelled::incrementAndGet));
+
+      Supervisor.make(true).use(supervisor -> task(() -> {
+        // supervises from another thread until the release rejects it, racing with the release
+        supervising.set(Thread.ofPlatform().start(() -> {
+          try {
+            while (true) {
+              supervisor.supervise(work).evalOrElseThrow();
+              admitted.incrementAndGet();
+            }
+          } catch (SupervisorClosedException e) {
+            // released: no more admissions
+          } catch (Throwable e) {
+            unexpected.set(e);
+          }
+        }));
+      })).evalOrElseThrow();
+      requireNonNull(supervising.get()).join();
+
+      assertThat(unexpected).as("unexpected error in iteration %s", i).hasNullValue();
+
+      assertThat(cancelled).as("cancelled in iteration %s", i).hasValue(0);
+      assertThat(completed).as("completed in iteration %s", i).hasValue(admitted.get());
+    }
   }
 
   private static void await(CountDownLatch latch) {
