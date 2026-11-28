@@ -41,6 +41,13 @@ final class CancelToken {
 
   private CancelToken() {}
 
+  /**
+   * Creates a token that isn't a child of any other, cancelled only when it's cancelled itself.
+   */
+  static CancelToken newRoot() {
+    return new CancelToken();
+  }
+
   static CancelToken current() {
     return CURRENT.orElse(NONE);
   }

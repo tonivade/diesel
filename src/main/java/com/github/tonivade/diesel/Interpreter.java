@@ -397,7 +397,7 @@ final class Interpreter {
    * like {@code parZip}, see a failed program and cancel the ones they already started. A fatal
    * error is thrown too, see {@link Fatal}.
    */
-  private static <S, E, T> CancelableFuture<Result<E, T>> startFork(
+  static <S, E, T> CancelableFuture<Result<E, T>> startFork(
       @Nullable S state, CancelToken parent, Program<S, E, T> program, Executor executor) {
     var token = parent.newChild();
     var future = new CancelableFuture<Result<E, T>>(token);
